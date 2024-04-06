@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: MCHammer
+Version: 2024.2.29.0
+Maintainer-email: Andrew Tarzia <andrew.tarzia@gmail.com>
+Project-URL: github, https://github.com/andrewtarzia/MCHammer
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: networkx
+Requires-Dist: numpy
+Provides-Extra: dev
+Requires-Dist: ruff ; extra == 'dev'
+Requires-Dist: mypy ; extra == 'dev'
+Requires-Dist: pip-tools ; extra == 'dev'
+Requires-Dist: pytest <8 ; extra == 'dev'
+Requires-Dist: pytest-datadir ; extra == 'dev'
+Requires-Dist: pytest-lazy-fixture ; extra == 'dev'
+Requires-Dist: pytest-cov ; extra == 'dev'
+Requires-Dist: sphinx ; extra == 'dev'
+Requires-Dist: sphinx-copybutton ; extra == 'dev'
+Requires-Dist: twine ; extra == 'dev'
+Requires-Dist: sphinx-rtd-theme ; extra == 'dev'
+Requires-Dist: stk ; extra == 'dev'
+
