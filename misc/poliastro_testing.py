@@ -7,12 +7,9 @@ from poliastro.twobody import Orbit
 from astropy import units as u
 import numpy as np
 import matplotlib.pyplot as plt
-# Need 3.7 version! pip install matplotlib==3.7
+import io
+import imageio
 from mpl_toolkits.mplot3d import Axes3D
-from poliastro.plotting import OrbitPlotter3D
-
-# pio.renderers.default = "plotly_mimetype+notebook_connected"
-
 
 # Create a satellite orbit using poliastro
 def satellite_orbit(a, ecc, inc, raan, argp, nu):
@@ -56,6 +53,11 @@ def plot_orbit(orbit):
     plt.title('Satellite Orbit Visualization')
     plt.show()
 
+def render_gif(imgs, file, frame_duration=0.25):
+    with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
+        for img in imgs:
+            writer.append_data(img)
+
 # Example usage
 if __name__ == "__main__":
     # Define orbital elements (example values)
@@ -69,39 +71,55 @@ if __name__ == "__main__":
     # Calculate satellite's orbit
     orb = satellite_orbit(semi_major_axis, eccentricity, inclination, raan, arg_perigee, true_anomaly)
 
-    # Print the orbital elements
-    # print("Semi-major Axis:", orb.a)
-    # print("Eccentricity:", orb.ecc)
-    # print("Inclination (degrees):", orb.inc.to(u.deg))
-    # print("RAAN (degrees):", orb.raan.to(u.deg))
-    # print("Argument of Perigee (degrees):", orb.argp.to(u.deg))
-    # print("True Anomaly (degrees):", orb.nu.to(u.deg))
-    # print("Period:", orb.period.to(u.day))
-    print("Epoch:", orb.epoch)
-
-    # Now try propagating the orbit
-    # Define a time, just a scalar value for time of flight
-    time_of_flight = 2 * u.day
-    # Propagate the orbit
-    orb_propagated = orb.propagate(time_of_flight)
-    print("Epoch:", orb_propagated.epoch)
-
-    # Visualize the orbit
-    plot_orbit(orb)
-    # plot_orbit(orb_propagated)
-
     # Now try and get a simulation of the orbit
     # Define a time range
-    time_range = np.linspace(0 * u.day, 2 * u.day, num=10)
+    time_range = np.linspace(0 * u.day, 1/50 * u.day, num=50)
 
-    # Propagate the orbit over the time range
-    orb_simulated = [orb.propagate(t) for t in time_range]
+    # Propagate the orbit over the time range, saving the img plots
+    imgs = []
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
 
-    # Create the OrbitPlotter3D object
-    plotter = OrbitPlotter3D()
+    # Plot Earth
+    u = np.linspace(0, 2 * np.pi, 100)
+    v = np.linspace(0, np.pi, 100)
+    x_earth = 6378 * np.outer(np.cos(u), np.sin(v))
+    y_earth = 6378 * np.outer(np.sin(u), np.sin(v))
+    z_earth = 6378 * np.outer(np.ones(np.size(u)), np.cos(v))
+    # ax.plot_surface(x, y, z, color='b', alpha=0.1)
+    plt.xlabel('X (km)')
+    plt.ylabel('Y (km)')
+    plt.title('Satellite Orbit Visualization')
+    for i, time in enumerate(time_range):
+        orb_propagated = orb.propagate(time)
 
-    # Plot the orbit
-    plotter.plot(orb)
+        # Extract the XYZ coordinates of the orbit
+        x, y, z = orb_propagated.r.value
+        
+        # Clear the previous scatter point
+        ax.cla()
+        
+        # Plot Earth
+        ax.plot_surface(x_earth, y_earth, z_earth, color='b', alpha=0.1)
+        
+        # Plot the current position of the satellite
+        ax.scatter(x, y, z, s=40, label='Satellite Orbit')
 
-    # Show the plot
-    # plotter.show()
+        # Annotate with the current time
+        ax.text(x, y, z, f"Time: {time_range[i]:.2f}", color='red')
+
+        plt.legend()
+        plt.pause(0.1)  # Pause to display the plot
+        plt.draw()  # Update the plot
+
+        ios = io.BytesIO()
+        fig.savefig(ios, format='raw')  # RGBA
+        ios.seek(0)
+        w, h = fig.canvas.get_width_height()
+        img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
+        imgs.append(img)
+
+    plt.show()
+
+    # Save the images as a GIF
+    render_gif(imgs, 'satellite_orbit.gif', frame_duration=0.10)
