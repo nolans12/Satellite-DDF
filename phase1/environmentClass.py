@@ -30,7 +30,7 @@ class environment:
         self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
 
         # filePath = os.path.dirname(os.path.realpath(__file__))
-        # bm = PIL.Image.open(filePath + '/extra/countries.jpg')
+        # bm = PIL.Image.open(filePath + '/extra/blue_marble.jpg')
         # self.bm = np.array(bm.resize([int(d/5) for d in bm.size]))/256.
         # lons = np.linspace(-180, 180, self.bm.shape[1]) * np.pi/180 
         # lats = np.linspace(-90, 90, self.bm.shape[0])[::-1] * np.pi/180 
