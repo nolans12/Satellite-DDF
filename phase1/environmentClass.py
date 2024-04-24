@@ -2,9 +2,15 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment: 
-    def __init__(self, sats):
+    def __init__(self, sats, targs, estimator):
     # Define the satellites
         self.sats = sats
+
+    # Define the targets
+        self.targs = targs
+
+    # Define the estimator
+        self.estimator = estimator
 
     # Time parameter, initalize to 0
         self.time = 0
@@ -55,7 +61,7 @@ class environment:
         # Put text of current time in top left corner
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
 
-        # Plot Earth
+    # Plot Earth
         self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
         # self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, rstride = 4, cstride = 4, facecolors=self.bm, alpha=0.1)
     
@@ -76,48 +82,67 @@ class environment:
                 x, y, z = np.array(sat.orbitHist).T
             self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
+
+    # FOR EACH TARGET, PLOTS
+        for targ in self.targs:
+        # Plot the current xyz location of the target
+            x, y, z = targ.x
+            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
+            
         self.ax.legend()
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
         
-        # # Propagate the targets position
-        # for targs in self.targs:
+    # Update the current time
+        self.time += time_step
 
-        #     targs.pos = targs.propagate(time_step) # xyz after time_step
+        time_val = self.time.to_value(self.time.unit)
+        # Update the time in targs, sats, and estimator
+        for targ in self.targs:
+            targ.time = time_val
+        for sat in self.sats:
+            sat.time = time_val
+        self.estimator.time = time_val
 
-        #     targs.posHist.append(targs.pos) # history of target xyz position
+    # Propagate the targets position
+        for targ in self.targs:
+
+            # Propagate the target
+            targ.x = targ.propagate(time_step)
+
+            # Update the history of the target
+            targ.hist.append([targ.x, targ.time]) # history of target xyz position
         
-        # Propagate the satellites
+    # Propagate the satellites
         for sat in self.sats:
             
             # Propagate the orbit
             sat.orbit = sat.orbit.propagate(time_step)
             
             # Update the satellites xyz projection
-            sat.projBox = self.visible_projection(sat)
+            sat.projBox = sat.visible_projection()
 
             # Update the history of the orbit
             sat.orbitHist.append(sat.orbit.r.value)
-
-            # Function to see if can detect the target:
-            # sat.targEstimation 
-
-        # Update the current time
-        self.time += time_step
+            sat.fullHist.append([sat.orbit.r.value, sat.time])
 
 # Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!
     # Pause step is the time to pause between each step, if displaying as animation
     # Display is a boolean, if true will display the plot as an animation
     def simulate(self, time_vec, pause_step = 0.1, display = False):
+        
         # Initalize based on the current time
         time_vec = time_vec + self.time
         for t_net in time_vec:
             t_d = t_net - self.time # Get delta time to propagate, works because propagate func increases time
         
-        # Propagate the satellites and environment
+        # Propagate the satellites and environments position
             self.propagate(t_d)
+
+        # Do estimatino, this updates each satellites raw estimate of the targs, if they see it
+            self.estimator.estimate_raw()
 
         # Update the plot environment
             self.plot()
@@ -130,43 +155,25 @@ class environment:
                 plt.pause(pause_step) 
                 plt.draw()
 
-# Calculate the visible projection of the satellite
-    # Takes in a satellite object
-    # Returns the 4 points of xyz intersection with the earth that approximately define the visible projection
-    def visible_projection(self, sat):
+        # Save the data for each satellite to a csv file
+        self.log_data()
 
-    # Need the 4 points of intersection with the earth
-        # Get the current xyz position of the satellite
-        x, y, z = sat.orbit.r.value
-
-        # Get the altitude above earth of the satellite
-        alt = np.linalg.norm([x, y, z]) - self.earth_r
-
-        # Now calculate the magnitude of fov onto earth
-        wideMag = np.tan(np.radians(sat.fovWide)/2) * alt
-        narrowMag = np.tan(np.radians(sat.fovNarrow)/2) * alt
-
-        # Then vertices of the fov box onto the earth is xyz projection +- magnitudes
-        # Get the pointing vector of the satellite
-        point_vec = np.array([x, y, z])/np.linalg.norm([x, y, z])
-        
-        # Now get the projection onto earth of center of fov box
-        center_proj = np.array([x - point_vec[0] * alt, y - point_vec[1] * alt, z - point_vec[2] * alt])
-
-        # Now get the 4 xyz points that define the fov box
-        # Define vectors representing the edges of the FOV box
-        wide_vec = np.cross(point_vec, [0, 0, 1])/np.linalg.norm(np.cross(point_vec, [0, 0, 1]))
-        narrow_vec = np.cross(point_vec, wide_vec)/np.linalg.norm(np.cross(point_vec, wide_vec))
-
-        # Calculate the four corners of the FOV box
-        corner1 = center_proj + wide_vec * wideMag + narrow_vec * narrowMag
-        corner2 = center_proj + wide_vec * wideMag - narrow_vec * narrowMag
-        corner3 = center_proj - wide_vec * wideMag - narrow_vec * narrowMag
-        corner4 = center_proj - wide_vec * wideMag + narrow_vec * narrowMag
-
-        box = np.array([corner1, corner2, corner3, corner4])
-
-        return box
+# Saves all satellite estimates to a csv file
+    def log_data(self):
+        # Make the file, current directory /data/satellite_name.csv
+        filePath = os.path.dirname(os.path.realpath(__file__))
+        for sat in self.sats:
+            with open(filePath + '/data/' + sat.name + '.csv', mode='w') as file:
+                writer = csv.writer(file)
+                writer.writerow([sat.name + " Raw Estimation History"])
+                writer.writerow(["Data Order is: X Estimate, Y Estimate, Z Estimate, Time"])
+            # Make string header:
+                header = []
+                for targ in self.targs:
+                    header.append(targ.name + " Estimates")
+                writer.writerow(header)
+                for i in sat.estimateHist:
+                    writer.writerow(i)
 
 # Convert images to a gif
     # Save in the img struct
