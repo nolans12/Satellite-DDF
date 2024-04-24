@@ -15,40 +15,31 @@ class environment:
         self.ax.set_xlim([-8000, 8000])
         self.ax.set_ylim([-8000, 8000])
         self.ax.set_zlim([-8000, 8000])
-        plt.xlabel('X (km)')
-        plt.ylabel('Y (km)')
-        plt.title('Satellite Orbit Visualization')
+        self.ax.set_xlabel('X (km)')
+        self.ax.set_ylabel('Y (km)')
+        self.ax.set_zlabel('Z (km)')
+        self.ax.set_title('Satellite Orbit Visualization')
         
         # All earth parameters for plotting
         u = np.linspace(0, 2 * np.pi, 100)
         v = np.linspace(0, np.pi, 100)
-        self.x_earth = 6378 * np.outer(np.cos(u), np.sin(v))
-        self.y_earth = 6378 * np.outer(np.sin(u), np.sin(v))
-        self.z_earth = 6378 * np.outer(np.ones(np.size(u)), np.cos(v))
+        self.earth_r = 6378.0
+        self.x_earth = self.earth_r * np.outer(np.cos(u), np.sin(v))
+        self.y_earth = self.earth_r * np.outer(np.sin(u), np.sin(v))
+        self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
 
     # Empty images list to later make a gif of the simulation
         self.imgs = []
 
-# Propagate the satellites over the time step  
-    def propagate(self, time_step):
-        for sat in self.sats:
-            # Propagate the orbit
-            sat.orbit = sat.orbit.propagate(time_step)
-            # Update the history of the orbit
-            sat.orbitHist.append(sat.orbit.r.value)
-        
-
-        # Update the current time
-        self.time += time_step
-        # print(f"Time: {self.time}")
-
 # Plot the current state of the environment
     def plot(self):
         # Reset plot
-        self.ax.clear()
-        self.ax.set_xlim([-8000, 8000])
-        self.ax.set_ylim([-8000, 8000])
-        self.ax.set_zlim([-8000, 8000])
+        for line in self.ax.lines:
+            line.remove()
+        for collection in self.ax.collections:
+            collection.remove()
+        for text in self.ax.texts:
+            text.remove()
 
         # Put text of current time in top left corner
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
@@ -56,23 +47,43 @@ class environment:
         # Plot Earth
         self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='k', alpha=0.1)
     
-        # Plot each satellite's current position
+    # FOR EACH SATELLITE, PLOTS
         for sat in self.sats:
+        # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
             self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
 
-        # Plot the orbit history of each satellite
-        for sat in self.sats:
-            # But only plot up to the last 10 points
+        # Plot the visible projection of the satellite
+            box = sat.projBox
+            box = np.vstack((box, box[0])) # Close the box
+            self.ax.plot(box[:, 0], box[:, 1], box[:, 2], color = sat.color)
+
+        # Plot the trail of the satellite, but only up to last 10 points
             if len(sat.orbitHist) > 10:
                 x, y, z = np.array(sat.orbitHist[-10:]).T
             else:
                 x, y, z = np.array(sat.orbitHist).T
             self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
-        plt.legend()
+        self.ax.legend()
 
-# Animate the environment over a time range
+# Propagate the satellites over the time step  
+    def propagate(self, time_step):
+        for sat in self.sats:
+            
+            # Propagate the orbit
+            sat.orbit = sat.orbit.propagate(time_step)
+            
+            # Update the satellites xyz projection
+            sat.projBox = self.visible_projection(sat)
+
+            # Update the history of the orbit
+            sat.orbitHist.append(sat.orbit.r.value)
+
+        # Update the current time
+        self.time += time_step
+
+# Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!
     # Pause step is the time to pause between each step, if displaying as animation
     # Display is a boolean, if true will display the plot as an animation
@@ -92,13 +103,48 @@ class environment:
             self.convert_imgs()
 
             if display:
-            # Simulate the plot
+            # Display the plot in a animation
                 plt.pause(pause_step) 
                 plt.draw()
 
-        # display the sat history
-        # print("Satellite 1 History: ", self.sats[0].orbitHist)
+
+# Calculate the visible projection of the satellite
+    # Takes in a satellite object
+    # Returns the 4 points of xyz intersection with the earth that approximately define the visible projection
+    def visible_projection(self, sat):
+
+    # Need the 4 points of intersection with the earth
+        # Get the current xyz position of the satellite
+        x, y, z = sat.orbit.r.value
+
+        # Get the altitude above earth of the satellite
+        alt = np.linalg.norm([x, y, z]) - self.earth_r
+
+        # Now calculate the magnitude of fov onto earth
+        wideMag = np.tan(np.radians(sat.fovWide)/2) * alt
+        narrowMag = np.tan(np.radians(sat.fovNarrow)/2) * alt
+
+        # Then vertices of the fov box onto the earth is xyz projection +- magnitudes
+        # Get the pointing vector of the satellite
+        point_vec = np.array([x, y, z])/np.linalg.norm([x, y, z])
         
+        # Now get the projection onto earth of center of fov box
+        center_proj = np.array([x - point_vec[0] * alt, y - point_vec[1] * alt, z - point_vec[2] * alt])
+
+        # Now get the 4 xyz points that define the fov box
+        # Define vectors representing the edges of the FOV box
+        wide_vec = np.cross(point_vec, [0, 0, 1])/np.linalg.norm(np.cross(point_vec, [0, 0, 1]))
+        narrow_vec = np.cross(point_vec, wide_vec)/np.linalg.norm(np.cross(point_vec, wide_vec))
+
+        # Calculate the four corners of the FOV box
+        corner1 = center_proj + wide_vec * wideMag + narrow_vec * narrowMag
+        corner2 = center_proj + wide_vec * wideMag - narrow_vec * narrowMag
+        corner3 = center_proj - wide_vec * wideMag - narrow_vec * narrowMag
+        corner4 = center_proj - wide_vec * wideMag + narrow_vec * narrowMag
+
+        box = np.array([corner1, corner2, corner3, corner4])
+
+        return box
 
 # Convert images to a gif
     # Save in the img struct
@@ -113,7 +159,8 @@ class environment:
 # Render the gif, saving it to a file
     # File is the name of the file to save the gif to
     # Frame duration is the time between each frame in the gif (in ms???)
-    def render_gif(self, fileName = '/satellite_orbit.gif', filePath = os.path.dirname(os.path.realpath(__file__)), frame_duration=50):
+    def render_gif(self, fileName = '/satellite_orbit.gif', filePath = os.path.dirname(os.path.realpath(__file__)), fps = 10):
+        frame_duration = 1000/fps  # in ms
         file = os.path.join(filePath, fileName)
         with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
             for img in self.imgs:

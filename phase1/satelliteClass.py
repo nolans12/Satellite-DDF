@@ -2,9 +2,9 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, fov, sensorDetectError, sensorError, name, color):
-    # Define orbital elements for poliastro orbit
-
+    def __init__(self, a, ecc, inc, raan, argp, nu, fovNarrow, fovWide, sensorDetectError, sensorError, name, color):
+    
+    # Create the orbit
         # Check if already in units, if not convert
         if type(a) == int:
             a = a * u.km
@@ -34,8 +34,12 @@ class satellite:
         self.orbit = Orbit.from_classical(Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu)
         self.orbitHist = [];
 
+    # Initalize the projection xyz
+        self.projBox = np.array([0, 0, 0])
+
     # Define sensor settings
-        self.fov = fov
+        self.fovNarrow = fovNarrow
+        self.fovWide = fovWide
         self.sensorDetectError = sensorDetectError
         self.sensorError = sensorError
 
