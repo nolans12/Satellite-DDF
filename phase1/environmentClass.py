@@ -80,6 +80,15 @@ class environment:
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
+        
+        # # Propagate the targets position
+        # for targs in self.targs:
+
+        #     targs.pos = targs.propagate(time_step) # xyz after time_step
+
+        #     targs.posHist.append(targs.pos) # history of target xyz position
+        
+        # Propagate the satellites
         for sat in self.sats:
             
             # Propagate the orbit
@@ -90,6 +99,9 @@ class environment:
 
             # Update the history of the orbit
             sat.orbitHist.append(sat.orbit.r.value)
+
+            # Function to see if can detect the target:
+            # sat.targEstimation 
 
         # Update the current time
         self.time += time_step
