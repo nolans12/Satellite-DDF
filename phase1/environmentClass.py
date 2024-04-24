@@ -32,8 +32,12 @@ class environment:
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
         for sat in self.sats:
+            # Propagate the orbit
             sat.orbit = sat.orbit.propagate(time_step)
+            # Update the history of the orbit
+            sat.orbitHist.append(sat.orbit.r.value)
         
+
         # Update the current time
         self.time += time_step
         # print(f"Time: {self.time}")
@@ -50,12 +54,21 @@ class environment:
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
 
         # Plot Earth
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='b', alpha=0.1)
+        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='k', alpha=0.1)
     
         # Plot each satellite's current position
         for sat in self.sats:
             x, y, z = sat.orbit.r.value
             self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+
+        # Plot the orbit history of each satellite
+        for sat in self.sats:
+            # But only plot up to the last 10 points
+            if len(sat.orbitHist) > 10:
+                x, y, z = np.array(sat.orbitHist[-10:]).T
+            else:
+                x, y, z = np.array(sat.orbitHist).T
+            self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
         plt.legend()
 
@@ -82,6 +95,10 @@ class environment:
             # Simulate the plot
                 plt.pause(pause_step) 
                 plt.draw()
+
+        # display the sat history
+        # print("Satellite 1 History: ", self.sats[0].orbitHist)
+        
 
 # Convert images to a gif
     # Save in the img struct
