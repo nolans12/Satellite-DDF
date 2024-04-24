@@ -15,18 +15,29 @@ class environment:
         self.ax.set_xlim([-8000, 8000])
         self.ax.set_ylim([-8000, 8000])
         self.ax.set_zlim([-8000, 8000])
+        self.ax.set_box_aspect([1,1,1])
         self.ax.set_xlabel('X (km)')
         self.ax.set_ylabel('Y (km)')
         self.ax.set_zlabel('Z (km)')
         self.ax.set_title('Satellite Orbit Visualization')
         
-        # All earth parameters for plotting
+    # All earth parameters for plotting
         u = np.linspace(0, 2 * np.pi, 100)
         v = np.linspace(0, np.pi, 100)
         self.earth_r = 6378.0
         self.x_earth = self.earth_r * np.outer(np.cos(u), np.sin(v))
         self.y_earth = self.earth_r * np.outer(np.sin(u), np.sin(v))
         self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
+
+        # filePath = os.path.dirname(os.path.realpath(__file__))
+        # bm = PIL.Image.open(filePath + '/extra/countries.jpg')
+        # self.bm = np.array(bm.resize([int(d/5) for d in bm.size]))/256.
+        # lons = np.linspace(-180, 180, self.bm.shape[1]) * np.pi/180 
+        # lats = np.linspace(-90, 90, self.bm.shape[0])[::-1] * np.pi/180 
+        # self.earth_r = 6378.0
+        # self.x_earth = np.outer(np.cos(lons), np.cos(lats)).T*self.earth_r
+        # self.y_earth = np.outer(np.sin(lons), np.cos(lats)).T*self.earth_r
+        # self.z_earth = np.outer(np.ones(np.size(lons)), np.sin(lats)).T*self.earth_r
 
     # Empty images list to later make a gif of the simulation
         self.imgs = []
@@ -45,7 +56,8 @@ class environment:
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
 
         # Plot Earth
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='k', alpha=0.1)
+        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
+        # self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, rstride = 4, cstride = 4, facecolors=self.bm, alpha=0.1)
     
     # FOR EACH SATELLITE, PLOTS
         for sat in self.sats:
@@ -55,8 +67,7 @@ class environment:
 
         # Plot the visible projection of the satellite
             box = sat.projBox
-            box = np.vstack((box, box[0])) # Close the box
-            self.ax.plot(box[:, 0], box[:, 1], box[:, 2], color = sat.color)
+            self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Plot the trail of the satellite, but only up to last 10 points
             if len(sat.orbitHist) > 10:
@@ -106,7 +117,6 @@ class environment:
             # Display the plot in a animation
                 plt.pause(pause_step) 
                 plt.draw()
-
 
 # Calculate the visible projection of the satellite
     # Takes in a satellite object

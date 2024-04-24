@@ -1,54 +1,55 @@
-# This is one way I’ve done animated GIFs with matplotlib. May not be the best or only way, but it worked at the time…
- 
-# Let `fig` be a matplotlib Figure. Then you can use this snippet to convert it to an RGBA numpy array:
- 
-# ```python
-# # https://stackoverflow.com/a/61443397
-# ios = io.BytesIO()
-# fig.savefig(ios, format='raw') # RGBA
-# ios.seek(0)
-# w, h = fig.canvas.get_width_height()
-# return np.reshape(np.frombuffer(
-#     ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:,:,0:4]
-# ```
- 
-# You can then create a list `imgs` of RGBA numpy arrays and create an animated GIF `file` with:
- 
-# ```python
-# def render_gif(imgs, file, frame_duration=0.25):
-#     with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
-#         for img in imgs: writer.append_data(img)
-# ```
+# import PIL
+# import matplotlib.pyplot as plt
+# import numpy as np
+# from mpl_toolkits.mplot3d import Axes3D
+# import os
 
+# # load bluemarble with PIL
+# filePath = os.path.dirname(os.path.realpath(__file__))
+# bm = PIL.Image.open(filePath + '/blue_marble.jpg')
+# # it's big, so I'll rescale it, convert to array, and divide by 256 to get RGB values that matplotlib accept 
+# # bm = np.array(bm.resize([d/5 for d in bm.size]))/256.
+
+
+# # repeat code from one of the examples linked to in the question, except for specifying facecolors:
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+
+# u = np.linspace(0, 2 * np.pi, 100)
+# v = np.linspace(0, np.pi, 100)
+# earth_r = 6378.0
+# x = earth_r * np.outer(np.cos(u), np.sin(v))
+# y = earth_r * np.outer(np.sin(u), np.sin(v))
+# z = earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
+
+# ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors = bm)
+
+# plt.show()
+
+import PIL
 import matplotlib.pyplot as plt
 import numpy as np
-import io
-import imageio
+from mpl_toolkits.mplot3d import Axes3D
+import os
 
-def render_gif(imgs, file, frame_duration=0.25):
-    with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
-        for img in imgs:
-            writer.append_data(img)
+# load bluemarble with PIL
+filePath = os.path.dirname(os.path.realpath(__file__))
+bm = PIL.Image.open(filePath + '/blue_marble.jpg')
+# it's big, so I'll rescale it, convert to array, and divide by 256 to get RGB values that matplotlib accept 
+bm = np.array(bm.resize([int(d/5) for d in bm.size]))/256.
 
-if __name__ == "__main__":
-    fig = plt.figure()
+# coordinates of the image - don't know if this is entirely accurate, but probably close
+lons = np.linspace(-180, 180, bm.shape[1]) * np.pi/180 
+lats = np.linspace(-90, 90, bm.shape[0])[::-1] * np.pi/180 
 
-    # Create a list to hold the generated images
-    imgs = []
+# repeat code from one of the examples linked to in the question, except for specifying facecolors:
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
-    # Create a simple animation by updating the plot over time
-    frames = 100
-    for i in range(frames):
-        plt.clf()  # Clear the previous plot
-        x = np.linspace(0, 2*np.pi, 100)
-        y = np.sin(x + i * 0.1)  # Vary the phase of the sine wave
-        plt.plot(x, y)
-        ios = io.BytesIO()
-        fig.savefig(ios, format='raw')  # RGBA
-        ios.seek(0)
-        w, h = fig.canvas.get_width_height()
-        img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
-        imgs.append(img)
+earth_r = 6378.0
+x = np.outer(np.cos(lons), np.cos(lats)).T*earth_r
+y = np.outer(np.sin(lons), np.cos(lats)).T*earth_r
+z = np.outer(np.ones(np.size(lons)), np.sin(lats)).T*earth_r
+ax.plot_surface(x, y, z, rstride=4, cstride=4, facecolors = bm)
 
-    # Render the animation as a GIF
-    render_gif(imgs, 'animation.gif', frame_duration=0.1)
+plt.show()
