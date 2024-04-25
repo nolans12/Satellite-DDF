@@ -26,9 +26,9 @@ class estimator:
                     x_targ = x_targ + np.random.normal(0, sat.sensorError)
                     y_targ = y_targ + np.random.normal(0, sat.sensorError)
                     z_targ = z_targ + np.random.normal(0, sat.sensorError)
-                    
+
                     self.rawEstimation[s][t] = [x_targ, y_targ, z_targ, self.time]
-                    print("In view")
+                    print(sat.name, "views", targ.name)
 
                 else:
                     self.rawEstimation[s][t] = [0, 0, 0, self.time]

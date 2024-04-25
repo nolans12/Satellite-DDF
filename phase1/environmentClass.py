@@ -183,6 +183,7 @@ class environment:
 
         # Create empty array for each target to store estimates:
         targ_est = []
+        display = False
 
         # Now, loop through time, and for each time, plot the estimates of each satellite
         for t in time:
@@ -202,7 +203,7 @@ class environment:
             plt.legend()
 
              # Initialize an empty array to store estimates for each target at this time step
-            current_estimates = np.zeros((len(self.targs), 2))
+            current_estimates = np.ones((len(self.targs), 2))*9999999
 
             for sat in self.sats:
                 # Get the estimates of the satellite at the time
@@ -219,17 +220,19 @@ class environment:
                             # Append the current estimates to targ_est
                                 targ_est.append(current_estimates.copy())
 
-                            # Plot the estimate
-                                plt.scatter(x, y, s = 20, color = sat.color, marker='x')
+                                display = True
 
                         # For the given target, plot the estimate in dashed plot
                             targ_data = [arr[i, :] for arr in targ_est]
-                            x = [point[0] for point in targ_data]
-                            y = [point[1] for point in targ_data]   
-                            plt.scatter(x, y, s = 10, color = targ.color)
+                            x_tot = [point[0] for point in targ_data]
+                            y_tot = [point[1] for point in targ_data]   
+                            plt.scatter(x_tot, y_tot, s = 10, color = targ.color)
+                            
+                            if display:
+                            # Plot the estimate
+                                plt.scatter(x, y, s = 40, color = sat.color, marker='x')
+                                display = False
                         
-
-
             plt.pause(pause_step) 
             plt.draw()
             
