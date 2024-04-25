@@ -85,7 +85,7 @@ class environment:
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
         # Plot the current xyz location of the target
-            x, y, z = targ.x
+            x, y, z = targ.pos
             self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
             
         self.ax.legend()
@@ -108,7 +108,7 @@ class environment:
         for targ in self.targs:
 
             # Propagate the target
-            targ.x = targ.propagate(time_step)
+            targ.x = targ.propagate(time_step, self.time)
 
             # Update the history of the target
             targ.hist.append([targ.x, targ.time]) # history of target xyz position
