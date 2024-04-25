@@ -19,14 +19,12 @@ if __name__ == "__main__":
     targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), color = 'k')
     targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel=np.array([0, 4000, 0]), color = 'y')
 
-    
-
 # Create an estimator instance with the satellites and targets
     est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
 
 # Create an environment instance 
     env = environment([sat1, sat2, sat3, sat4], [targ1, targ2], est)
-
+    
 # Simulate the satellites through a vector of time
     time_vec = np.linspace(0, 50, 51) * u.minute
     env.simulate(time_vec, display = True)

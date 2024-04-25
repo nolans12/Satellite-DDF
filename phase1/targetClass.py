@@ -52,6 +52,4 @@ class target:
         # print("theta", self.theta)
         # print("phi", self.phi)
         
-        
-        
         return self.pos
