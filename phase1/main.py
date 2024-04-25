@@ -26,7 +26,7 @@ if __name__ == "__main__":
     env = environment([sat1, sat2, sat3, sat4], [targ1, targ2], est)
 
 # Simulate the satellites through a vector of time
-    time_vec = np.linspace(0, 50, 26) * u.minute
+    time_vec = np.linspace(0, 50, 51) * u.minute
     env.simulate(time_vec, display = True)
 
 # Save the gif

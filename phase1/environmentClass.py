@@ -82,7 +82,6 @@ class environment:
                 x, y, z = np.array(sat.orbitHist).T
             self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
-
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
         # Plot the current xyz location of the target
