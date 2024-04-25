@@ -24,6 +24,8 @@ class estimator:
                 if self.in_fov(sat, targ):
     # Will implement error here later
                     self.rawEstimation[s][t] = [x_targ, y_targ, z_targ, self.time]
+                    print("In view")
+
                 else:
                     self.rawEstimation[s][t] = [0, 0, 0, self.time]
 

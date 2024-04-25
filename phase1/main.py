@@ -16,8 +16,10 @@ if __name__ == "__main__":
     sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -90, nu = 0, fovNarrow = 50, fovWide = 50, sensorDetectError = 0.1, sensorError = 0.1, color='m')
 
 # Define some targets
-    targ1 = target(name = 'Targ 1', speed = 5, x0 = np.array([1, -1, 1])/np.linalg.norm(np.array([1, -1, 1])) * 6378.0, color = 'k')
-    targ2 = target(name = 'Targ 2', speed = 5, x0 = np.array([1, -1.05, 1])/np.linalg.norm(np.array([1, 1, 1])) * 6378.0, color = 'y')
+    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), color = 'k')
+    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel=np.array([0, 4000, 0]), color = 'y')
+
+    
 
 # Create an estimator instance with the satellites and targets
     est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
