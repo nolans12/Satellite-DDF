@@ -140,7 +140,7 @@ class environment:
         # Propagate the satellites and environments position
             self.propagate(t_d)
 
-        # Do estimatino, this updates each satellites raw estimate of the targs, if they see it
+        # Do estimation, this updates each satellites raw estimate of the targs, if they see it
             self.estimator.estimate_raw()
 
         # Update the plot environment
@@ -174,6 +174,65 @@ class environment:
                 for i in sat.estimateHist:
                     writer.writerow(i)
 
+# Plot the results of the simulation, loop through all satellites and plot on a xy the estimates for each target over time
+# This function is horrible, but just a quick way to demo results. 
+# NEED to clean up, and have better way/structure to store estimates
+    def plotResults(self, pause_step = 0.1):
+        # Grab the time values, just use one of the sats
+        time = np.array(self.sats[0].estimateHist)[:, 0][:, 3] # Assumes at least 1 sat 1 targ
+
+        # Create empty array for each target to store estimates:
+        targ_est = []
+
+        # Now, loop through time, and for each time, plot the estimates of each satellite
+        for t in time:
+            # Clear the plot
+            plt.clf()
+            plt.xlim([-300, 300])
+            plt.ylim([-300, 300])
+            plt.xlabel('X (km)')
+            plt.ylabel('Y (km)')
+            plt.title(f"Satellite Data Collection at Time: {t:.2f}")
+
+            # Make a scatter plot for each satellite, and label the color with legend, just so we can see the estimates
+            for sat in self.sats:
+                plt.scatter(-9999999, -9999999, s = 20, color = sat.color, label=sat.name)
+            for targ in self.targs:
+                plt.scatter(-9999999, -9999999, s = 20, color = targ.color, label=targ.name)
+            plt.legend()
+
+             # Initialize an empty array to store estimates for each target at this time step
+            current_estimates = np.zeros((len(self.targs), 2))
+
+            for sat in self.sats:
+                # Get the estimates of the satellite at the time
+                estimates = sat.estimateHist
+                for est in estimates:
+                    if est[0, 3] == t:
+                    # Now loop through the targets
+                        for i, targ in enumerate(self.targs):
+                            x, y, z = est[i, 0:3]
+                            if x != 0 or y != 0 or z != 0:
+
+                            # Store the estimates in array for each target
+                                current_estimates[i] = [x, y]
+                            # Append the current estimates to targ_est
+                                targ_est.append(current_estimates.copy())
+
+                            # Plot the estimate
+                                plt.scatter(x, y, s = 20, color = sat.color, marker='x')
+
+                        # For the given target, plot the estimate in dashed plot
+                            targ_data = [arr[i, :] for arr in targ_est]
+                            x = [point[0] for point in targ_data]
+                            y = [point[1] for point in targ_data]   
+                            plt.scatter(x, y, s = 10, color = targ.color)
+                        
+
+
+            plt.pause(pause_step) 
+            plt.draw()
+            
 # Convert images to a gif
     # Save in the img struct
     def convert_imgs(self):
