@@ -28,21 +28,21 @@ class target:
     def propagate(self, time_step, time):         
         # TimeStep
         dt = time_step.value
-        
+        t = time.value
         # Radius of Earth
         r = 6378.0
         
         # Constant Angular Rate
-        omega = self.speed/r
+        omega = self.vel/r
         
         # Theta and Phi New assuming same angular rate
-        self.theta = self.theta + omega*dt
-        self.inc = self.inc + omega*dt
+        # self.theta = self.theta + omega*dt
+        # self.inc = self.inc + omega*dt
         
         # New [x,y,z] position of Target
-        x = r*np.cos(omega*self.theta) # circular movement
-        y = r*np.sin(omega*self.theta)
-        z = r*np.cos(omega*self.inc) # with inclination
+        x = 0#r*np.cos(omega[0]*t)#self.theta) # circular movement
+        y = r*np.sin(omega[1]*t)#self.theta)
+        z = r*np.cos(omega[2]*t)#self.inc) # with inclination
         
         self.pos = r * np.array([x,y,z])/np.linalg.norm(np.array([x,y,z])) # constrain to surface
         

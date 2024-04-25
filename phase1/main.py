@@ -16,8 +16,8 @@ if __name__ == "__main__":
     sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -90, nu = 0, fovNarrow = 50, fovWide = 50, sensorDetectError = 0.1, sensorError = 0.1, color='m')
 
 # Define some targets
-    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), color = 'k')
-    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel=np.array([0, 4000, 0]), color = 'y')
+    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([0, -5, -5]), color = 'k')
+    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel=np.array([0, 5, 5]), color = 'y')
 
     
 
