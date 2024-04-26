@@ -23,6 +23,10 @@ class estimator:
 
                 if self.in_fov(sat, targ):
     # Will implement error here later
+                    x_targ = x_targ + np.random.normal(0, sat.sensorError)
+                    y_targ = y_targ + np.random.normal(0, sat.sensorError)
+                    z_targ = z_targ + np.random.normal(0, sat.sensorError)
+
                     self.rawEstimation[s][t] = [x_targ, y_targ, z_targ, self.time]
                     print(sat.name, "views", targ.name)
 
@@ -46,3 +50,4 @@ class estimator:
             return True
         else:
             return False
+        

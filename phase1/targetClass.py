@@ -29,20 +29,30 @@ class target:
         # TimeStep
         dt = time_step.value
         t = time.value
+        t = time.value
         # Radius of Earth
         r = 6378.0
         
         # Constant Angular Rate
         omega = self.vel/r
         
-        # Theta and Phi New assuming same angular rate
-        # self.theta = self.theta + omega*dt
-        # self.inc = self.inc + omega*dt
+        rNum = np.random.uniform(0,1)
+        thresh = 0.2
+        xNoise = 0
+        yNoise = 0
+        zNoise = 0
         
-        # New [x,y,z] position of Target
-        x = 0#r*np.cos(omega[0]*t)#self.theta) # circular movement
-        y = r*np.sin(omega[1]*t)#self.theta)
-        z = r*np.cos(omega[2]*t)#self.inc) # with inclination
+        if (rNum < thresh):
+            xNoise = np.random.uniform(-0.2,0.2)
+            yNoise = np.random.uniform(-0.2,0.2)
+            zNoise = np.random.uniform(-0.2,0.2)
+        
+        
+        # Assume Polar Path in YZ plane
+            # Update to 3D Path, maybe consider an orbit with a = r?
+        x = 0 + xNoise                       # r*np.cos(omega[0]*t)#self.theta) # circular movement
+        y = r*np.sin(omega[1]*t) + yNoise
+        z = r*np.cos(omega[2]*t) + zNoise
         
         self.pos = r * np.array([x,y,z])/np.linalg.norm(np.array([x,y,z])) # constrain to surface
         
