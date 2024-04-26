@@ -51,3 +51,4 @@ class estimator:
             return True
         else:
             return False
+        
