@@ -33,4 +33,4 @@ if __name__ == "__main__":
     env.plotResults()
 
 # Save the gif
-    env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+    #env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
