@@ -69,18 +69,28 @@ class environment:
         for sat in self.sats:
         # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
-            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+            # self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
 
         # Plot the visible projection of the satellite
-            box = sat.projBox
-            self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
+            # box = sat.projBox
+            # self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
+
+        # Test direction vector:
+            dir_vecs = sat.projection_vectors()
+            for vec in dir_vecs:
+                self.ax.quiver(x, y, z, vec[0]*1000, vec[1]*1000, vec[2]*1000, color = 'r', label = 'Direction Vector')
+         
+        # Test scatter plotting the visible projection
+            test = sat.visible_projection()
+            # print(test)
+            self.ax.scatter(test[:, 0], test[:, 1], test[:, 2], color = sat.color)
 
         # Plot the trail of the satellite, but only up to last 10 points
-            if len(sat.orbitHist) > 10:
-                x, y, z = np.array(sat.orbitHist[-10:]).T
+            if len(sat.orbitHist) > 5:
+                x, y, z = np.array(sat.orbitHist[-5:]).T
             else:
                 x, y, z = np.array(sat.orbitHist).T
-            self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
+            # self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
@@ -183,7 +193,6 @@ class environment:
 
         # Create empty array for each target to store estimates:
         targ_est = []
-        display = False
 
         # Now, loop through time, and for each time, plot the estimates of each satellite
         for t in time:
@@ -220,21 +229,18 @@ class environment:
                             # Append the current estimates to targ_est
                                 targ_est.append(current_estimates.copy())
 
-                                display = True
+                            # Plot the estimate
+                                plt.scatter(x, y, s = 40, color = sat.color)
 
                         # For the given target, plot the estimate in dashed plot
                             targ_data = [arr[i, :] for arr in targ_est]
                             x_tot = [point[0] for point in targ_data]
                             y_tot = [point[1] for point in targ_data]   
                             plt.scatter(x_tot, y_tot, s = 10, color = targ.color)
-                            
-                            if display:
-                            # Plot the estimate
-                                plt.scatter(x, y, s = 40, color = sat.color, marker='x')
-                                display = False
                         
             plt.pause(pause_step) 
             plt.draw()
+        plt.show()
             
 # Convert images to a gif
     # Save in the img struct

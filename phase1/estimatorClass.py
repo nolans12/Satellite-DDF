@@ -22,7 +22,8 @@ class estimator:
                 x_targ, y_targ, z_targ = targ.x
 
                 if self.in_fov(sat, targ):
-    # Will implement error here later
+                    
+# IMPLEMENT SENSOR ERROR HERE
                     x_targ = x_targ + np.random.normal(0, sat.sensorError)
                     y_targ = y_targ + np.random.normal(0, sat.sensorError)
                     z_targ = z_targ + np.random.normal(0, sat.sensorError)
