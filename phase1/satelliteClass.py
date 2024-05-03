@@ -56,13 +56,24 @@ class satellite:
     def projection_vectors(self):
         # Get original xyz position of the satellite
         x_sat, y_sat, z_sat = self.orbit.r.value
+
         # Get magnitude, r
         r = np.linalg.norm([x_sat, y_sat, z_sat])
+        # print(r)
         # Get original direction vector
         dir_orig = -np.array([x_sat, y_sat, z_sat])/r
 
-# THIS NEEDS TO BE REDONE SO THAT THE ROTATION AXES ARE GOOD
-
+        # Rotate the vector such that y axis is alligned with direction vector
+        elevation = np.arcsin(z_sat/r)
+        azimuth = np.arctan2(y_sat, x_sat) # change to x_sat, y_sat
+        
+        theta = 3*np.pi/2 - elevation
+        # Rotate about second axis so that z axis alligned with direction vector
+        R2 = np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]])
+        R2_inv = np.linalg.inv(R2)
+        dir_orig = r*np.dot(R2, dir_orig)
+        x_sat, y_sat, z_sat = dir_orig[0:3]
+ 
         # Define the rotation axes for the four directions
         rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
 
@@ -83,14 +94,17 @@ class satellite:
             z_new = z_sat + change*perp_vec[2]
             # Normalize the new position to get the new direction vector
             dir_new = -np.array([x_new, y_new, z_new])/np.linalg.norm([x_new, y_new, z_new])
+        
+            # take the inverse of R2
+            dir_new = r*np.dot(R2_inv, dir_new)
+
             # Add the new direction vector to the list
             dir_new_list.append(dir_new)
-            # Print the angle between the original and new direction vectors
-            print("angle between dir_new and dir_orig", np.degrees(np.arccos(np.dot(dir_new, dir_orig))))
 
         return np.array(dir_new_list)
 
-    
+
+
     # Return the 4 xyz projection points of where on earth the satellite can see
     # CURRENTLY RETURNS NONE IF NO INTERSECTION, AKA CAN SEE EVERYTHING
     def visible_projection(self):

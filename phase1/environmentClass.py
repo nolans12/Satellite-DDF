@@ -76,9 +76,9 @@ class environment:
             # self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Test direction vector:
-            dir_vecs = sat.projection_vectors()
-            for vec in dir_vecs:
-                self.ax.quiver(x, y, z, vec[0]*1000, vec[1]*1000, vec[2]*1000, color = 'r', label = 'Direction Vector')
+            # dir_vecs = sat.projection_vectors()
+            # for vec in dir_vecs:
+            #     self.ax.quiver(x, y, z, vec[0]*1000, vec[1]*1000, vec[2]*1000, color = 'r', label = 'Direction Vector')
          
         # Test scatter plotting the visible projection
             test = sat.visible_projection()
