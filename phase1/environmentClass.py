@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment: 
-    def __init__(self, sats, targs, estimator):
+    def __init__(self, sats, targs, estimator, sensor):
     # Define the satellites
         self.sats = sats
 
@@ -11,6 +11,9 @@ class environment:
 
     # Define the estimator
         self.estimator = estimator
+        
+    # Define the sensor
+        self.sensor = sensor
 
     # Time parameter, initalize to 0
         self.time = 0

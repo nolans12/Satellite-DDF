@@ -6,6 +6,7 @@ from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
 from estimatorClass import estimator
+from sensorClass import sensor
 
 if __name__ == "__main__":
 
@@ -22,12 +23,16 @@ if __name__ == "__main__":
     targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), r = np.array([6378, 0, 0, 0, 0,0]),color = 'k')
     # targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 4000, 0]), r = np.array([0, 0, 6378, 0, 0,0]), color = 'y')
     
+#     Create a sensor instance with the satellites
+    sens = sensor(fov = 119, resolution = 720, sensorError = 5, name = 'Sensor 1')
+    
 # Create an estimator instance with the satellites and targets
-    est = estimator([sat1, sat2, sat3, sat4], [targ1])
+    est = estimator([sat1, sat2, sat3, sat4], [targ1], sens)
     # est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
+    
 
 # Create an environment instance 
-    env = environment([sat1, sat2, sat3, sat4], [targ1], est)
+    env = environment([sat1, sat2, sat3, sat4], [targ1], est, sens)
     # env = environment([sat1, sat2, sat3, sat4], [targ1, targ2], est)
     
 # Simulate the satellites through a vector of time

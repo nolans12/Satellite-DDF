@@ -67,9 +67,14 @@ class satellite:
         elevation = np.arcsin(z_sat/r)
         azimuth = np.arctan2(y_sat, x_sat) # change to x_sat, y_sat
         
+        # There should be no rotation when Satellite is looking from south pole
         theta = 3*np.pi/2 - elevation
+        
         # Rotate about second axis so that z axis alligned with direction vector
         R2 = np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]])
+        
+        # Rotate about third axis so that x axis alligned with direction vector
+        
         R2_inv = np.linalg.inv(R2)
         dir_orig = r*np.dot(R2, dir_orig)
         x_sat, y_sat, z_sat = dir_orig[0:3]
@@ -97,7 +102,11 @@ class satellite:
         
             # take the inverse of R2
             dir_new = r*np.dot(R2_inv, dir_new)
-
+            
+            # Rotate z axis 45 deg
+            # R3 = np.array([[np.cos(np.pi/4), -np.sin(np.pi/4), 0], [np.sin(np.pi/4), np.cos(np.pi/4), 0], [0, 0, 1]])
+            # dir_new = np.dot(R3, dir_new)
+            
             # Add the new direction vector to the list
             dir_new_list.append(dir_new)
 

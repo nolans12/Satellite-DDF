@@ -2,11 +2,12 @@ from import_libraries import *
 ## Creates the estimator class
 
 class estimator:
-    def __init__(self, sats, targs): # Takes in both the satellite objects and the targets
+    def __init__(self, sats, targs, sensor): # Takes in both the satellite objects and the targets
 
     # Define the satellites and targets
         self.sats = sats
         self.targs = targs
+        self.sensor = sensor
 
         self.time = 0
 
@@ -17,13 +18,18 @@ class estimator:
     def estimate_raw(self): 
         for s, sat in enumerate(self.sats):
             x_sat, y_sat, z_sat = sat.orbit.r.value
+            r_sat = np.linalg.norm([x_sat, y_sat, z_sat])
 
             for t, targ in enumerate(self.targs):
                 x_targ, y_targ, z_targ = targ.x
 
                 if self.in_fov(sat, targ):
                     
+                    # FIX THIS
+                    #targMeasurement = np.array([x_targ-x_sat,y_targ-y_sat]) * self.sensor.resolution/((r_sat-6378)*np.tan(np.deg2rad(self.sensor.fov/2)))
 # IMPLEMENT SENSOR ERROR HERE
+                    #xtargAngle, ytargAngle = self.sensor.sensor_model(sat, targMeasurement)
+
                     x_targ = x_targ + np.random.normal(0, sat.sensorError)
                     y_targ = y_targ + np.random.normal(0, sat.sensorError)
                     z_targ = z_targ + np.random.normal(0, sat.sensorError)
@@ -51,4 +57,6 @@ class estimator:
             return True
         else:
             return False
+                
+        
         
