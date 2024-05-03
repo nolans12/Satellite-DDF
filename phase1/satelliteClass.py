@@ -53,7 +53,7 @@ class satellite:
         self.color = color
 
     # Returns the 4 direction vectors of the projection box
-    def projection_vectors(self):
+    def projection_vectors(self):        
         # Get original xyz position of the satellite
         x_sat, y_sat, z_sat = self.orbit.r.value
         # Get magnitude, r
@@ -61,6 +61,17 @@ class satellite:
         # Get original direction vector
         dir_orig = -np.array([x_sat, y_sat, z_sat])/r
 
+        # Rotate the vector such that y axis is alligned with direction vector
+        elevation = np.arcsin(z_sat)
+        azimuth = np.arctan2(y_sat, x_sat) # change to x_sat, y_sat
+        
+        theta = 3*np.pi/2 - elevation
+        # Rotate about second axis so that z axis alligned with direction vector
+        R2 = np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]])
+        dir_orig = r*np.dot(R2, dir_orig)
+        x_sat, y_sat, z_sat = dir_orig[0:3]
+        
+        
 # THIS NEEDS TO BE REDONE SO THAT THE ROTATION AXES ARE GOOD
 
         # Define the rotation axes for the four directions
@@ -74,7 +85,7 @@ class satellite:
             # Calculate the change in position for this direction
             change = r*np.tan(np.radians(self.fov/2))
             # Calculate the perpendicular vector for this direction
-            perp_vec = np.cross([x_sat, y_sat, z_sat], axis)
+            perp_vec = np.cross(np.array([x_sat, y_sat, z_sat]), axis) # what happens here
             # Normalize the perpendicular vector
             perp_vec = perp_vec/np.linalg.norm(perp_vec)
             # Apply the change to the original position to get the new position
@@ -83,11 +94,14 @@ class satellite:
             z_new = z_sat + change*perp_vec[2]
             # Normalize the new position to get the new direction vector
             dir_new = -np.array([x_new, y_new, z_new])/np.linalg.norm([x_new, y_new, z_new])
+            
+            dir_new = np.linalg.inv(R2)*dir_new
+            
             # Add the new direction vector to the list
             dir_new_list.append(dir_new)
             # Print the angle between the original and new direction vectors
             print("angle between dir_new and dir_orig", np.degrees(np.arccos(np.dot(dir_new, dir_orig))))
-
+            
         return np.array(dir_new_list)
 
     

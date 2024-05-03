@@ -10,14 +10,14 @@ from estimatorClass import estimator
 if __name__ == "__main__":
 
 # Define some polar orbits at 1000 km altitude
-    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -20, nu = 0, fov = 100, sensorError = 5, color='b')
+    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, fov = 100, sensorError = 5, color='b')
     # sat2 = satellite(name = 'Sat 2', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 0, nu = 0, fov = 100, sensorError = 5, color='r')
     # sat3 = satellite(name = 'Sat 3', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -45, nu = 0, fov = 100, sensorError = 5, color='g')
     # sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -90, nu = 0, fov = 100, sensorError = 5, color='m')
 
 # Define some targets
-    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), r = np.array([6378, np.deg2rad(20), 0, 0, 0,0]),color = 'k')
-    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 4000, 0]), r = np.array([6378, 0, 0, 0, 0,0]), color = 'y')
+    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), r = np.array([6378, 0, 0, 0, 0,0]),color = 'k')
+    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 4000, 0]), r = np.array([0, 0, 6378, 0, 0,0]), color = 'y')
 
     
 

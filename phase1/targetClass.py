@@ -49,8 +49,8 @@ class target:
         currAzimuth =  self.r[2]
         
         rangeRate = 0
-        elevationRate = yNoise
-        azimuthRate = .05 # constant rate of .05deg/min = 1.6m/s = 3.72 mph
+        elevationRate = 0.05 + yNoise
+        azimuthRate = 0 # constant rate of .05deg/min = 1.6m/s = 3.72 mph
         
         newRange = currRange + rangeRate*dt
         newElevation = currElevation + elevationRate*dt
