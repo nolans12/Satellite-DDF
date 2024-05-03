@@ -69,7 +69,7 @@ class environment:
         for sat in self.sats:
         # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
-            # self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
 
         # Plot the visible projection of the satellite
             # box = sat.projBox
@@ -82,8 +82,12 @@ class environment:
          
         # Test scatter plotting the visible projection
             test = sat.visible_projection()
-            # print(test)
-            self.ax.scatter(test[:, 0], test[:, 1], test[:, 2], color = sat.color)
+            self.ax.scatter(test[:, 0], test[:, 1], test[:, 2], color = sat.color, marker = 'x')
+
+            # also plot a square, using poly3dcollection
+            # first reorder the points to make a square
+            test = np.array([test[0], test[3], test[1], test[2], test[0]])
+            self.ax.add_collection3d(Poly3DCollection([test], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Plot the trail of the satellite, but only up to last 10 points
             if len(sat.orbitHist) > 5:

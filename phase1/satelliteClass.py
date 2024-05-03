@@ -102,9 +102,7 @@ class satellite:
             dir_new_list.append(dir_new)
 
         return np.array(dir_new_list)
-
-
-
+    
     # Return the 4 xyz projection points of where on earth the satellite can see
     # CURRENTLY RETURNS NONE IF NO INTERSECTION, AKA CAN SEE EVERYTHING
     def visible_projection(self):
