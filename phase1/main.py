@@ -11,7 +11,7 @@ from sensorClass import sensor
 if __name__ == "__main__":
 
 # Define some polar orbits at 1000 km altitude
-    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 45, nu = 0, fov = 119, sensorError = 5, color='b')
+    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 90, nu = 0, fov = 119, sensorError = 5, color='b')
     sat2 = satellite(name = 'Sat 2', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, fov = 119, sensorError = 5, color='r')
     sat3 = satellite(name = 'Sat 3', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -45, nu = 0, fov = 119, sensorError = 5, color='g')
     sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -90, nu = 0, fov = 119, sensorError = 5, color='m')
@@ -27,16 +27,18 @@ if __name__ == "__main__":
     sens = sensor(fov = 119, resolution = 720, sensorError = 5, name = 'Sensor 1')
     
 # Create an estimator instance with the satellites and targets
+    #est = estimator([sat1], [targ1], sens)
     est = estimator([sat1, sat2, sat3, sat4], [targ1], sens)
     # est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
     
 
 # Create an environment instance 
+    #env = environment([sat1], [targ1], est, sens)
     env = environment([sat1, sat2, sat3, sat4], [targ1], est, sens)
     # env = environment([sat1, sat2, sat3, sat4], [targ1, targ2], est)
     
 # Simulate the satellites through a vector of time
-    time_vec = np.linspace(0, 60, 61) * u.minute
+    time_vec = np.linspace(0, 20, 21) * u.minute
     env.simulate(time_vec, display = True)
 
 # Plot the results:
