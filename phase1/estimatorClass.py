@@ -21,14 +21,13 @@ class estimator:
             r_sat = np.linalg.norm([x_sat, y_sat, z_sat])
 
             for t, targ in enumerate(self.targs):
-                x_targ, y_targ, z_targ = targ.x
+                x_targ, y_targ, z_targ = targ.pos
 
                 if self.in_fov(sat, targ):
                     
                     # FIX THIS
-                    #targMeasurement = np.array([x_targ-x_sat,y_targ-y_sat]) * self.sensor.resolution/((r_sat-6378)*np.tan(np.deg2rad(self.sensor.fov/2)))
 # IMPLEMENT SENSOR ERROR HERE
-                    #xtargAngle, ytargAngle = self.sensor.sensor_model(sat, targMeasurement)
+                    xtargAngle, ytargAngle = self.sensor.sensor_model(sat, targ)
 
                     x_targ = x_targ + np.random.normal(0, sat.sensorError)
                     y_targ = y_targ + np.random.normal(0, sat.sensorError)
@@ -50,10 +49,12 @@ class estimator:
         x_vals = sat.projBox[:, 0]
         y_vals = sat.projBox[:, 1]
         z_vals = sat.projBox[:, 2]
-        z_tolerance = 0.05 * 6378  # 5% of earth radius, so curvature of earth is accounted for
+        z_tolerance = 0.15 * 6378  # 15% of earth radius, so curvature of earth is accounted for
 
     # Now, just check if the targets xyz is within the xyz of the projBox
-        if (targ.x[0] > min(x_vals) and targ.x[0] < max(x_vals) and targ.x[1] > min(y_vals) and targ.x[1] < max(y_vals) and min(z_vals) - z_tolerance < targ.x[2] and targ.x[2] < max(z_vals) + z_tolerance):
+    # FIX THIS TO check if its on the curved surface formed by four points
+        
+        if (targ.pos[0] > min(x_vals) and targ.pos[0] < max(x_vals) and targ.pos[1] > min(y_vals) and targ.pos[1] < max(y_vals) and min(z_vals) - z_tolerance < targ.pos[2] and targ.pos[2] < max(z_vals) + z_tolerance):
             return True
         else:
             return False

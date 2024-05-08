@@ -40,7 +40,7 @@ class satellite:
 
     # Initalize the projection xyz
         self.projBox = np.array([0, 0, 0])
-
+        
     # Define sensor settings
         self.fov = fov
         # self.fovNarrow = fovNarrow
