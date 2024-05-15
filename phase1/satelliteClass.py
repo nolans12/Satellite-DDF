@@ -40,7 +40,7 @@ class satellite:
 
     # Initalize the projection xyz
         self.projBox = np.array([0, 0, 0])
-
+        
     # Define sensor settings
         self.fov = fov
         # self.fovNarrow = fovNarrow
@@ -53,29 +53,41 @@ class satellite:
         self.color = color
 
     # Returns the 4 direction vectors of the projection box
-    def projection_vectors(self):        
+    def projection_vectors(self):
         # Get original xyz position of the satellite
         x_sat, y_sat, z_sat = self.orbit.r.value
+        
+        # In track, cross cross, along track values
+        rVec = self.orbit.r.value/np.linalg.norm(self.orbit.r.value)
+        vVec = self.orbit.v.value/np.linalg.norm(self.orbit.v.value)
+        
+        # Radial vector
+        u = rVec
+        
+        # Cross Track vector
+        w = np.cross(rVec, vVec)
+        
+        # along track vector
+        v = np.cross(w,u)
+        
+        # t = [cross, along, radial]
+        T = np.array([v, w, u])
+        Tinv = np.linalg.inv(T)
+        
         # Get magnitude, r
         r = np.linalg.norm([x_sat, y_sat, z_sat])
+
         # Get original direction vector
-        dir_orig = -np.array([x_sat, y_sat, z_sat])/r
+        dir_orig = np.array([x_sat, y_sat, z_sat])/r
 
-        # Rotate the vector such that y axis is alligned with direction vector
-        elevation = np.arcsin(z_sat)
-        azimuth = np.arctan2(y_sat, x_sat) # change to x_sat, y_sat
         
-        theta = 3*np.pi/2 - elevation
-        # Rotate about second axis so that z axis alligned with direction vector
-        R2 = np.array([[np.cos(theta), 0, np.sin(theta)], [0, 1, 0], [-np.sin(theta), 0, np.cos(theta)]])
-        dir_orig = r*np.dot(R2, dir_orig)
+        # Rotate into CAR Frame
+        dir_orig = r*np.dot(T, dir_orig)
         x_sat, y_sat, z_sat = dir_orig[0:3]
-        
-        
-# THIS NEEDS TO BE REDONE SO THAT THE ROTATION AXES ARE GOOD
-
+ 
         # Define the rotation axes for the four directions
         rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
+        rotation_axes = [[np.sqrt(2), np.sqrt(2), 0], [-np.sqrt(2), -np.sqrt(2), 0], [np.sqrt(2), -np.sqrt(2), 0], [-np.sqrt(2), np.sqrt(2), 0]]
 
         # Initialize list to store the new direction vectors
         dir_new_list = []
@@ -85,7 +97,7 @@ class satellite:
             # Calculate the change in position for this direction
             change = r*np.tan(np.radians(self.fov/2))
             # Calculate the perpendicular vector for this direction
-            perp_vec = np.cross(np.array([x_sat, y_sat, z_sat]), axis) # what happens here
+            perp_vec = np.cross([x_sat, y_sat, z_sat], axis)
             # Normalize the perpendicular vector
             perp_vec = perp_vec/np.linalg.norm(perp_vec)
             # Apply the change to the original position to get the new position
@@ -94,16 +106,14 @@ class satellite:
             z_new = z_sat + change*perp_vec[2]
             # Normalize the new position to get the new direction vector
             dir_new = -np.array([x_new, y_new, z_new])/np.linalg.norm([x_new, y_new, z_new])
-            
-            dir_new = np.linalg.inv(R2)*dir_new
+        
+            # take the inverse of T and rotate back to ECI
+            dir_new = r*np.dot(Tinv, dir_new)
             
             # Add the new direction vector to the list
             dir_new_list.append(dir_new)
-            # Print the angle between the original and new direction vectors
-            print("angle between dir_new and dir_orig", np.degrees(np.arccos(np.dot(dir_new, dir_orig))))
-            
-        return np.array(dir_new_list)
 
+        return np.array(dir_new_list)
     
     # Return the 4 xyz projection points of where on earth the satellite can see
     # CURRENTLY RETURNS NONE IF NO INTERSECTION, AKA CAN SEE EVERYTHING

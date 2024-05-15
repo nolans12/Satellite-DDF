@@ -1,6 +1,5 @@
 from import_libraries import *
 ## Creates the target class
-
 class target:
     def __init__(self, name, targetID, pos, vel, r, color):
         # Intial target ID
@@ -12,44 +11,38 @@ class target:
         self.time = 0
         
         # Change to intial speed and heading
-        
         # Initial State X = [x y z vx vy vz]' relative to 0,0,0
         self.pos = np.array(pos)
         self.hist = []
-        
         self.vel = np.array(vel)
         self.speed = np.linalg.norm(self.vel)
-                
+        
         # Alternative State r = [range, evlevation, azimuth, range rate, elevation rate, azimuth rate]'
         self.r = np.array(r)
         
-        
-       
-    def propagate(self, time_step, time):         
+    def propagate(self, time_step, time):
         # TimeStep
         dt = time_step.value
         t = time.value
         
-        # Add randomnes to the target position        
+        # Add randomnes to the target position
         rNum = np.random.uniform(0,1)
         thresh = 0.2
         xNoise = 0
         yNoise = 0
         zNoise = 0
-        
         if (rNum < thresh):
             xNoise = np.random.uniform(-0.2,0.2)
             yNoise = np.random.uniform(-0.002,0.002)
             zNoise = np.random.uniform(-0.2,0.2)
-                
-        # self.r intial range, elevation, azimuth 
-
-        currRange = self.r[0] 
-        currElevation = self.r[1] 
+            
+        # self.r intial range, elevation, azimuth
+        currRange = self.r[0]
+        currElevation = self.r[1]
         currAzimuth =  self.r[2]
         
         rangeRate = 0
-        elevationRate = 0.05 + yNoise
+        elevationRate = 0.005 + yNoise
         azimuthRate = 0 # constant rate of .05deg/min = 1.6m/s = 3.72 mph
         
         newRange = currRange + rangeRate*dt
@@ -62,7 +55,4 @@ class target:
         # print("Position", self.pos)
         # print("theta", self.theta)
         # print("phi", self.phi)
-        
-        
-        
         return self.pos

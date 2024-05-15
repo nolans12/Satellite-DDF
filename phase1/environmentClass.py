@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment: 
-    def __init__(self, sats, targs, estimator):
+    def __init__(self, sats, targs, estimator, sensor):
     # Define the satellites
         self.sats = sats
 
@@ -11,6 +11,9 @@ class environment:
 
     # Define the estimator
         self.estimator = estimator
+        
+    # Define the sensor
+        self.sensor = sensor
 
     # Time parameter, initalize to 0
         self.time = 0
@@ -69,21 +72,25 @@ class environment:
         for sat in self.sats:
         # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
-            # self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
 
         # Plot the visible projection of the satellite
             # box = sat.projBox
             # self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Test direction vector:
-            dir_vecs = sat.projection_vectors()
-            for vec in dir_vecs:
-                self.ax.quiver(x, y, z, vec[0]*1000, vec[1]*1000, vec[2]*1000, color = 'r', label = 'Direction Vector')
+            # dir_vecs = sat.projection_vectors()
+            # for vec in dir_vecs:
+            #     self.ax.quiver(x, y, z, vec[0]*1000, vec[1]*1000, vec[2]*1000, color = 'r', label = 'Direction Vector')
          
         # Test scatter plotting the visible projection
             test = sat.visible_projection()
-            # print(test)
-            self.ax.scatter(test[:, 0], test[:, 1], test[:, 2], color = sat.color)
+            self.ax.scatter(test[:, 0], test[:, 1], test[:, 2], color = sat.color, marker = 'x')
+
+            # also plot a square, using poly3dcollection
+            # first reorder the points to make a square
+            test = np.array([test[0], test[3], test[1], test[2], test[0]])
+            self.ax.add_collection3d(Poly3DCollection([test], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Plot the trail of the satellite, but only up to last 10 points
             if len(sat.orbitHist) > 5:

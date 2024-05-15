@@ -6,27 +6,35 @@ from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
 from estimatorClass import estimator
+from sensorClass import sensor
 
 if __name__ == "__main__":
 
 # Define some polar orbits at 1000 km altitude
-    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, fov = 100, sensorError = 5, color='b')
-    # sat2 = satellite(name = 'Sat 2', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 0, nu = 0, fov = 100, sensorError = 5, color='r')
-    # sat3 = satellite(name = 'Sat 3', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -45, nu = 0, fov = 100, sensorError = 5, color='g')
-    # sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -90, nu = 0, fov = 100, sensorError = 5, color='m')
+    sat1 = satellite(name = 'Sat 1', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 45, nu = 0, fov = 119, sensorError = 5, color='b')
+    #sat2 = satellite(name = 'Sat 2', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, fov = 119, sensorError = 5, color='r')
+    #sat3 = satellite(name = 'Sat 3', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -45, nu = 0, fov = 119, sensorError = 5, color='g')
+    #sat4 = satellite(name = 'Sat 4', a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -90, nu = 0, fov = 119, sensorError = 5, color='m')
 
 # Define some targets
-    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), r = np.array([6378, 0, 0, 0, 0,0]),color = 'k')
-    targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 4000, 0]), r = np.array([0, 0, 6378, 0, 0,0]), color = 'y')
+    # targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([0, -5, -5]), color = 'k')
+    # targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 5, 5]), color = 'y')
 
+    targ1 = target(name = 'Targ 1', targetID=1, pos = np.array([0, 0 , 6378]), vel = np.array([4000, 0, 0]), r = np.array([6378, 0, 0, 0, 0,0]),color = 'k')
+    # targ2 = target(name = 'Targ 2', targetID=2, pos = np.array([0, 0, 6378]), vel = np.array([0, 4000, 0]), r = np.array([0, 0, 6378, 0, 0,0]), color = 'y')
+    
+#     Create a sensor instance with the satellites
+    sens = sensor(fov = 119, resolution = 720, sensorError = 5, name = 'Sensor 1')
+    
+# Create an estimator instance with the satellites and targets
+    est = estimator([sat1], [targ1], sens)
+    #est = estimator([sat1, sat2, sat3, sat4], [targ1], sens)
+    # est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
     
 
-# Create an estimator instance with the satellites and targets
-    est = estimator([sat1], [targ1, targ2])
-    # est = estimator([sat1, sat2, sat3, sat4], [targ1, targ2])
-
 # Create an environment instance 
-    env = environment([sat1], [targ1, targ2], est)
+    env = environment([sat1], [targ1], est, sens)
+    #env = environment([sat1, sat2, sat3, sat4], [targ1], est, sens)
     # env = environment([sat1, sat2, sat3, sat4], [targ1, targ2], est)
     
 # Simulate the satellites through a vector of time
