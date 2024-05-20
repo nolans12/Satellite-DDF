@@ -1,6 +1,7 @@
 from import_libraries import *
 # Sensor Class
 
+# TODO: Add more sensor models, can maybe be subclasses?
 class sensor:
     def __init__(self, fov, resolution, sensorError, name, detectError = 0.1):
         self.fov = fov
@@ -9,6 +10,10 @@ class sensor:
         self.name = name
         self.resolution = resolution
         self.projBox = np.array([0, 0, 0])
+
+        # Used for saving data
+        # TODO: Update later based on different sensor models, for now just bearings
+        self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
     
 
     # Input: A satellite and target object
@@ -218,7 +223,6 @@ class sensor:
             else:
                 return intersection_point2
             
-
     # Input: Target
     # Output: True or False if the target is within the sensor's field of view
     def point_box_intersection(self, targ):

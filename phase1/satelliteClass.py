@@ -6,7 +6,7 @@ class satellite:
     
     # Sensor to use
         self.sensor = sensor
-        self.measurementHist = [] # contains xyz and t of measurements
+        self.measurementHist = {targetID: [] for targetID in targetIDs} # Initialize as a dictionary of lists
         
     # Targets to track:
         self.targetIDs = targetIDs
@@ -44,8 +44,16 @@ class satellite:
 
     def collect_measurements(self, targs):
         for i, targ in enumerate(targs):
-            measurement = self.sensor.get_measurement(self, targ)
-            if measurement != 0:
-                self.measurementHist.append(measurement)
-        self.orbitHistPlot.append(self.orbit.r.value)
-        self.orbitHist.append([self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2], self.time])
+        # Loop through all targets
+            if targ.targetID in self.targetIDs:
+            # Is the current target one of the ones to track?
+                # If so, get the measurement
+                measurement = self.sensor.get_measurement(self, targ)
+                # Make sure its not just a default 0, means target isnt visible
+                if not isinstance(measurement, int):
+                # If target is visible, save relavent data
+                    # Need time, satellite positon, and measurement
+                    save = np.array([self.time, self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
+                    save = np.append(save, measurement)
+                    self.measurementHist[targ.targetID].append(save)
+                    # print(self.name, "measures", targ.name, "at", measurement)
