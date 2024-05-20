@@ -38,8 +38,7 @@ class satellite:
         
         # Create the poliastro orbit
         self.orbit = Orbit.from_classical(Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu)
-        self.orbitHist = []; # contains xyz and time of orbit history
-        self.orbitHistPlot = []; # contains xyz of history, fo
+        self.orbitHist = []; # contains time and xyz of orbit history
         self.time = 0
 
     def collect_measurements(self, targs):
