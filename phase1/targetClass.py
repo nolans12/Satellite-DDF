@@ -41,8 +41,8 @@ class target:
         
         # Linear Equation of Motion around sphere
         rangeRate = 0
-        elevationRate = 0.005 + yNoise
-        azimuthRate = 0.005 + zNoise 
+        elevationRate = 0.0005 + yNoise
+        azimuthRate = 0.0005 + zNoise 
         
         newRange = currRange + rangeRate*dt
         newElevation = currElevation + elevationRate*dt

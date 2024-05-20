@@ -2,12 +2,11 @@ from import_libraries import *
 ## Creates the estimator class
 
 class estimator:
-    def __init__(self, sats, targs, sensor): # Takes in both the satellite objects and the targets
+    def __init__(self, sats, targs): # Takes in both the satellite objects and the targets
 
     # Define the satellites and targets
         self.sats = sats
         self.targs = targs
-        self.sensor = sensor
 
         self.time = 0
 
