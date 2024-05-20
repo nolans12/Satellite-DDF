@@ -64,12 +64,14 @@ class environment:
             box = np.array([points[0], points[3], points[1], points[2], points[0]])
             self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
         
-        # Plot the trail of the satellite, but only up to last 10 points
-        # TODO: Remove orbitHistPlot, just use orbitHist
-            if len(sat.orbitHist) > 5:
-                x, y, z = np.array(sat.orbitHistPlot[-5:]).T
+        # Plot the trail of the satellite, but only up to last n points
+            n = 5
+            if len(sat.orbitHist) > n:
+                t, r = zip(*sat.orbitHist[-n:])
+                x, y, z = np.array(r).T
             else:
-                x, y, z = np.array(sat.orbitHistPlot).T
+                t, r = zip(*sat.orbitHist)
+                x, y, z = np.array(r).T
             self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
     # FOR EACH TARGET, PLOTS
@@ -100,8 +102,7 @@ class environment:
             targ.x = targ.propagate(time_step, self.time)
 
             # Update the history of the target
-            targ.hist.append([targ.x]) # history of target xyz position
-            targ.fullHist.append([targ.x, targ.time]) # history of target xyz position
+            targ.hist.append([targ.time, targ.x]) # history of target time and xyz position
         
     # Propagate the satellites
         for sat in self.sats:
@@ -113,8 +114,7 @@ class environment:
             sat.collect_measurements(self.targs)
 
             # Update the history of the orbit
-            sat.orbitHist.append([sat.orbit.r.value, sat.time])
-            sat.orbitHistPlot.append(sat.orbit.r.value)
+            sat.orbitHist.append([sat.time, sat.orbit.r.value]) # history of sat time and xyz position
 
 # Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!

@@ -13,7 +13,6 @@ class target:
         # ECI Position
         self.pos = np.array([0, 0, 0])
         self.hist = []
-        self.fullHist = []
         
         #  Target State r = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]'
         self.r = np.array(r)

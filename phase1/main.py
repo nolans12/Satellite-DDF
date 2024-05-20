@@ -11,8 +11,8 @@ from sensorClass import sensor
 if __name__ == "__main__":
 
 # Define a sensor model:
-    sens1 = sensor(name = 'Sensor 1', fov = 90, sensorError = np.array([2, 2]), detectError= 0.05, resolution = 720)
-    sens2 = sensor(name = 'Sensor 2', fov = 110, sensorError = np.array([2, 2]), detectError= 0.05, resolution = 720)
+    sens1 = sensor(fov = 90, sensorError = np.array([2, 2]), detectError= 0.05, resolution = 720, name = 'Sensor 1')
+    sens2 = sensor(fov = 110, sensorError = np.array([2, 2]), detectError= 0.05, resolution = 720, name = 'Sensor 2')
 
 # Define some polar orbits at 1000 km altitude
     sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=np.array([1, 3]), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, color='b')
