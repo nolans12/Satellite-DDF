@@ -2,14 +2,18 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, name, color):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, estimator, name, color):
     
     # Sensor to use
         self.sensor = sensor
         self.measurementHist = {targetID: [] for targetID in targetIDs} # Initialize as a dictionary of lists
         
+
     # Targets to track:
         self.targetIDs = targetIDs
+
+    # Estimator to use
+        self.estimator = estimator
 
     # Other parameters
         self.name = name

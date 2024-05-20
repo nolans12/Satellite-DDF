@@ -1,62 +1,114 @@
 from import_libraries import *
 ## Creates the estimator class
 
-class estimator:
+class centralEstimator:
     def __init__(self, sats, targs): # Takes in both the satellite objects and the targets
 
     # Define the satellites and targets
         self.sats = sats
         self.targs = targs
 
-        self.time = 0
-
-    # Define the estimator data packet, will be a list of lists, for each satellite, a list of the targets it can see and their xyz, t position
-        self.rawEstimation = np.zeros((len(self.sats), len(self.targs), 4))
-
-# Loop through each satellite and get a raw xyz estimate of the target for the given time step
-    def estimate_raw(self): 
-        for s, sat in enumerate(self.sats):
-            x_sat, y_sat, z_sat = sat.orbit.r.value
-            r_sat = np.linalg.norm([x_sat, y_sat, z_sat])
-
-            for t, targ in enumerate(self.targs):
-                x_targ, y_targ, z_targ = targ.pos
-
-                if self.in_fov(sat, targ):
-                    
-                    # FIX THIS
-# IMPLEMENT SENSOR ERROR HERE
-                    xtargAngle, ytargAngle = self.sensor.sensor_model(sat, targ)
-
-                    x_targ = x_targ + np.random.normal(0, sat.sensorError)
-                    y_targ = y_targ + np.random.normal(0, sat.sensorError)
-                    z_targ = z_targ + np.random.normal(0, sat.sensorError)
-
-                    self.rawEstimation[s][t] = [x_targ, y_targ, z_targ, self.time]
-                    # print(sat.name, "views", targ.name)
-
-                else:
-                    self.rawEstimation[s][t] = [0, 0, 0, self.time]
-
-            sat.estimateHist.append(self.rawEstimation[s].copy())
-
-
-# Returns T/F if target is within the fov of the satellite
-    def in_fov(self, sat, targ):
-
-    # Get all x values of the projection box
-        x_vals = sat.projBox[:, 0]
-        y_vals = sat.projBox[:, 1]
-        z_vals = sat.projBox[:, 2]
-        z_tolerance = 0.15 * 6378  # 15% of earth radius, so curvature of earth is accounted for
-
-    # Now, just check if the targets xyz is within the xyz of the projBox
-    # FIX THIS TO check if its on the curved surface formed by four points
         
-        if (targ.pos[0] > min(x_vals) and targ.pos[0] < max(x_vals) and targ.pos[1] > min(y_vals) and targ.pos[1] < max(y_vals) and min(z_vals) - z_tolerance < targ.pos[2] and targ.pos[2] < max(z_vals) + z_tolerance):
-            return True
+class localEstimator:
+    def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
+
+    # Define the targets to track
+        self.targs = targetIDs
+
+    # Define history vectors for each extended kalman filter
+        self.estHist = {targetID: [] for targetID in targetIDs} 
+        self.covarianceHist = {targetID: [] for targetID in targetIDs}
+
+
+    def EKF(self, measurementHist, targetID, dt, sensor):
+        
+        # Check if measurements are empty, if so skip
+        if len(measurementHist[targetID]) == 0:
+            return 0
+        
+    # Get measurement history for that target
+        measurements = np.array(measurementHist[targetID])
+
+    # Get estimate history for that target
+        estimates = np.array(self.estHist[targetID])
+
+    # Get covert history for that target
+        covariance = np.array(self.covarianceHist[targetID])
+
+    # Get last estimate, using spherical coordinates
+        # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
+        # Assume prior state estimate exists
+        if len(estimates) == 0:
+            # If no prior estimate, use the first measurement
+            # TODO: Convert to ECI from bearings
+            # TODO: ALSO NEED VELOCITY IN STATE, somehow
+            state = measurements[0, 3:]
         else:
-            return False
-                
+            # Otherwise use the last estimate
+            state = estimates[-1]
+
+    # Get last covariance matrix
+        # Assume prior covariance exists
+        if len(covariance) == 0:
+            # If no prior covariance, use the identity matrix
+            P = np.eye(6)
+        else:
+            # Otherwise use the last covariance
+            P = covariance[-1]
+
+# Preciction:
+    # USING DWNAM
+    # Define the state transition matrix
+        F = np.array([[1, dt, 0, 0, 0, 0],
+                      [0, 1, 0, 0, 0, 0],
+                      [0, 0, 1, dt, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 1, dt],
+                      [0, 0, 0, 0, 0, 1]])
         
+    # Define the process noise matrix
+        # Estimate the randomness of the acceleration
+        q_range = 0.000001
+        q_elevation = 0.001
+        q_azimuth = 0.001
+        q_mat = np.array([0, q_range, 0, q_elevation, 0, q_azimuth])
+        Q = np.array([[0, 0, 0, 0, 0, 0],
+                      [0, dt, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, dt, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
         
+        # Ignore control input for now
+        B = np.array([0, 1, 0, 1, 0, 1])
+        u = 0
+
+    # Predict the state
+        state_pred = np.dot(F, state) + np.dot(B, u)
+        P_pred = np.dot(F, np.dot(P, F.T)) + Q
+
+# Update:
+    # Solve for the Kalman gain
+
+        H = np.eye(6)
+        # H = sensor.H
+
+        R = np.eye(6) * 0.01
+        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
+
+    # Get the measurement
+        z = measurements[-1, 3:]
+
+    # Update the state
+        state = state_pred + np.dot(K, z - np.dot(H, state_pred))
+        P = P_pred - np.dot(K, np.dot(H, P_pred))
+
+    # Save the estimate and covariance
+        self.estHist[targetID].append(state) # Will be in spherical coordinates
+        self.covarianceHist[targetID].append(P)
+
+    # Return the estimate
+        # Translate from spherical to ECI
+        pos = np.array([state[0]*np.cos(state[4])*np.sin(state[2]), state[0]*np.sin(state[4])*np.sin(state[2]), state[0]*np.cos(state[2])])
+
+        return pos
