@@ -15,43 +15,57 @@ class target:
         self.hist = []
         self.fullHist = []
         
-        #  Target State r = [range, evlevation, azimuth, range rate, elevation rate, azimuth rate]'
+        #  Target State r = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]'
         self.r = np.array(r)
         
     def propagate(self, time_step, time):
+        # Input: Target Current State,
         # TimeStep
         dt = time_step.value
         t = time.value
         
-        # Add randomnes to the target position
-        rNum = np.random.uniform(0,1)
-        thresh = 0.2
-        xNoise = 0
-        yNoise = 0
-        zNoise = 0
-        if (rNum < thresh):
-            xNoise = np.random.uniform(-0.2,0.2)
-            yNoise = np.random.uniform(-0.002,0.002)
-            zNoise = np.random.uniform(-0.002,0.002)
+        # White Noise Intensity Vector -> should be order of maximim magnitude acceleration over dt    
+        rangeAccelNoise = 0.000001
+        elevationAccelNoise = 0.001
+        azimuthAccelNoise = 0.001
+        q = np.array([0, rangeAccelNoise, 0, elevationAccelNoise, 0, azimuthAccelNoise]).T
+        
+        # Define Continuous White Noise State Equation
+        
+        # State Dynamics Matrix
+        A = np.array([[0, 1, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Control Input Matrix --> Acceleration
+        B = np.array([0, 1, 0, 1, 0, 1]).T
+        
+        # Covariance Matrix
+        Q = np.array([[0, 0, 0, 0, 0, 0],
+                      [0, dt, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, dt, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, dt]])*q**2        
+        
+        # Sample MultiVariate White Noise as input to State Equation
+        mean = np.array([0, 0, 0, 0, 0, 0])
+        
+        # 50% chance of acceleration
+        if(np.random.uniform(0,1) < 0.5):
+            acceleration = np.random.multivariate_normal(mean, Q, 1).T
+        else:
+            acceleration = np.array([0, 0, 0, 0, 0, 0]).T
             
-        # self.r intial range, elevation, azimuth
-        currRange = self.r[0]
-        currElevation = self.r[1]
-        currAzimuth =  self.r[2]
+        # Propagate the state
+        rDot = np.dot(A, self.r) + np.dot(B, acceleration)
+        self.r = self.r + rDot*dt
         
-        # Linear Equation of Motion around sphere
-        rangeRate = 0
-        elevationRate = 0.005 + yNoise
-        azimuthRate = 0.005 + zNoise 
-        
-        newRange = currRange + rangeRate*dt
-        newElevation = currElevation + elevationRate*dt
-        newAzimuth = currAzimuth + azimuthRate*dt
-        
-        self.r = np.array([newRange, newElevation, newAzimuth, rangeRate, elevationRate, azimuthRate])
-        self.pos = np.array([newRange*np.cos(newAzimuth)*np.sin(newElevation), newRange*np.sin(newAzimuth)*np.sin(newElevation), newRange*np.cos(newElevation)])
-        # print("ID", self.targetID)
-        # print("Position", self.pos)
-        # print("theta", self.theta)
-        # print("phi", self.phi)
+        # Convert back to x,y,z ECI
+        self.pos = np.array([self.r[0]*np.cos(self.r[4])*np.sin(self.r[2]), self.r[0]*np.sin(self.r[4])*np.sin(self.r[2]), self.r[0]*np.cos(self.r[2])])
+    #   self.pos = np.array([newRange*np.cos(newAzimuth)*np.sin(newElevation), newRange*np.sin(newAzimuth)*np.sin(newElevation), newRange*np.cos(newElevation)])
+
         return self.pos
