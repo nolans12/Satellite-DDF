@@ -21,7 +21,7 @@ class sensor:
         
         # Resolution of Image
         sX = dX/self.resolution # km/pixel
-        sY = np.abs(projVec[0][1] - projVec[1][1])/self.resolution # km/pixel
+        sY = dY/self.resolution # km/pixel
         
         # Use target location in image frame
         xtarg, ytarg, ztarg = targ.pos

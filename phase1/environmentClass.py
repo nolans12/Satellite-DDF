@@ -93,11 +93,11 @@ class environment:
             self.ax.add_collection3d(Poly3DCollection([test], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
         # Plot the trail of the satellite, but only up to last 10 points
-            if len(sat.orbitHist) > 5:
-                x, y, z = np.array(sat.orbitHist[-5:]).T
-            else:
-                x, y, z = np.array(sat.orbitHist).T
-            # self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
+            # if len(sat.orbitHist) > 5:
+            #     x, y, z = np.array(sat.orbitHist[-5:]).T
+            # else:
+            #     x, y, z = np.array(sat.orbitHist).T
+            #     self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
@@ -128,7 +128,8 @@ class environment:
             targ.x = targ.propagate(time_step, self.time)
 
             # Update the history of the target
-            targ.hist.append([targ.x, targ.time]) # history of target xyz position
+            targ.hist.append([targ.x]) # history of target xyz position
+            targ.fullHist.append([targ.x, targ.time]) # history of target xyz position
         
     # Propagate the satellites
         for sat in self.sats:
