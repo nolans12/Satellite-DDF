@@ -117,16 +117,15 @@ class environment:
             # Collect measurements on any avaliable targets
             sat.collect_measurements(self.targs)
 
-            # Update local estimators
-            for targ in self.targs:
-                if targ.targetID in sat.targetIDs:
-                    test = sat.estimator.EKF(sat.measurementHist, targ.targetID, time_step.value, sat.sensor)
-                    if test != 0:
-                        print("Truth")
-                        print(self.targs[0].pos)
-                        print("Estimate")
-                        print(test)
-            
+            # # Update local estimators
+            # for targ in self.targs:
+            #     if targ.targetID in sat.targetIDs:
+            #         test = sat.estimator.EKF(sat.measurementHist, targ.targetID, time_step.value, sat.sensor)
+            #         if test != 0:
+            #             print("Truth")
+            #             print(self.targs[0].pos)
+            #             print("Estimate")
+            #             print(test)
             
             # Update the history of the orbit
             sat.orbitHist.append([sat.time, sat.orbit.r.value]) # history of sat time and xyz position

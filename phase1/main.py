@@ -43,8 +43,8 @@ if __name__ == "__main__":
     env = environment(sats, targs, central)
 
 # Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0.1, 50, 51) * u.minute
-    env.simulate(time_vec, display = False)
+    time_vec = np.linspace(0, 50, 51) * u.minute
+    env.simulate(time_vec, display = True)
 
 # Save the gif:
     env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
