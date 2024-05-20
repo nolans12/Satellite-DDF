@@ -149,6 +149,10 @@ class environment:
     def log_data(self):
         # Make the file, current directory /data/satellite_name.csv
         filePath = os.path.dirname(os.path.realpath(__file__))
+        # Delete all files already within the data folder
+        for file in os.listdir(filePath + '/data/'):
+            os.remove(filePath + '/data/' + file)
+            
     # Loop through all satellites
         for sat in self.sats:
         # Loop through all targets for each satellite
