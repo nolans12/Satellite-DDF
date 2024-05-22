@@ -16,40 +16,38 @@ class localEstimator:
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
-        self.stateMeasHist = {targetID: [] for targetID in targetIDs}
-        self.estHist = {targetID: [] for targetID in targetIDs} 
-        self.covarianceHist = {targetID: [] for targetID in targetIDs}
+        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
+        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
 
+    # Input: New measurement: estimate in ECI, target ID, time step, and environment time (to time stamp the measurement)
+    # Output: New estimate in ECI
+    def EKF(self,  newMeas, targetID, dt, envTime):
+    # Extended Kalman Filter:
+    # Desired Estimate Xdot = [x xdot y ydot z zdot]
+    # Measurment Z = [x y z]
+    # Assume CWNA predictive model for dynamics and covariance
+    
+    # Get measurement time history for that target
+        measurments = self.measHist[targetID]
 
-    def EKF(self, measurementHist, targetID, dt, sat):
-        
-        # Check if measurements are empty, if so skip
-        if len(measurementHist[targetID]) == 0:
-            return 0
+    # Get estimate time history for that target
+        estimates = self.estHist[targetID]
 
-        # Else, convert the most recent measurement to a spherical coordinate estimate:
-        # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
-
-    # Get measurement history for that target
-        measurements = np.array(measurementHist[targetID])
-
-    # Get estimate history for that target
-        estimates = np.array(self.estHist[targetID])
-
-    # Get covert history for that target
-        covariance = np.array(self.covarianceHist[targetID])
+    # Get covert time history for that target
+        covariance = self.covarianceHist[targetID]
 
     # Get last estimate, using spherical coordinates
         # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
         # Assume prior state estimate exists
         if len(estimates) == 0:
-            # If no prior estimate, use the first measurement
-            # TODO: Convert to ECI from bearings
-            # TODO: ALSO NEED VELOCITY IN STATE, somehow
-            state = measurements[0, 3:]
+            # If no prior estimate, use the first measurement and assume no velocity
+            state = np.array([newMeas[0], 0, newMeas[1], 0, newMeas[2], 0])
+            # print(state)
         else:
-            # Otherwise use the last estimate
-            state = estimates[-1]
+            # To get the last estimate, need to get the last time, which will be the max
+            lastTime = max(estimates.keys())
+            state = estimates[lastTime]
 
     # Get last covariance matrix
         # Assume prior covariance exists
@@ -57,8 +55,9 @@ class localEstimator:
             # If no prior covariance, use the identity matrix
             P = np.eye(6)
         else:
-            # Otherwise use the last covariance
-            P = covariance[-1]
+            # To get the last covariance, need to get the last time, which will be the max
+            lastTime = max(covariance.keys())
+            P = covariance[lastTime]
 
 # Preciction:
     # USING DWNAM
@@ -101,15 +100,15 @@ class localEstimator:
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
 
     # Get the measurement
-        z = measurements[-1, 3:]
+        z = newMeas
 
     # Update the state
         state = state_pred + np.dot(K, z - np.dot(H, state_pred))
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
     # Save the estimate and covariance
-        self.estHist[targetID].append(state) # Will be in spherical coordinates
-        self.covarianceHist[targetID].append(P)
+        self.estHist[targetID][envTime] = state # x, xdot, y, ydot, z, zdot in ECI coordinates
+        self.covarianceHist[targetID][envTime] = P
 
     # Return the estimate
         # Translate from spherical to ECI
