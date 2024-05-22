@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # local2 = localEstimator(targetIDs = targetIDs2)
 
 # Define some polar orbits at 1000 km altitude:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs1, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, color='b')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs1, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 70, nu = 0, color='b')
     # sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs2, estimator = local2,  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -25, nu = 0, color='g')
 
     sats = [sat1]
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     env = environment(sats, targs)
 
 # Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0, 50, 51) * u.minute
+    time_vec = np.linspace(0, 10, 21) * u.minute
     env.simulate(time_vec, display = True)
 
 # Save the gif:

@@ -43,7 +43,7 @@ class sensor:
     def convert_to_ECI(self, sat, measurement):
 
     # Get the data
-        x_sat, y_sat, z_sat = sat.orbit.r.value
+        x_sat_orig, y_sat_orig, z_sat_orig = sat.orbit.r.value
         alpha, beta = measurement[0], measurement[1]
 
     # Now perform ray tracing to get the direction vector the satellite is measuring
@@ -65,16 +65,37 @@ class sensor:
         Tinv = np.linalg.inv(T)
 
         # Get satellite in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array([x_sat, y_sat, z_sat]))
+        dir_rot = np.dot(T, np.array([x_sat_orig, y_sat_orig, z_sat_orig]))
         x_sat, y_sat, z_sat = dir_rot[0:3]
 
-        
-        # TODO: I think here would translate the direction vector of {x_sat, y_sat, z_sat} by bearing angles
-        # to get the direction vector of the target in ECI, which i call dir_meas
+        # Get initial direction vector, pointing to center of Earth
+        inital_vec = np.array([x_sat, y_sat, z_sat])/np.linalg.norm([x_sat, y_sat, z_sat])
 
+        # Now apply a R2 of alpha and R1 of beta to the initial vector
+        R2 = np.array([[np.cos(np.radians(alpha)), -np.sin(np.radians(alpha)), 0],
+                          [np.sin(np.radians(alpha)), np.cos(np.radians(alpha)), 0],
+                            [0, 0, 1]])
+        R1 = np.array([[np.cos(np.radians(beta)), 0, np.sin(np.radians(beta))],
+                            [0, 1, 0],
+                            [-np.sin(np.radians(beta)), 0, np.cos(np.radians(beta))]])
+
+        # Get the direction vector of the target in bearing frame
+        dir_meas = np.dot(R2, np.dot(R1, inital_vec))
+
+        # Now rotate back to ECI
+        dir_meas = np.dot(Tinv, dir_meas)
+
+        # print
+        print("Initial Vector: ", inital_vec)
+        print("Direction Vector: ", dir_meas)
+        print("Truth Bearings: ", alpha, beta)
+
+        # calculate the angle between the two vectors
+        angle = np.arccos(np.dot(inital_vec, dir_meas)/(np.linalg.norm(inital_vec)*np.linalg.norm(dir_meas)))*180/np.pi
+        print("Angle between vectors: ", np.degrees(angle))
 
         # Now get the intersection with Earth:
-        intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x_sat, y_sat, z_sat], dir_meas)
+        intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x_sat_orig, y_sat_orig, z_sat_orig], dir_meas)
 
         return intersection
 

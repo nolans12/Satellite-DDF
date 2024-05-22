@@ -68,7 +68,7 @@ class satellite:
                     saveEst = np.append(saveEst, rawEst)
 
                     # print rawEst and the truth position of the target
-                    print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
+                    # print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
                     
                     self.rawEstimateHist[targ.targetID].append(saveEst)
 
