@@ -8,6 +8,7 @@ class centralEstimator:
         self.sats = sats
         self.targs = targs
 
+    # TODO: USE NESTED DICT STRUCTURE AS SEEN IN LOCAL ESTIMATOR:
         
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
@@ -20,12 +21,13 @@ class localEstimator:
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
 
+
     # Input: New measurement: estimate in ECI, target ID, time step, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
     def EKF(self,  newMeas, targetID, dt, envTime):
     # Extended Kalman Filter:
     # Desired Estimate Xdot = [x xdot y ydot z zdot]
-    # Measurment Z = [x y z]
+    # Measurment Z = [x y z] ECI coordinates
     # Assume CWNA predictive model for dynamics and covariance
     
     # Get measurement time history for that target
@@ -37,13 +39,10 @@ class localEstimator:
     # Get covert time history for that target
         covariance = self.covarianceHist[targetID]
 
-    # Get last estimate, using spherical coordinates
-        # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
         # Assume prior state estimate exists
         if len(estimates) == 0:
             # If no prior estimate, use the first measurement and assume no velocity
             state = np.array([newMeas[0], 0, newMeas[1], 0, newMeas[2], 0])
-            # print(state)
         else:
             # To get the last estimate, need to get the last time, which will be the max
             lastTime = max(estimates.keys())
@@ -70,11 +69,11 @@ class localEstimator:
                       [0, 0, 0, 0, 0, 1]])
         
     # Define the process noise matrix
-        # Estimate the randomness of the acceleration, for now just use exact
-        q_range = 0.000001
-        q_elevation = 0.001
-        q_azimuth = 0.001
-        q_mat = np.array([0, q_range, 0, q_elevation, 0, q_azimuth])
+        # Estimate the randomness of the acceleration
+        q_x = 0.001
+        q_y = 0.001
+        q_z = 0.001
+        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
         Q = np.array([[0, 0, 0, 0, 0, 0],
                       [0, dt, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
@@ -93,10 +92,12 @@ class localEstimator:
 # Update:
     # Solve for the Kalman gain
 
-        H = np.eye(6)
+        H = np.array([[1, 0, 0, 0, 0, 0],
+                      [0, 0, 1, 0, 0, 0],
+                      [0, 0, 0, 0, 1, 0]])
         # H = sensor.H
 
-        R = np.eye(6) * 0.01
+        R = np.eye(3) * 0.01
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
 
     # Get the measurement
@@ -109,9 +110,10 @@ class localEstimator:
     # Save the estimate and covariance
         self.estHist[targetID][envTime] = state # x, xdot, y, ydot, z, zdot in ECI coordinates
         self.covarianceHist[targetID][envTime] = P
+        self.measHist[targetID][envTime] = newMeas
 
-    # Return the estimate
-        # Translate from spherical to ECI
-        pos = np.array([state[0]*np.cos(state[4])*np.sin(state[2]), state[0]*np.sin(state[4])*np.sin(state[2]), state[0]*np.cos(state[2])])
+    # # Return the estimate
+    #     # Translate from spherical to ECI
+    #     pos = np.array([state[0]*np.cos(state[4])*np.sin(state[2]), state[0]*np.sin(state[4])*np.sin(state[2]), state[0]*np.cos(state[2])])
 
-        return pos
+        return state
