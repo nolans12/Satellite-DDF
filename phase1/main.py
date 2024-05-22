@@ -11,7 +11,7 @@ from sensorClass import sensor
 if __name__ == "__main__":
 
 # Define a sensor model:
-    sens1 = sensor(fov = 90, sensorError = np.array([0, 0]), detectError= 0.05, resolution = 720, name = 'Sensor 1')
+    sens1 = sensor(fov = 115, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720, name = 'Sensor 1')
 
 # Define targets for the satellites to track:
     targetIDs1 = np.array([1])

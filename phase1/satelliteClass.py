@@ -70,5 +70,8 @@ class satellite:
                     # print rawEst and the truth position of the target
                     print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
 
+                    # Also just print norm distance between the two for now
+                    print("Distance between raw estimate and truth position is", np.linalg.norm(rawEst - targ.pos))
+
 
         
