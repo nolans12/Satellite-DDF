@@ -6,8 +6,8 @@ class satellite:
     
     # Sensor to use
         self.sensor = sensor
-        self.measurementHist = {targetID: [] for targetID in targetIDs} # Initialize as a dictionary of lists
-        
+        self.measurementHist = {targetID: [] for targetID in targetIDs} # Initialize as a dictionary of lists for raw measurements: t, sat ECI pos, sensor measurements
+        self.rawEstimateHist = {targetID: [] for targetID in targetIDs} # Initialize as a dictionary of lists for raw estimates: t, targ ECI pos
 
     # Targets to track:
         self.targetIDs = targetIDs
@@ -55,8 +55,22 @@ class satellite:
                 # Make sure its not just a default 0, means target isnt visible
                 if not isinstance(measurement, int):
                 # If target is visible, save relavent data
+
                     # Need time, satellite positon, and measurement
-                    save = np.array([self.time, self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
-                    save = np.append(save, measurement)
-                    self.measurementHist[targ.targetID].append(save)
+                    saveMeas = np.array([self.time, self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
+                    saveMeas = np.append(saveMeas, measurement)
+                    self.measurementHist[targ.targetID].append(saveMeas)
                     # print(self.name, "measures", targ.name, "at", measurement)
+
+                    # Also save raw Estimate of target in ECI
+                    saveEst = np.array([self.time, targ.r[0], targ.r[1], targ.r[2]])
+                    rawEst = self.sensor.convert_to_ECI(self, measurement)
+                    saveEst = np.append(saveEst, rawEst)
+
+                    # print rawEst and the truth position of the target
+                    print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
+                    
+                    self.rawEstimateHist[targ.targetID].append(saveEst)
+
+
+        

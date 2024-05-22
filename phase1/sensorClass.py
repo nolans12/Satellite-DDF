@@ -38,6 +38,47 @@ class sensor:
             return 0
         
 
+    # Input: A satellite object and a bearings measurement
+    # Output: A single raw ECI position, containing time and target position in ECI
+    def convert_to_ECI(self, sat, measurement):
+
+    # Get the data
+        x_sat, y_sat, z_sat = sat.orbit.r.value
+        alpha, beta = measurement[0], measurement[1]
+
+    # Now perform ray tracing to get the direction vector the satellite is measuring
+        # In track, cross cross, along track values
+        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+
+        # Radial vector
+        u = rVec
+
+        # Cross Track vector
+        w = np.cross(rVec, vVec)
+
+        # In Track vector
+        v = np.cross(w,u)
+
+        # Define rotation matrix
+        T = np.array([v, w, u])
+        Tinv = np.linalg.inv(T)
+
+        # Get satellite in-track, cross-track, z components
+        dir_rot = np.dot(T, np.array([x_sat, y_sat, z_sat]))
+        x_sat, y_sat, z_sat = dir_rot[0:3]
+
+        
+        # TODO: I think here would translate the direction vector of {x_sat, y_sat, z_sat} by bearing angles
+        # to get the direction vector of the target in ECI, which i call dir_meas
+
+
+        # Now get the intersection with Earth:
+        intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x_sat, y_sat, z_sat], dir_meas)
+
+        return intersection
+
+
     # Input: A satellite and target object (one that is visible)
     # Output: A bearings only measurement of the target with error
     def sensor_model(self, sat, targ):
@@ -149,7 +190,7 @@ class sensor:
         x_sat, y_sat, z_sat = dir_orig[0:3]
  
         # Define the rotation axes for the four directions
-        rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
+        # rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
         rotation_axes = [[np.sqrt(2), np.sqrt(2), 0], [-np.sqrt(2), -np.sqrt(2), 0], [np.sqrt(2), -np.sqrt(2), 0], [-np.sqrt(2), np.sqrt(2), 0]] # sqrt(2)/2
 
         # Initialize list to store the new direction vectors

@@ -16,16 +16,20 @@ class localEstimator:
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
+        self.stateMeasHist = {targetID: [] for targetID in targetIDs}
         self.estHist = {targetID: [] for targetID in targetIDs} 
         self.covarianceHist = {targetID: [] for targetID in targetIDs}
 
 
-    def EKF(self, measurementHist, targetID, dt, sensor):
+    def EKF(self, measurementHist, targetID, dt, sat):
         
         # Check if measurements are empty, if so skip
         if len(measurementHist[targetID]) == 0:
             return 0
-        
+
+        # Else, convert the most recent measurement to a spherical coordinate estimate:
+        # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
+
     # Get measurement history for that target
         measurements = np.array(measurementHist[targetID])
 
@@ -67,7 +71,7 @@ class localEstimator:
                       [0, 0, 0, 0, 0, 1]])
         
     # Define the process noise matrix
-        # Estimate the randomness of the acceleration
+        # Estimate the randomness of the acceleration, for now just use exact
         q_range = 0.000001
         q_elevation = 0.001
         q_azimuth = 0.001
