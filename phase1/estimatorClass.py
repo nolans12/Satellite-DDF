@@ -8,6 +8,7 @@ class centralEstimator:
         self.sats = sats
         self.targs = targs
 
+    # TODO: USE NESTED DICT STRUCTURE AS SEEN IN LOCAL ESTIMATOR:
         
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
@@ -16,36 +17,36 @@ class localEstimator:
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
-        self.estHist = {targetID: [] for targetID in targetIDs} 
-        self.covarianceHist = {targetID: [] for targetID in targetIDs}
+        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
+        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
 
 
-    def EKF(self, measurementHist, targetID, dt, sensor):
-        
-        # Check if measurements are empty, if so skip
-        if len(measurementHist[targetID]) == 0:
-            return 0
-        
-    # Get measurement history for that target
-        measurements = np.array(measurementHist[targetID])
+    # Input: New measurement: estimate in ECI, target ID, time step, and environment time (to time stamp the measurement)
+    # Output: New estimate in ECI
+    def EKF(self,  newMeas, targetID, dt, envTime):
+    # Extended Kalman Filter:
+    # Desired Estimate Xdot = [x xdot y ydot z zdot]
+    # Measurment Z = [x y z] ECI coordinates
+    # Assume CWNA predictive model for dynamics and covariance
+    
+    # Get measurement time history for that target
+        measurments = self.measHist[targetID]
 
-    # Get estimate history for that target
-        estimates = np.array(self.estHist[targetID])
+    # Get estimate time history for that target
+        estimates = self.estHist[targetID]
 
-    # Get covert history for that target
-        covariance = np.array(self.covarianceHist[targetID])
+    # Get covert time history for that target
+        covariance = self.covarianceHist[targetID]
 
-    # Get last estimate, using spherical coordinates
-        # [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
         # Assume prior state estimate exists
         if len(estimates) == 0:
-            # If no prior estimate, use the first measurement
-            # TODO: Convert to ECI from bearings
-            # TODO: ALSO NEED VELOCITY IN STATE, somehow
-            state = measurements[0, 3:]
+            # If no prior estimate, use the first measurement and assume no velocity
+            state = np.array([newMeas[0], 0, newMeas[1], 0, newMeas[2], 0])
         else:
-            # Otherwise use the last estimate
-            state = estimates[-1]
+            # To get the last estimate, need to get the last time, which will be the max
+            lastTime = max(estimates.keys())
+            state = estimates[lastTime]
 
     # Get last covariance matrix
         # Assume prior covariance exists
@@ -53,8 +54,9 @@ class localEstimator:
             # If no prior covariance, use the identity matrix
             P = np.eye(6)
         else:
-            # Otherwise use the last covariance
-            P = covariance[-1]
+            # To get the last covariance, need to get the last time, which will be the max
+            lastTime = max(covariance.keys())
+            P = covariance[lastTime]
 
 # Preciction:
     # USING DWNAM
@@ -68,10 +70,10 @@ class localEstimator:
         
     # Define the process noise matrix
         # Estimate the randomness of the acceleration
-        q_range = 0.000001
-        q_elevation = 0.001
-        q_azimuth = 0.001
-        q_mat = np.array([0, q_range, 0, q_elevation, 0, q_azimuth])
+        q_x = 0.001
+        q_y = 0.001
+        q_z = 0.001
+        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
         Q = np.array([[0, 0, 0, 0, 0, 0],
                       [0, dt, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
@@ -90,25 +92,28 @@ class localEstimator:
 # Update:
     # Solve for the Kalman gain
 
-        H = np.eye(6)
+        H = np.array([[1, 0, 0, 0, 0, 0],
+                      [0, 0, 1, 0, 0, 0],
+                      [0, 0, 0, 0, 1, 0]])
         # H = sensor.H
 
-        R = np.eye(6) * 0.01
+        R = np.eye(3) * 0.01
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
 
     # Get the measurement
-        z = measurements[-1, 3:]
+        z = newMeas
 
     # Update the state
         state = state_pred + np.dot(K, z - np.dot(H, state_pred))
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
     # Save the estimate and covariance
-        self.estHist[targetID].append(state) # Will be in spherical coordinates
-        self.covarianceHist[targetID].append(P)
+        self.estHist[targetID][envTime] = state # x, xdot, y, ydot, z, zdot in ECI coordinates
+        self.covarianceHist[targetID][envTime] = P
+        self.measHist[targetID][envTime] = newMeas
 
-    # Return the estimate
-        # Translate from spherical to ECI
-        pos = np.array([state[0]*np.cos(state[4])*np.sin(state[2]), state[0]*np.sin(state[4])*np.sin(state[2]), state[0]*np.cos(state[2])])
+    # # Return the estimate
+    #     # Translate from spherical to ECI
+    #     pos = np.array([state[0]*np.cos(state[4])*np.sin(state[2]), state[0]*np.sin(state[4])*np.sin(state[2]), state[0]*np.cos(state[2])])
 
-        return pos
+        return state

@@ -15,7 +15,6 @@ class sensor:
         # TODO: Update later based on different sensor models, for now just bearings
         self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
     
-
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
     def get_measurement(self, sat, targ):
@@ -36,14 +35,10 @@ class sensor:
         else:
         # If target isnt visible, return just 0
             return 0
-        
-
+    
     # Input: A satellite and target object (one that is visible)
     # Output: A bearings only measurement of the target with error
     def sensor_model(self, sat, targ):
-
-        # Get original location of satellite
-        x_sat, y_sat, z_sat = sat.orbit.r.value
 
         # In track, cross cross, along track values
         rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
@@ -61,39 +56,54 @@ class sensor:
         # Define rotation matrix
         T = np.array([v, w, u])
 
-        # Get satellite in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array([x_sat, y_sat, z_sat]))
-        x_sat, y_sat, z_sat = dir_rot[0:3]
-
         # Get the target in-track, cross-track, z components
         dir_rot = np.dot(T, np.array(targ.pos))
-        x_targ, y_targ, z_targ = dir_rot[0:3]
-        
-        # Zero target values by satellite values
-        in_track_targ = x_targ - x_sat
-        cross_track_targ = y_targ - y_sat
-
-        # # Print test
-        # print("Satellite: ", x_sat, y_sat, z_sat)
-        # print("Target: ", in_track_targ, cross_track_targ)
+        in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
 
         # Now have target truth position in in-track and cross-track components
-        height = z_sat - 6378 
+        height = np.linalg.norm(sat.orbit.r.value) - 6378
         alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
         beta_truth = np.arctan2(cross_track_targ, height)*180/np.pi
 
         # Add sensor error, assuming gaussian
         alpha_meas = alpha_truth + np.random.normal(0, self.sensorError[0])
         beta_meas = beta_truth + np.random.normal(0, self.sensorError[1])
-
-        # # Print test
-        # print("Satellite: ", x_sat, y_sat, z_sat)
-        # print("Truth: ", alpha_truth, beta_truth)
-        # print("Measured: ", alpha_meas, beta_meas)
         
         return np.array([alpha_meas, beta_meas])
   
+    # Input: A satellite object and a bearings measurement
+    # Output: A single raw ECI position, containing time and target position in ECI
+    def convert_to_ECI(self, sat, measurement):
 
+    # Get the data
+        alpha, beta = measurement[0], measurement[1] 
+        # convert to radians
+        alpha, beta = np.radians(alpha), np.radians(beta)
+
+        # Convert satellite position to be in in-track, cross-track, z
+        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+        u = rVec
+        w = np.cross(rVec, vVec)
+        v = np.cross(w,u)
+        T = np.array([v, w, u])
+        Tinv = np.linalg.inv(T)
+
+        # Now reverse the bearings calculation
+        height = np.linalg.norm(sat.orbit.r.value) - 6378
+        in_track_targ = np.tan(alpha)*height
+        cross_track_targ = np.tan(beta)*height
+
+        # Desired magntidue is 6378, calculate the Z value that will make the magnitude needed
+        desired = 6378
+        z_targ_local = np.sqrt(desired**2 - in_track_targ**2 - cross_track_targ**2)
+
+        # Now rotate back to ECI
+        dir_rot = np.dot(Tinv, np.array([in_track_targ, cross_track_targ, z_targ_local]))
+        x_targ_eci, y_targ_eci, z_targ_eci = dir_rot[0:3]
+
+        return  np.array([x_targ_eci, y_targ_eci, z_targ_eci])
+    
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
     def visible_projection(self, sat):
@@ -149,7 +159,7 @@ class sensor:
         x_sat, y_sat, z_sat = dir_orig[0:3]
  
         # Define the rotation axes for the four directions
-        rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
+        # rotation_axes = [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0]]
         rotation_axes = [[np.sqrt(2), np.sqrt(2), 0], [-np.sqrt(2), -np.sqrt(2), 0], [np.sqrt(2), -np.sqrt(2), 0], [-np.sqrt(2), np.sqrt(2), 0]] # sqrt(2)/2
 
         # Initialize list to store the new direction vectors

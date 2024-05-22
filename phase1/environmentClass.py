@@ -69,14 +69,15 @@ class environment:
             self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
         
         # Plot the trail of the satellite, but only up to last n points
-            n = 5
-            if len(sat.orbitHist) > n:
-                t, r = zip(*sat.orbitHist[-n:])
-                x, y, z = np.array(r).T
-            else:
-                t, r = zip(*sat.orbitHist)
-                x, y, z = np.array(r).T
-            self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
+        # TODO: this is now more complex to do because is a dictionary not array, for now just dont do
+            # n = 5
+            # if len(sat.orbitHist) > n:
+            #     t, r = zip(*sat.orbitHist[-n:])
+            #     x, y, z = np.array(r).T
+            # else:
+            #     t, r = zip(*sat.orbitHist)
+            #     x, y, z = np.array(r).T
+            # self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
@@ -103,10 +104,10 @@ class environment:
         for targ in self.targs:
 
             # Propagate the target
-            targ.x = targ.propagate(time_step, self.time)
+            targ.propagate(time_step, self.time)
 
-            # Update the history of the target
-            targ.hist.append([targ.time, targ.x]) # history of target time and xyz position
+            # Update the history of the target, time and xyz position and velocity
+            targ.hist[targ.time] = np.array([targ.pos[0], targ.pos[1], targ.pos[2], targ.vel[0], targ.vel[1], targ.vel[2]])
         
     # Propagate the satellites
         for sat in self.sats:
@@ -117,19 +118,8 @@ class environment:
             # Collect measurements on any avaliable targets
             sat.collect_measurements(self.targs)
 
-            # Update local estimators
-            for targ in self.targs:
-                if targ.targetID in sat.targetIDs:
-                    test = sat.estimator.EKF(sat.measurementHist, targ.targetID, time_step.value, sat.sensor)
-                    if test != 0:
-                        print("Truth")
-                        print(self.targs[0].pos)
-                        print("Estimate")
-                        print(test)
-            
-            
             # Update the history of the orbit
-            sat.orbitHist.append([sat.time, sat.orbit.r.value]) # history of sat time and xyz position
+            sat.orbitHist[sat.time] = sat.orbit.r.value # history of sat time and xyz position
 
 # Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!
@@ -157,8 +147,7 @@ class environment:
                 plt.draw()
 
         # Save the data for each satellite to a csv file
-        self.log_data()
-
+        # self.log_data()
 
 # For each satellite, saves the measurement history of each target to a csv file:
     def log_data(self):

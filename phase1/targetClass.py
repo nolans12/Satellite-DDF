@@ -12,7 +12,8 @@ class target:
         
         # ECI Position
         self.pos = np.array([0, 0, 0])
-        self.hist = []
+        self.vel = np.array([0, 0, 0])
+        self.hist = defaultdict(dict) # contains time and xyz and velocity history in ECI
         
         #  Target State r = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]'
         self.r = np.array(r)
@@ -65,6 +66,15 @@ class target:
         
         # Convert back to x,y,z ECI
         self.pos = np.array([self.r[0]*np.cos(self.r[4])*np.sin(self.r[2]), self.r[0]*np.sin(self.r[4])*np.sin(self.r[2]), self.r[0]*np.cos(self.r[2])])
-    #   self.pos = np.array([newRange*np.cos(newAzimuth)*np.sin(newElevation), newRange*np.sin(newAzimuth)*np.sin(newElevation), newRange*np.cos(newElevation)])
-
-        return self.pos
+        x_dot = ( self.r[1] * np.cos( self.r[4]) * np.cos( self.r[2])
+             -  self.r[0] * np.sin( self.r[4]) *  self.r[5] * np.cos( self.r[2])
+             -  self.r[0] * np.cos( self.r[4]) * np.sin( self.r[2]) *  self.r[3])
+    
+        y_dot = ( self.r[1] * np.cos( self.r[4]) * np.sin( self.r[2])
+             -  self.r[0] * np.sin( self.r[4]) *  self.r[5] * np.sin( self.r[2])
+             +  self.r[0] * np.cos( self.r[4]) * np.cos( self.r[2]) *  self.r[3])
+    
+        z_dot = ( self.r[1] * np.sin( self.r[4])
+             +  self.r[0] * np.cos( self.r[4]) *  self.r[5])
+        
+        self.vel = np.array([x_dot, y_dot, z_dot])
