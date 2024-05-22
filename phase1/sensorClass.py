@@ -69,7 +69,7 @@ class sensor:
         x_sat, y_sat, z_sat = dir_rot[0:3]
 
         # Get initial direction vector, pointing to center of Earth
-        inital_vec = np.array([x_sat, y_sat, z_sat])/np.linalg.norm([x_sat, y_sat, z_sat])
+        inital_vec = np.array([0 - x_sat, 0 - y_sat, 0 - z_sat])/np.linalg.norm([x_sat, y_sat, z_sat])
 
         # Now apply a R2 of alpha and R1 of beta to the initial vector
         R2 = np.array([[np.cos(np.radians(alpha)), -np.sin(np.radians(alpha)), 0],
