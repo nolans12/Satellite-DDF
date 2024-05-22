@@ -15,7 +15,6 @@ class sensor:
         # TODO: Update later based on different sensor models, for now just bearings
         self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
     
-
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
     def get_measurement(self, sat, targ):
@@ -36,77 +35,11 @@ class sensor:
         else:
         # If target isnt visible, return just 0
             return 0
-        
-
-    # Input: A satellite object and a bearings measurement
-    # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_to_ECI(self, sat, measurement):
-
-    # Get the data
-        x_sat_orig, y_sat_orig, z_sat_orig = sat.orbit.r.value
-        alpha, beta = measurement[0], measurement[1]
-
-    # Now perform ray tracing to get the direction vector the satellite is measuring
-        # In track, cross cross, along track values
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-
-        # Radial vector
-        u = rVec
-
-        # Cross Track vector
-        w = np.cross(rVec, vVec)
-
-        # In Track vector
-        v = np.cross(w,u)
-
-        # Define rotation matrix
-        T = np.array([v, w, u])
-        Tinv = np.linalg.inv(T)
-
-        # Get satellite in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array([x_sat_orig, y_sat_orig, z_sat_orig]))
-        x_sat, y_sat, z_sat = dir_rot[0:3]
-
-        # Get initial direction vector, pointing to center of Earth
-        inital_vec = np.array([0 - x_sat, 0 - y_sat, 0 - z_sat])/np.linalg.norm([x_sat, y_sat, z_sat])
-
-        # Now apply a R2 of alpha and R1 of beta to the initial vector
-        R2 = np.array([[np.cos(np.radians(alpha)), -np.sin(np.radians(alpha)), 0],
-                          [np.sin(np.radians(alpha)), np.cos(np.radians(alpha)), 0],
-                            [0, 0, 1]])
-        R1 = np.array([[np.cos(np.radians(beta)), 0, np.sin(np.radians(beta))],
-                            [0, 1, 0],
-                            [-np.sin(np.radians(beta)), 0, np.cos(np.radians(beta))]])
-
-        # Get the direction vector of the target in bearing frame
-        dir_meas = np.dot(R2, np.dot(R1, inital_vec))
-
-        # Now rotate back to ECI
-        dir_meas = np.dot(Tinv, dir_meas)
-
-        # print
-        print("Initial Vector: ", inital_vec)
-        print("Direction Vector: ", dir_meas)
-        print("Truth Bearings: ", alpha, beta)
-
-        # calculate the angle between the two vectors
-        angle = np.arccos(np.dot(inital_vec, dir_meas)/(np.linalg.norm(inital_vec)*np.linalg.norm(dir_meas)))*180/np.pi
-        print("Angle between vectors: ", np.degrees(angle))
-
-        # Now get the intersection with Earth:
-        intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x_sat_orig, y_sat_orig, z_sat_orig], dir_meas)
-
-        return intersection
-
-
+    
     # Input: A satellite and target object (one that is visible)
     # Output: A bearings only measurement of the target with error
     def sensor_model(self, sat, targ):
 
-        # Get original location of satellite
-        x_sat, y_sat, z_sat = sat.orbit.r.value
-
         # In track, cross cross, along track values
         rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
         vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
@@ -123,39 +56,54 @@ class sensor:
         # Define rotation matrix
         T = np.array([v, w, u])
 
-        # Get satellite in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array([x_sat, y_sat, z_sat]))
-        x_sat, y_sat, z_sat = dir_rot[0:3]
-
         # Get the target in-track, cross-track, z components
         dir_rot = np.dot(T, np.array(targ.pos))
-        x_targ, y_targ, z_targ = dir_rot[0:3]
-        
-        # Zero target values by satellite values
-        in_track_targ = x_targ - x_sat
-        cross_track_targ = y_targ - y_sat
-
-        # # Print test
-        # print("Satellite: ", x_sat, y_sat, z_sat)
-        # print("Target: ", in_track_targ, cross_track_targ)
+        in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
 
         # Now have target truth position in in-track and cross-track components
-        height = z_sat - 6378 
+        height = np.linalg.norm(sat.orbit.r.value) - 6378
         alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
         beta_truth = np.arctan2(cross_track_targ, height)*180/np.pi
 
         # Add sensor error, assuming gaussian
         alpha_meas = alpha_truth + np.random.normal(0, self.sensorError[0])
         beta_meas = beta_truth + np.random.normal(0, self.sensorError[1])
-
-        # # Print test
-        # print("Satellite: ", x_sat, y_sat, z_sat)
-        # print("Truth: ", alpha_truth, beta_truth)
-        # print("Measured: ", alpha_meas, beta_meas)
         
         return np.array([alpha_meas, beta_meas])
   
+    # Input: A satellite object and a bearings measurement
+    # Output: A single raw ECI position, containing time and target position in ECI
+    def convert_to_ECI(self, sat, measurement):
 
+    # Get the data
+        alpha, beta = measurement[0], measurement[1] 
+        # convert to radians
+        alpha, beta = np.radians(alpha), np.radians(beta)
+
+        # Convert satellite position to be in in-track, cross-track, z
+        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+        u = rVec
+        w = np.cross(rVec, vVec)
+        v = np.cross(w,u)
+        T = np.array([v, w, u])
+        Tinv = np.linalg.inv(T)
+
+        # Now reverse the bearings calculation
+        height = np.linalg.norm(sat.orbit.r.value) - 6378
+        in_track_targ = np.tan(alpha)*height
+        cross_track_targ = np.tan(beta)*height
+
+        # Desired magntidue is 6378, calculate the Z value that will make the magnitude needed
+        desired = 6378
+        z_targ_local = np.sqrt(desired**2 - in_track_targ**2 - cross_track_targ**2)
+
+        # Now rotate back to ECI
+        dir_rot = np.dot(Tinv, np.array([in_track_targ, cross_track_targ, z_targ_local]))
+        x_targ_eci, y_targ_eci, z_targ_eci = dir_rot[0:3]
+
+        return  np.array([x_targ_eci, y_targ_eci, z_targ_eci])
+    
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
     def visible_projection(self, sat):

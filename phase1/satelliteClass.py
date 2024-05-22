@@ -59,18 +59,16 @@ class satellite:
                     # Need time, satellite positon, and measurement
                     saveMeas = np.array([self.time, self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
                     saveMeas = np.append(saveMeas, measurement)
-                    self.measurementHist[targ.targetID].append(saveMeas)
-                    # print(self.name, "measures", targ.name, "at", measurement)
+                    self.measurementHist[targ.targetID].append(saveMeas) # Format is: [time, x, y, z, alpha, beta] in ECI coordinates of satellite
 
                     # Also save raw Estimate of target in ECI
-                    saveEst = np.array([self.time, targ.r[0], targ.r[1], targ.r[2]])
+                    saveEst = np.array([self.time])
                     rawEst = self.sensor.convert_to_ECI(self, measurement)
-                    saveEst = np.append(saveEst, rawEst)
+                    saveEst = np.append(saveEst, rawEst)         
+                    self.rawEstimateHist[targ.targetID].append(saveEst) # Format is: [time, x, y, z] in ECI coordinates of target
 
                     # print rawEst and the truth position of the target
-                    # print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
-                    
-                    self.rawEstimateHist[targ.targetID].append(saveEst)
+                    print("Raw Estimate of", targ.name, "is", rawEst, "and the truth position is", targ.pos)
 
 
         
