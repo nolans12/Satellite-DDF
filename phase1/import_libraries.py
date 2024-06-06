@@ -4,6 +4,7 @@ from poliastro.bodies import Earth
 from poliastro.twobody import Orbit
 from astropy import units as u
 import numpy as np
+import networkx as nx
 import matplotlib.pyplot as plt
 import io
 import imageio
