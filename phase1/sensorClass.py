@@ -43,23 +43,20 @@ class sensor:
         # In track, cross cross, along track values
         rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
         vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-
+        
         # Radial vector
         u = rVec
-        
         # Cross Track vector
         w = np.cross(rVec, vVec)
-        
         # In Track vector
         v = np.cross(w,u)
-
         # Define rotation matrix
         T = np.array([v, w, u])
-
+        
         # Get the target in-track, cross-track, z components
         dir_rot = np.dot(T, np.array(targ.pos))
         in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
-
+        
         # Now have target truth position in in-track and cross-track components
         height = np.linalg.norm(sat.orbit.r.value) - 6378
         alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
@@ -75,12 +72,12 @@ class sensor:
     # Output: A single raw ECI position, containing time and target position in ECI
     def convert_to_ECI(self, sat, measurement):
 
-    # Get the data
+        # Get the data
         alpha, beta = measurement[0], measurement[1] 
         # convert to radians
         alpha, beta = np.radians(alpha), np.radians(beta)
 
-        # Convert satellite position to be in in-track, cross-track, z
+        # Convert satellite position to be in in-track, cross-track, radial
         rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
         vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
         u = rVec
