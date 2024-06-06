@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment: 
-    def __init__(self, sats, targs, centralEstimator = None):
+    def __init__(self, sats, targs, comms, centralEstimator = None):
 
     # If a central estimator is passed, use it
         if centralEstimator:
@@ -13,6 +13,9 @@ class environment:
 
     # Define the targets
         self.targs = targs
+
+    # Define the communication network
+        self.comms = comms
 
     # Time parameter, initalize to 0
         self.time = 0
@@ -67,17 +70,6 @@ class environment:
             self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], color = sat.color, marker = 'x')
             box = np.array([points[0], points[3], points[1], points[2], points[0]])
             self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
-        
-        # Plot the trail of the satellite, but only up to last n points
-        # TODO: this is now more complex to do because is a dictionary not array, for now just dont do
-            # n = 5
-            # if len(sat.orbitHist) > n:
-            #     t, r = zip(*sat.orbitHist[-n:])
-            #     x, y, z = np.array(r).T
-            # else:
-            #     t, r = zip(*sat.orbitHist)
-            #     x, y, z = np.array(r).T
-            # self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
 
     # FOR EACH TARGET, PLOTS
         for targ in self.targs:
@@ -86,6 +78,15 @@ class environment:
             self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
             
         self.ax.legend()
+
+    # PLOT COMMUNICATION STRUCTURE
+        if self.comms.displayStruct:
+            for edge in self.comms.G.edges:
+                sat1 = edge[0]
+                sat2 = edge[1]
+                x1, y1, z1 = sat1.orbit.r.value
+                x2, y2, z2 = sat2.orbit.r.value
+                self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -115,11 +116,15 @@ class environment:
             # Propagate the orbit
             sat.orbit = sat.orbit.propagate(time_step)
 
+            # Update the communication network for the new sat position:
+            self.comms.make_edges(self.sats)
+
             # Collect measurements on any avaliable targets
             sat.collect_measurements(self.targs)
 
             # Update the history of the orbit
             sat.orbitHist[sat.time] = sat.orbit.r.value # history of sat time and xyz position
+
 
 # Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!
@@ -149,7 +154,7 @@ class environment:
         # Save the data for each satellite to a csv file
         self.log_data()
         
-        self.plotResults(time_vec)
+        # self.plotResults(time_vec)
 
 # For each satellite, saves the measurement history of each target to a csv file:
     def log_data(self):
