@@ -30,36 +30,36 @@ class localEstimator:
     # Measurment Z = [x y z] ECI coordinates
     # Assume CWNA predictive model for dynamics and covariance
     
-    # Get measurement time history for that target
-        measurments = self.measHist[targetID]
+    # # Get measurement time history for that target
+    #     measurments = self.measHist[targetID]
 
-    # Get estimate time history for that target
-        estimates = self.estHist[targetID]
+    # # Get estimate time history for that target
+    #     estimates = self.estHist[targetID]
 
-    # Get covert time history for that target
-        covariance = self.covarianceHist[targetID]
+    # # Get covert time history for that target
+    #     covariance = self.covarianceHist[targetID]
 
         # Assume prior state estimate exists
-        if len(estimates) == 0:
+        if len(self.estHist[targetID]) == 0:
             # If no prior estimate, use the first measurement and assume no velocity
             state = np.array([newMeas[0], 0, newMeas[1], 0, newMeas[2], 0])
         else:
             # To get the last estimate, need to get the last time, which will be the max
-            lastTime = max(estimates.keys())
-            state = estimates[lastTime]
+            lastTime = max(self.estHist[targetID].keys())
+            state = self.estHist[targetID][lastTime]
 
     # Get last covariance matrix
         # Assume prior covariance exists
-        if len(covariance) == 0:
+        if len(self.covarianceHist[targetID]) == 0:
             # If no prior covariance, use the identity matrix
             P = np.eye(6)
         else:
             # To get the last covariance, need to get the last time, which will be the max
-            lastTime = max(covariance.keys())
-            P = covariance[lastTime]
+            lastTime = max(self.covarianceHist[targetID].keys())
+            P = self.covarianceHist[targetID][lastTime]
 
 # Preciction:
-    # USING DWNAM
+    # USING CWNAM
     # Define the state transition matrix
         F = np.array([[1, dt, 0, 0, 0, 0],
                       [0, 1, 0, 0, 0, 0],

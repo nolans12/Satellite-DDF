@@ -68,9 +68,17 @@ class satellite:
                     # # Local Kalman Filter on raw Estimate
                     dt = 1
                     estimate = self.estimator.EKF(raw_ECI_Meas, targ.targetID, dt, self.time)  
-                    # print("Estimate of", targ.name, "is", estimate)
-                    # #print("Distance between estimate and truth position is", np.linalg.norm(estimate - targ.pos))
-                    # print("\n")
+                    
+                    
+                    # print("=" * 50)
+                    # print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
+                    # print("=" * 50)
+                    # print("Satellite:", self.name, "Target:", targ.name)
+                    # print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
+                    # print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_Meas)}")
+                    # print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_Meas - targ.pos), 2)}")
+
+                    
                     print("=" * 50)
                     print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
                     print("=" * 50)
