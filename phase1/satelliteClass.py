@@ -46,6 +46,7 @@ class satellite:
         self.time = 0
 
     def collect_measurements(self, targs):
+        collectedFlag = 0
         for i, targ in enumerate(targs):
         # Loop through all targets
             if targ.targetID in self.targetIDs:
@@ -55,6 +56,7 @@ class satellite:
                 # Make sure its not just a default 0, means target isnt visible
                 if not isinstance(measurement, int):
                 # If target is visible, save relavent data
+                    collectedFlag = 1
 
                     # Need time, satellite positon, and measurement
                     saveMeas = np.array([self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
@@ -69,16 +71,7 @@ class satellite:
                     dt = 1
                     estimate = self.estimator.EKF(raw_ECI_Meas, targ.targetID, dt, self.time)  
                     
-                    
-                    # print("=" * 50)
-                    # print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
-                    # print("=" * 50)
-                    # print("Satellite:", self.name, "Target:", targ.name)
-                    # print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
-                    # print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_Meas)}")
-                    # print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_Meas - targ.pos), 2)}")
-
-                    
+                    # # Print out the self estimator results
                     # print("=" * 50)
                     # print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
                     # print("=" * 50)
@@ -96,7 +89,7 @@ class satellite:
                     # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([estimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
                     # print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([estimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
                     # print("\n")
-                                        
-
+                                                             
+        return collectedFlag
 
         
