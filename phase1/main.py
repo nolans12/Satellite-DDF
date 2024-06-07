@@ -26,8 +26,8 @@ if __name__ == "__main__":
     central = centralEstimator(targetIDs = targetIDs) # TODO: why not just make centralized always do all targets? since it is the baseline?
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 45, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='r')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 50, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 50, nu = 0, color='r')
     
     sats = [sat1, sat2]
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     env = environment(sats, targs, comms, central)
 
 # Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0, 30, 31) * u.minute
+    time_vec = np.linspace(0, 20, 21) * u.minute
     env.simulate(time_vec, display = True)
 
 # Save the gif:
