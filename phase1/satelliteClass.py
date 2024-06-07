@@ -46,6 +46,7 @@ class satellite:
         self.time = 0
 
     def collect_measurements(self, targs):
+        collectedFlag = 0
         for i, targ in enumerate(targs):
         # Loop through all targets
             if targ.targetID in self.targetIDs:
@@ -55,6 +56,7 @@ class satellite:
                 # Make sure its not just a default 0, means target isnt visible
                 if not isinstance(measurement, int):
                 # If target is visible, save relavent data
+                    collectedFlag = 1
 
                     # Need time, satellite positon, and measurement
                     saveMeas = np.array([self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
@@ -65,38 +67,29 @@ class satellite:
                     raw_ECI_Meas = self.sensor.convert_to_ECI(self, measurement)
                     self.raw_ECI_MeasimateHist[targ.targetID][self.time] = raw_ECI_Meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
 
-                    # # Local Kalman Filter on raw Estimate
+                    # Local Kalman Filter on raw Estimate
                     dt = 1
                     estimate = self.estimator.EKF(raw_ECI_Meas, targ.targetID, dt, self.time)  
                     
-                    
+                    # # Print out the self estimator results
                     # print("=" * 50)
                     # print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
                     # print("=" * 50)
                     # print("Satellite:", self.name, "Target:", targ.name)
                     # print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
+                    # print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
+                    # print("=" * 50)
+                    # print(f"{'Raw Measurement and Kalman Filter Estimate':^100}")
+                    # print("=" * 100)
                     # print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_Meas)}")
+                    # print(f"{'Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in estimate[::2])}")
+                    # print(f"{'Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in estimate[1::2])}")
+                    # print("=" * 100)
                     # print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_Meas - targ.pos), 2)}")
-
-                    
-                    print("=" * 50)
-                    print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
-                    print("=" * 50)
-                    print("Satellite:", self.name, "Target:", targ.name)
-                    print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
-                    print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
-                    print("=" * 50)
-                    print(f"{'Raw Measurement and Kalman Filter Estimate':^100}")
-                    print("=" * 100)
-                    print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_Meas)}")
-                    print(f"{'Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in estimate[::2])}")
-                    print(f"{'Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in estimate[1::2])}")
-                    print("=" * 100)
-                    print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_Meas - targ.pos), 2)}")
-                    print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([estimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
-                    print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([estimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
-                    print("\n")
-                                        
-
+                    # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([estimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
+                    # print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([estimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
+                    # print("\n")
+                                                             
+        return collectedFlag
 
         

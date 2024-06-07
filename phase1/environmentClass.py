@@ -2,17 +2,20 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment: 
-    def __init__(self, sats, targs, centralEstimator = None):
+    def __init__(self, sats, targs, comms, centralEstimator = None):
 
     # If a central estimator is passed, use it
         if centralEstimator:
-            self.estimator = centralEstimator
+            self.centralEstimator = centralEstimator
 
     # Define the satellites
         self.sats = sats
 
     # Define the targets
         self.targs = targs
+
+    # Define the communication network
+        self.comms = comms
 
     # Time parameter, initalize to 0
         self.time = 0
@@ -39,87 +42,6 @@ class environment:
 
     # Empty images list to later make a gif of the simulation
         self.imgs = []
-
-# Plot the current state of the environment
-    def plot(self):
-        # Reset plot
-        for line in self.ax.lines:
-            line.remove()
-        for collection in self.ax.collections:
-            collection.remove()
-        for text in self.ax.texts:
-            text.remove()
-
-        # Put text of current time in top left corner
-        self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
-
-    # Plot Earth
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
-
-    # FOR EACH SATELLITE, PLOTS
-        for sat in self.sats:
-        # Plot the current xyz location of the satellite
-            x, y, z = sat.orbit.r.value
-            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
-
-        # Plot the visible projection of the satellite sensor
-            points = sat.sensor.projBox
-            self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], color = sat.color, marker = 'x')
-            box = np.array([points[0], points[3], points[1], points[2], points[0]])
-            self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
-        
-        # Plot the trail of the satellite, but only up to last n points
-        # TODO: this is now more complex to do because is a dictionary not array, for now just dont do
-            # n = 5
-            # if len(sat.orbitHist) > n:
-            #     t, r = zip(*sat.orbitHist[-n:])
-            #     x, y, z = np.array(r).T
-            # else:
-            #     t, r = zip(*sat.orbitHist)
-            #     x, y, z = np.array(r).T
-            # self.ax.plot(x, y, z, color = sat.color, linestyle='--', linewidth = 1)
-
-    # FOR EACH TARGET, PLOTS
-        for targ in self.targs:
-        # Plot the current xyz location of the target
-            x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
-            
-        self.ax.legend()
-
-# Propagate the satellites over the time step  
-    def propagate(self, time_step):
-        
-    # Update the current time
-        self.time += time_step
-
-        time_val = self.time.to_value(self.time.unit)
-        # Update the time in targs, sats, and estimator
-        for targ in self.targs:
-            targ.time = time_val
-        for sat in self.sats:
-            sat.time = time_val
-
-    # Propagate the targets position
-        for targ in self.targs:
-
-            # Propagate the target
-            targ.propagate(time_step, self.time)
-
-            # Update the history of the target, time and xyz position and velocity [x xdot y ydot z zdot]
-            targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
-
-        # Propagate the satellites
-        for sat in self.sats:
-            
-            # Propagate the orbit
-            sat.orbit = sat.orbit.propagate(time_step)
-
-            # Collect measurements on any avaliable targets
-            sat.collect_measurements(self.targs)
-
-            # Update the history of the orbit
-            sat.orbitHist[sat.time] = sat.orbit.r.value # history of sat time and xyz position
 
 # Simulate the environment over a time range
     # Time range is a numpy array of time steps, must have poliastro units associated!
@@ -149,7 +71,114 @@ class environment:
         # Save the data for each satellite to a csv file
         self.log_data()
         
-        self.plotResults(time_vec)
+        # self.plotResults(time_vec)
+        self.plotBaselines(time_vec)
+
+# Propagate the satellites over the time step  
+    def propagate(self, time_step):
+        
+    # Update the current time
+        self.time += time_step
+
+        time_val = self.time.to_value(self.time.unit)
+        # Update the time in targs, sats, and estimator
+        for targ in self.targs:
+            targ.time = time_val
+        for sat in self.sats:
+            sat.time = time_val
+
+    # Propagate the targets position
+        for targ in self.targs:
+
+            # Propagate the target
+            targ.propagate(time_step, self.time)
+
+            # Update the history of the target, time and xyz position and velocity [x xdot y ydot z zdot]
+            targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
+
+
+        collectedFlag = np.zeros(np.size(self.sats))
+        satNum = 0
+        # Propagate the satellites
+        for sat in self.sats:
+            
+        # Propagate the orbit
+            sat.orbit = sat.orbit.propagate(time_step)
+            sat.orbitHist[sat.time] = sat.orbit.r.value # history of sat time and xyz position
+
+        # Update the communication network for the new sat position:
+            self.comms.make_edges(self.sats)
+
+        # Collect measurements on any avaliable targets
+            collectedFlag[satNum] = sat.collect_measurements(self.targs) # if any measurement was collected, will be true
+            satNum += 1
+
+        # Update Central Estimator on all targets if measurments were collected
+        if any(collectedFlag == 1) and self.centralEstimator:
+            for targ in self.targs:
+                # Collect all measurments for each target for central estimation
+                allMeas = self.centralEstimator.collectAllMeasurements(self.sats, targ.targetID, time_val)
+                centralEstimate = self.centralEstimator.EKF(allMeas, targ.targetID, time_step.value, time_val)
+                
+                # # Print out central estimator results
+                # print("=" * 50)
+                # print("Target:", targ.name)
+                # print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
+                # print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
+                # print("=" * 50)
+                # print(f"{'Centralized Kalman Filter Estimate':^100}")
+                # print("=" * 100)
+                # print(f"{'Centralized Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in centralEstimate[::2])}")
+                # print(f"{'Centralized Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in centralEstimate[1::2])}")
+                # print("=" * 100)
+                # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([centralEstimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
+                # print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([centralEstimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
+                # print("\n")     
+
+# Plot the current state of the environment
+    def plot(self):
+        # Reset plot
+        for line in self.ax.lines:
+            line.remove()
+        for collection in self.ax.collections:
+            collection.remove()
+        for text in self.ax.texts:
+            text.remove()
+
+        # Put text of current time in top left corner
+        self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
+
+    # PLOT EARTH
+        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
+
+    # FOR EACH SATELLITE, PLOTS
+        for sat in self.sats:
+        # Plot the current xyz location of the satellite
+            x, y, z = sat.orbit.r.value
+            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+
+        # Plot the visible projection of the satellite sensor
+            points = sat.sensor.projBox
+            self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], color = sat.color, marker = 'x')
+            box = np.array([points[0], points[3], points[1], points[2], points[0]])
+            self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
+
+    # FOR EACH TARGET, PLOTS
+        for targ in self.targs:
+        # Plot the current xyz location of the target
+            x, y, z = targ.pos
+            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
+            
+        self.ax.legend()
+
+    # PLOT COMMUNICATION STRUCTURE
+        if self.comms.displayStruct:
+            for edge in self.comms.G.edges:
+                sat1 = edge[0]
+                sat2 = edge[1]
+                x1, y1, z1 = sat1.orbit.r.value
+                x2, y2, z2 = sat2.orbit.r.value
+                self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
 
 # For each satellite, saves the measurement history of each target to a csv file:
     def log_data(self):
@@ -172,13 +201,99 @@ class environment:
                             combine = [time] + list(meas)
                             writer.writerow(combine)
 
-
 # Plot the results of the simulation: 
 #   For each satellite
 #       For each target of a satellite
 #               Plot state estimate of the target and its real position
 #               Plot the difference between the estimate and the real position
 #                   Include the 2 sigma bounds: X_i = 2*sqrt(P_ii) for all states
+    def plotBaselines(self, time_vec):
+        
+        state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+        
+        # For Each Target plot both of the satellites estimate and the central estimate
+        for targ in self.targs:
+            fig1, axs1 = plt.subplots(2, 3, figsize=(15, 6))
+            fig1.suptitle(f"{targ.name} State Position and Error Plots", fontsize=16)
+            
+            fig2, axs2 = plt.subplots(2, 3, figsize=(15, 6))  # Create a 2x3 grid of subplots
+            fig2.suptitle(f"{targ.name} State Velocity and Error Plots", fontsize=16)
+            once = True
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    measHist = sat.estimator.measHist[targ.targetID]
+                    estHist = sat.estimator.estHist[targ.targetID]
+                    trueHist = targ.hist
+                    covHist = sat.estimator.covarianceHist[targ.targetID]
+                    times = [time for time in time_vec.value if time in estHist]
+                    
+                    for i in range(6):  # Create subplots for states and their errors
+                        if i % 2 == 0:
+                            axs = axs1
+                            fig = fig1
+                        else:
+                            axs = axs2
+                            fig = fig2
+
+                        j = i // 2  # Adjust index for 2x3 grid
+
+                        axs[0, j].set_xlabel("Time [min]")
+                        axs[0, j].set_ylabel(f"State {state_labels[i]}")
+
+                        axs[1, j].set_xlabel("Time")
+                        axs[1, j].set_ylabel("Error / Covariance")
+
+                        measurements = [measHist[time][round(i/2)] for time in times]
+                        true_positions = [trueHist[time][i] for time in times]
+                        estimates = [estHist[time][i] for time in times]
+                        errors = [estHist[time][i] - trueHist[time][i] for time in times]
+                        covariances = [2 * np.sqrt(covHist[time][i][i]) for time in times]
+                            
+                        axs[0, j].plot(times, estimates, color=sat.color, label=f"Satellite: {sat.name} Estimate")
+
+                        if i % 2 == 0:
+                            axs[0, j].scatter(times, measurements, color=sat.color, label=f"Satellite: {sat.name} Measurement")
+
+                        axs[1, j].plot(times, errors, color=sat.color, label=f"Satellite: {sat.name} Error")
+                        axs[1, j].plot(times, covariances, color=sat.color, linestyle='dashed', label=f"Satellite: {sat.name} 2 Sigma Bounds")
+
+                        if once:
+                            axs[0, j].plot(times, true_positions, color='g')
+                            axs[0, j].scatter(times, true_positions, color='g', label='Truth')
+                    
+                    once = False
+            
+            # Plot Central Estimation
+        centralEstimate = self.centralEstimator.estHist[targ.targetID]
+        centralCov = self.centralEstimator.covarianceHist[targ.targetID]
+        centralTimes = [time for time in time_vec.value if time in centralEstimate]
+        for i in range(6):  # Create subplots for states and their errors
+            if i % 2 == 0:
+                axs = axs1
+                fig = fig1
+            else:
+                axs = axs2
+                fig = fig2
+                        
+            j = i // 2  # Adjust index for 2x3 grid
+
+            centralEstimates = [centralEstimate[time][i] for time in centralTimes]
+            centralCovs = [2 * np.sqrt(centralCov[time][i][i]) for time in centralTimes]
+            centralErrors = [centralEstimate[time][i] - trueHist[time][i] for time in centralTimes]
+                
+            axs[0, j].plot(centralTimes, centralEstimates, color='k', label='Central Estimate')
+                
+            
+            # Plot Error and Covariance    
+            axs[1, j].plot(centralTimes, centralErrors, color='r', label='Central Error')
+            axs[1, j].plot(centralTimes, centralCovs, color='b', linestyle='dashed', label='Central 2 Sigma Bounds')
+            axs[1, j].plot(centralTimes, [-c for c in centralCovs], color='k', linestyle='dashed')
+                    
+            if i // 2 == 2:
+                axs[0, j].legend()
+                axs[1, j].legend()
+                
+        plt.show()
 
     def plotResults(self, time_vec):
         state_labels = ['X', 'Vx', 'Y', 'Vy', 'Z', 'Vz']
