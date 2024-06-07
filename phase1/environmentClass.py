@@ -249,7 +249,7 @@ class environment:
                         errors = [estHist[time][i] - trueHist[time][i] for time in times]
                         covariances = [2 * np.sqrt(covHist[time][i][i]) for time in times]
                             
-                        axs[0, j].plot(times, estimates, color=sat.color, label=f"Satellite: {sat.name} Estimate")
+                        # axs[0, j].plot(times, estimates, color=sat.color, label=f"Satellite: {sat.name} Estimate")
 
                         if i % 2 == 0:
                             axs[0, j].scatter(times, measurements, color=sat.color, label=f"Satellite: {sat.name} Measurement")
@@ -285,8 +285,8 @@ class environment:
                 
             
             # Plot Error and Covariance    
-            axs[1, j].plot(centralTimes, centralErrors, color='r', label='Central Error')
-            axs[1, j].plot(centralTimes, centralCovs, color='b', linestyle='dashed', label='Central 2 Sigma Bounds')
+            axs[1, j].plot(centralTimes, centralErrors, color='k', label='Central Error')
+            axs[1, j].plot(centralTimes, centralCovs, color='k', linestyle='dashed', label='Central 2 Sigma Bounds')
             axs[1, j].plot(centralTimes, [-c for c in centralCovs], color='k', linestyle='dashed')
                     
             if i // 2 == 2:
