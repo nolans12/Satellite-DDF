@@ -27,7 +27,7 @@ class centralEstimator:
             
         return np.array(allMeas)
                 
-    def EKF(self, allMeas, targetID, dt, envTime):
+    def EKF(self, sats, allMeas, targetID, dt, envTime):
     # Centralized Extended Kalman Filter:
     # Assume that a central estimator has access to all measurements on a target at a time step
     # Inputs: allMeas = [sat1Meas, sat2Meas, ...] where sat1Meas = [x, y, z] in ECI coordinates
@@ -117,6 +117,7 @@ class centralEstimator:
     # 
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
+        # TODO: add the input being a sensor error, so we can predefine an R
 
     # Define the targets to track
         self.targs = targetIDs
@@ -129,7 +130,7 @@ class localEstimator:
 
     # Input: New measurement: estimate in ECI, target ID, time step, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
-    def EKF(self,  newMeas, targetID, dt, envTime):
+    def EKF(self, sat, newMeas, targetID, dt, envTime):
     # Extended Kalman Filter:
     # Desired Estimate Xdot = [x xdot y ydot z zdot]
     # Measurment Z = [x y z] ECI coordinates
@@ -202,7 +203,7 @@ class localEstimator:
                       [0, 0, 0, 0, 1, 0]])
         # H = sensor.H
 
-        R = np.eye(3) * 0.01
+        R = np.eye(3) * 0.01 # TODO: CHANGE THIS VALUE TO ACTUAL SENSOR ERROR TRANSLATED INTO 3D SPACE
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
 
     # Get the measurement

@@ -114,26 +114,26 @@ class environment:
             satNum += 1
 
         # Update Central Estimator on all targets if measurments were collected
-        if any(collectedFlag == 1) and self.centralEstimator:
-            for targ in self.targs:
-                # Collect all measurments for each target for central estimation
-                allMeas = self.centralEstimator.collectAllMeasurements(self.sats, targ.targetID, time_val)
-                centralEstimate = self.centralEstimator.EKF(allMeas, targ.targetID, time_step.value, time_val)
+        # if any(collectedFlag == 1) and self.centralEstimator:
+        #     for targ in self.targs:
+        #         # Collect all measurments for each target for central estimation
+        #         allMeas = self.centralEstimator.collectAllMeasurements(self.sats, targ.targetID, time_val) # TODO: return a dictonary containing the satellites that took the measurements, that way can stack their R values
+        #         centralEstimate = self.centralEstimator.EKF(self.sats, allMeas, targ.targetID, time_step.value, time_val) 
                 
-                # # Print out central estimator results
-                # print("=" * 50)
-                # print("Target:", targ.name)
-                # print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
-                # print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
-                # print("=" * 50)
-                # print(f"{'Centralized Kalman Filter Estimate':^100}")
-                # print("=" * 100)
-                # print(f"{'Centralized Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in centralEstimate[::2])}")
-                # print(f"{'Centralized Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in centralEstimate[1::2])}")
-                # print("=" * 100)
-                # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([centralEstimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
-                # print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([centralEstimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
-                # print("\n")     
+        #         # Print out central estimator results
+        #         print("=" * 50)
+        #         print("Target:", targ.name)
+        #         print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
+        #         print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
+        #         print("=" * 50)
+        #         print(f"{'Centralized Kalman Filter Estimate':^100}")
+        #         print("=" * 100)
+        #         print(f"{'Centralized Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in centralEstimate[::2])}")
+        #         print(f"{'Centralized Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in centralEstimate[1::2])}")
+        #         print("=" * 100)
+        #         print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([centralEstimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
+        #         print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([centralEstimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
+        #         print("\n")     
 
 # Plot the current state of the environment
     def plot(self):
@@ -285,8 +285,8 @@ class environment:
                 
             
             # Plot Error and Covariance    
-            axs[1, j].plot(centralTimes, centralErrors, color='r', label='Central Error')
-            axs[1, j].plot(centralTimes, centralCovs, color='b', linestyle='dashed', label='Central 2 Sigma Bounds')
+            axs[1, j].plot(centralTimes, centralErrors, color='k', label='Central Error')
+            axs[1, j].plot(centralTimes, centralCovs, color='k', linestyle='dashed', label='Central 2 Sigma Bounds')
             axs[1, j].plot(centralTimes, [-c for c in centralCovs], color='k', linestyle='dashed')
                     
             if i // 2 == 2:

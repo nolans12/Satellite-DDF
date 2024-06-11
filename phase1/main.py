@@ -17,33 +17,33 @@ if __name__ == "__main__":
     sens2 = sensor(name = 'Sensor 2', fov = 100, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
 
     # Define targets for the satellites to track:
-    # TODO: should we just make the satellite track any target it can see?
     targetIDs = [1]
 
-    # Define local estimators:
+    # Define estimators:
     local1 = localEstimator(targetIDs = targetIDs)
     local2 = localEstimator(targetIDs = targetIDs)
-    central = centralEstimator(targetIDs = targetIDs) # TODO: why not just make centralized always do all targets? since it is the baseline?
+    local3 = localEstimator(targetIDs = targetIDs)
+    central = centralEstimator(targetIDs = targetIDs) 
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 45, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='r')
-    
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 35, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 55, nu = 0, color='r')
+
     sats = [sat1, sat2]
 
 # DEFINE THE TARGET OBJECTS:
-    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6578, 0, 0, 0, 0, 0]),color = 'k')
      
     targs = [targ1]
 
 # Define the communication network:
-    comms = comms(sats, range = 5000 * u.km, displayStruct = True)
+    comms = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
 
 # Create an environment instance:
     env = environment(sats, targs, comms, central)
 
 # Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0, 30, 31) * u.minute
+    time_vec = np.linspace(0, 25, 51) * u.minute
     env.simulate(time_vec, display = True)
 
 # Save the gif:
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 #     targs = [targ1]
 
 # # Define the communication network:
-#     comms = comms(sats, range = 5000 * u.km, displayStruct = True)
+#     comms = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
 
 # # Create an environment instance:
 #     env = environment(sats, targs, comms, central)
@@ -114,4 +114,4 @@ if __name__ == "__main__":
 #     env.simulate(time_vec, display = True)
 
 # # Save the gif:
-#     env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+#     # env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)

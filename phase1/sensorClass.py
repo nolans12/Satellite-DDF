@@ -1,5 +1,7 @@
 from import_libraries import *
 # Sensor Class
+from satelliteClass import satellite
+from targetClass import target
 
 # TODO: Add more sensor models, can maybe be subclasses?
 class sensor:
@@ -14,6 +16,29 @@ class sensor:
         # Used for saving data
         # TODO: Update later based on different sensor models, for now just bearings
         self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
+
+
+        ## DEFINE R MATRIX
+        # Use monte-carlo sampling to sample the sensor error from bearings model to xyz error
+
+        # For now, define the target to be at [0, 0, Earth.R] 
+        # And the satellite to be at [0, 0, Earth.R + 1000]
+        # This makes the assumption that we are at a constant height, 1000km, above the Earth
+        satTemp = satellite(name = 'Temp', sensor = self, targetIDs=[1], estimator = None, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 90, nu = 0, color='k')
+        targTemp = target(name = 'Temp', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
+        
+
+        # for i in range(1000):
+        #     # Sample from the sensor model
+        #     alpha = np.random.uniform(-self.fov/2, self.fov/2)
+        #     beta = np.random.uniform(-self.fov/2, self.fov/2)
+        #     # Get the error
+        #     error = self.sensor_model(satellite(0, 0, 0, 0, 0, 0), np.array([alpha, beta]))
+        #     # Add to the list
+        #     if i == 0:
+        #         self.sensorError = np.array([error])
+        #     else:
+        #         self.sensorError = np.append(self.sensorError, error)
     
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
@@ -23,7 +48,7 @@ class sensor:
         self.visible_projection(sat)
 
         # Check if target is in the fov box
-        if self.point_box_intersection(targ):
+        if self.inFOV(sat, targ):
             # Sample from detection error
             detect = np.random.uniform(0, 1)
             if detect < self.detectError:
@@ -35,39 +60,7 @@ class sensor:
         else:
         # If target isnt visible, return just 0
             return 0
-    
-    # Input: A satellite and target object (one that is visible)
-    # Output: A bearings only measurement of the target with error
-    def sensor_model(self, sat, targ):
-
-        # In track, cross cross, along track values
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
         
-        # Radial vector
-        u = rVec
-        # Cross Track vector
-        w = np.cross(rVec, vVec)
-        # In Track vector
-        v = np.cross(w,u)
-        # Define rotation matrix
-        T = np.array([v, w, u])
-        
-        # Get the target in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array(targ.pos))
-        in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
-        
-        # Now have target truth position in in-track and cross-track components
-        height = np.linalg.norm(sat.orbit.r.value) - 6378
-        alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
-        beta_truth = np.arctan2(cross_track_targ, height)*180/np.pi
-
-        # Add sensor error, assuming gaussian
-        alpha_meas = alpha_truth + np.random.normal(0, self.sensorError[0])
-        beta_meas = beta_truth + np.random.normal(0, self.sensorError[1])
-        
-        return np.array([alpha_meas, beta_meas])
-  
     # Input: A satellite object and a bearings measurement
     # Output: A single raw ECI position, containing time and target position in ECI
     def convert_to_ECI(self, sat, measurement):
@@ -101,6 +94,38 @@ class sensor:
 
         return  np.array([x_targ_eci, y_targ_eci, z_targ_eci])
     
+    # Input: A satellite and target object (one that is visible)
+    # Output: A bearings only measurement of the target with error
+    def sensor_model(self, sat, targ):
+
+        # In track, cross cross, along track values
+        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+        
+        # Radial vector
+        u = rVec
+        # Cross Track vector
+        w = np.cross(rVec, vVec)
+        # In Track vector
+        v = np.cross(w,u)
+        # Define rotation matrix
+        T = np.array([v, w, u])
+        
+        # Get the target in-track, cross-track, z components
+        dir_rot = np.dot(T, np.array(targ.pos))
+        in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
+        
+        # Now have target truth position in in-track and cross-track components
+        height = np.linalg.norm(sat.orbit.r.value) - 6378
+        alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
+        beta_truth = np.arctan2(cross_track_targ, height)*180/np.pi
+
+        # Add sensor error, assuming gaussian
+        alpha_meas = alpha_truth + np.random.normal(0, self.sensorError[0])
+        beta_meas = beta_truth + np.random.normal(0, self.sensorError[1])
+        
+        return np.array([alpha_meas, beta_meas])
+    
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
     def visible_projection(self, sat):
@@ -117,6 +142,11 @@ class sensor:
             # Find the intersection of the line from the satellite to the earth
             # with the earth
             intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x, y, z], vec)
+
+            # # Edge case for if the sensor can see all of Earth, do the intersection of a 119.5 degree FOV
+            # if intersection is None:
+            #     intersection = 6378*vec/np.linalg.norm(vec)
+
             points.append(intersection)
 
         self.projBox = np.array(points)
@@ -188,7 +218,6 @@ class sensor:
     # Input: Earth data, projection vector
     # Output: Intersection point of projection vector with earth
     # Description: Uses basic sphere line intersection
-    # TODO: Implement edge case for if sensor can see all of Earth
     def sphere_line_intersection(self, sphere_center, sphere_radius, line_point, line_direction):
         # Unpack sphere parameters
         x0, y0, z0 = sphere_center
@@ -230,22 +259,81 @@ class sensor:
             else:
                 return intersection_point2
             
-    # Input: Target
+    # Input: Target, Satellite
     # Output: True or False if the target is within the sensor's field of view
-    def point_box_intersection(self, targ):
+    # Will use 4 3D triangle, line intersection algorithms and 1 3D plane intersection
+    def inFOV(self, sat, targ):
 
-        # Get the current xyz position of the target
-        x, y, z = targ.pos
+        # Get the target point
+        l0 = targ.pos
+        # Now choose another random point
+        # So, because I am choosing 100* targPos dont need to worry about the backside of the FOV shape,
+        # aka dont need to do a 3d plane - point intersection because 100 * targ.pos will always point away from origin.
+        # May want to investigate this later, but for now works great
+        l1 = targ.pos * 100
 
-        # Get all x values of the projection box
-        x_vals = self.projBox[:, 0]
-        y_vals = self.projBox[:, 1]
-        z_vals = self.projBox[:, 2]
-        z_tolerance = 0.15 * 6378
+        # Count how many times the line intersects the 3d shape:
+        count = 0
 
-        # Now, just check if the targets xyz is within the xyz of the projBox
-        if (x > min(x_vals) and x < max(x_vals) and y > min(y_vals) and y < max(y_vals) and z > min(z_vals) - z_tolerance and z < max(z_vals) + z_tolerance):
+        # Get the projection box
+        box = self.projBox
+        # Do 4 triangle line intersections
+        for i in range(4):
+            # Get the triangle points
+            p0 = sat.orbit.r.value
+            p1 = box[i]
+            p2 = box[(i+1)%4]
+
+            # Count how many times the line intersects the triangle
+            if self.triangle_line_intersection(p0, p1, p2, l0, l1):
+                count += 1
+
+        # If the count is odd, the target is in the FOV
+        if count % 2 == 1:
             return True
         else:
             return False
+        
+    def triangle_line_intersection(self, p0, p1, p2, l0, l1):
+        # Define the triangle vertices
+        v0 = np.array(p0)
+        v1 = np.array(p1)
+        v2 = np.array(p2)
 
+        # Define the line segment endpoints
+        o = np.array(l0)
+        d = np.array(l1) - np.array(l0)
+
+        # Calculate edges and normal
+        edge1 = v1 - v0
+        edge2 = v2 - v0
+        h = np.cross(d, edge2)
+        a = np.dot(edge1, h)
+
+        # If a is close to 0, then the line is parallel to the triangle
+        if abs(a) < 1e-8:
+            return False
+
+        f = 1.0 / a
+        s = o - v0
+        u = f * np.dot(s, h)
+
+        # Check if intersection is within the triangle
+        if u < 0.0 or u > 1.0:
+            return False
+
+        q = np.cross(s, edge1)
+        v = f * np.dot(d, q)
+
+        if v < 0.0 or u + v > 1.0:
+            return False
+
+        # Calculate t to find out where the intersection point is on the line
+        t = f * np.dot(edge2, q)
+
+        if t >= 0.0 and t <= 1.0:
+            return True
+        else:
+            return False
+        
+    

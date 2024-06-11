@@ -67,9 +67,9 @@ class satellite:
                     raw_ECI_Meas = self.sensor.convert_to_ECI(self, measurement)
                     self.raw_ECI_MeasimateHist[targ.targetID][self.time] = raw_ECI_Meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
 
-                    # Local Kalman Filter on raw Estimate
-                    dt = 1
-                    estimate = self.estimator.EKF(raw_ECI_Meas, targ.targetID, dt, self.time)  
+                    # # Local Kalman Filter on raw Estimate
+                    # dt = 1
+                    # estimate = self.estimator.EKF(self, raw_ECI_Meas, targ.targetID, dt, self.time)  
                     
                     # # Print out the self estimator results
                     # print("=" * 50)
