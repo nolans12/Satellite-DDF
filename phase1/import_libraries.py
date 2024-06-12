@@ -16,3 +16,4 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial.transform import Rotation as R
 from collections import defaultdict
+from ambiance import Atmosphere # NOLAN install this libray for Std Atm

@@ -3,7 +3,7 @@ from import_libraries import *
 
 # Import classes
 from satelliteClass import satellite
-from targetClass import target
+from targetClass import boat_target, HGV_target
 from environmentClass import environment
 from estimatorClass import centralEstimator, localEstimator
 from sensorClass import sensor
@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     # Define targets for the satellites to track:
     # TODO: should we just make the satellite track any target it can see?
-    targetIDs = [1]
+    targetIDs = [1,2]
 
     # Define local estimators:
     local1 = localEstimator(targetIDs = targetIDs)
@@ -29,18 +29,19 @@ if __name__ == "__main__":
     sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 50, nu = 0, color='b')
     sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 50, nu = 0, color='r')
     
-    sats = [sat1, sat2]
+    sats = [sat1]#, sat2]
 
 # DEFINE THE TARGET OBJECTS:
-    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
+    targ1 = boat_target(name = 'Targ1', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
+    targ2 = HGV_target(name = 'Targ2', targetID=2, X = [3, 0.1, 0, 6378, 0, 0.1], color = 'r')
      
-    targs = [targ1]
+    targs = [targ1, targ2]
 
 # Define the communication network:
-    comms = comms(sats, range = 5000 * u.km, displayStruct = True)
+    commNet = comms(sats, range = 5000 * u.km, displayStruct = True)
 
 # Create an environment instance:
-    env = environment(sats, targs, comms, central)
+    env = environment(sats, targs, commNet, central)
 
 # Simulate the satellites through a vector of time:
     time_vec = np.linspace(0, 20, 21) * u.minute

@@ -72,7 +72,7 @@ class environment:
         self.log_data()
         
         # self.plotResults(time_vec)
-        self.plotBaselines(time_vec)
+        # self.plotBaselines(time_vec)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
