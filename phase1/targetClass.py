@@ -24,6 +24,9 @@ class target:
         # Input: Target Current State,
         # TimeStep
         dt = time_step.value
+
+        # print("Integrating target with timestep: ", dt)
+
         t = time.value
         
         # White Noise Intensity Vector -> should be order of maximim magnitude acceleration over dt    
@@ -65,6 +68,7 @@ class target:
         # Propagate the state
         rDot = np.dot(A, self.r) + np.dot(B, acceleration)
         self.r = self.r + rDot*dt
+        # self.r = self.r
         
         # Extract for reading simplicity
         range = self.r[0]

@@ -7,7 +7,7 @@ class satellite:
     # Sensor to use
         self.sensor = sensor
         self.measurementHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
-        self.raw_ECI_MeasimateHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictonaries for raw estimates. Index with targetID and time:: t, targ ECI pos
+        self.raw_ECI_measHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictonaries for raw estimates. Index with targetID and time:: t, targ ECI pos
 
     # Targets to track:
         self.targetIDs = targetIDs
@@ -64,13 +64,15 @@ class satellite:
                     self.measurementHist[targ.targetID][self.time] = saveMeas # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
 
                     # Also save raw Estimate of target in ECI
-                    raw_ECI_Meas = self.sensor.convert_to_ECI(self, measurement)
-                    self.raw_ECI_MeasimateHist[targ.targetID][self.time] = raw_ECI_Meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
+                    raw_ECI_meas = self.sensor.convert_to_ECI(self, measurement)
+                    self.raw_ECI_measHist[targ.targetID][self.time] = raw_ECI_meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
 
-                    # # Local Kalman Filter on raw Estimate
-                    # dt = 1
-                    # estimate = self.estimator.EKF(self, raw_ECI_Meas, targ.targetID, dt, self.time)  
-                    
+                    # Local Kalman Filter on raw Estimate
+                    estimate = self.estimator.EKF(self, raw_ECI_meas, targ.targetID, self.time)  
+
+                    # # Print the norm distance b/w estimate and truth:
+                    # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([estimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
+
                     # # Print out the self estimator results
                     # print("=" * 50)
                     # print(f"{'SATELLITE AND TARGET INFORMATION':^50}")
@@ -81,11 +83,11 @@ class satellite:
                     # print("=" * 50)
                     # print(f"{'Raw Measurement and Kalman Filter Estimate':^100}")
                     # print("=" * 100)
-                    # print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_Meas)}")
+                    # print(f"{'Raw Measurement (ECI):':<40} {tuple(round(coord, 2) for coord in raw_ECI_meas)}")
                     # print(f"{'Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in estimate[::2])}")
                     # print(f"{'Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in estimate[1::2])}")
                     # print("=" * 100)
-                    # print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_Meas - targ.pos), 2)}")
+                    # print(f"{'Distance (Norm) between Measurement and Truth:':<40} {round(np.linalg.norm(raw_ECI_meas - targ.pos), 2)}")
                     # print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([estimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
                     # print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([estimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
                     # print("\n")

@@ -3,43 +3,20 @@ from import_libraries import *
 from satelliteClass import satellite
 from targetClass import target
 
-# TODO: Add more sensor models, can maybe be subclasses?
 class sensor:
-    def __init__(self, fov, resolution, sensorError, name, detectError = 0.1):
+    def __init__(self, fov, resolution, bearingsError, rangeError, name, detectChance = 0.05):
         self.fov = fov
-        self.sensorError = sensorError
-        self.detectError = detectError
+        self.bearingsError = bearingsError
+        self.rangeError = rangeError
+        self.detectChance = detectChance
         self.name = name
         self.resolution = resolution
         self.projBox = np.array([0, 0, 0])
 
         # Used for saving data
-        # TODO: Update later based on different sensor models, for now just bearings
-        self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
+        self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle", "Range"]
 
 
-        ## DEFINE R MATRIX
-        # Use monte-carlo sampling to sample the sensor error from bearings model to xyz error
-
-        # For now, define the target to be at [0, 0, Earth.R] 
-        # And the satellite to be at [0, 0, Earth.R + 1000]
-        # This makes the assumption that we are at a constant height, 1000km, above the Earth
-        satTemp = satellite(name = 'Temp', sensor = self, targetIDs=[1], estimator = None, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 90, nu = 0, color='k')
-        targTemp = target(name = 'Temp', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
-        
-
-        # for i in range(1000):
-        #     # Sample from the sensor model
-        #     alpha = np.random.uniform(-self.fov/2, self.fov/2)
-        #     beta = np.random.uniform(-self.fov/2, self.fov/2)
-        #     # Get the error
-        #     error = self.sensor_model(satellite(0, 0, 0, 0, 0, 0), np.array([alpha, beta]))
-        #     # Add to the list
-        #     if i == 0:
-        #         self.sensorError = np.array([error])
-        #     else:
-        #         self.sensorError = np.append(self.sensorError, error)
-    
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
     def get_measurement(self, sat, targ):
@@ -51,7 +28,7 @@ class sensor:
         if self.inFOV(sat, targ):
             # Sample from detection error
             detect = np.random.uniform(0, 1)
-            if detect < self.detectError:
+            if detect < self.detectChance:
                 # Didn't detect
                 return 0
             else:
@@ -61,71 +38,112 @@ class sensor:
         # If target isnt visible, return just 0
             return 0
         
-    # Input: A satellite object and a bearings measurement
+    # Input: A satellite and target object (one that is visible)
+    # Output: A bearings and range measurement of the target with error
+    def sensor_model(self, sat, targ):
+
+        # Convert the satellite and target ECI positions into a range and bearings estimate
+        in_track_truth, cross_track_truth, range_truth = self.convert_to_range_bearings(sat, targ.pos)
+
+        # Add sensor error, assuming gaussian
+        in_track_meas = in_track_truth + np.random.normal(0, self.bearingsError[0])
+        cross_track_meas = cross_track_truth + np.random.normal(0, self.bearingsError[1])
+        range_meas = range_truth + np.random.normal(0, self.rangeError)
+
+        return np.array([in_track_meas, cross_track_meas, range_meas])
+    
+
+    # Input: A satellite object and a ECI measurement of a target.
+    # Output: A bearings and range estimate from the satellite.
+    # Order is [in-track, cross-track, range]
+    def convert_to_range_bearings(self, sat, meas_ECI):
+
+        # Get the frame transformation:
+        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+        w = np.cross(rVec, vVec)
+        T = np.array([vVec, w, rVec]) # From ECI to sensor
+
+        # Rotate the satellite into Sensor frame:
+        x_sat_sens, y_sat_sens, z_sat_sens = np.dot(T, sat.orbit.r.value)
+
+        # Rotate the measurement into the Sensor frame:
+        x_targ_sens, y_targ_sens, z_targ_sens = np.dot(T, np.array(meas_ECI))
+
+        # To get the cross track and in track angles, use the dot product
+        # theta = arccos((a dot b) / (||a|| ||b||))
+
+        # Use vectors of sat - earth and sat - target and then manually do sign check based on geometry.
+
+        # Create a line from satellite to the center of Earth:
+        satVec = np.array([x_sat_sens, y_sat_sens, z_sat_sens]) # sat - earth
+
+        # Now get the in-track comoonent:
+        targVec_inTrack = np.array(satVec - [x_targ_sens, 0, z_targ_sens]) # sat - target
+        # Now use dot product rule
+        in_track_angle = np.arccos(np.dot(targVec_inTrack, satVec)/(np.linalg.norm(targVec_inTrack)*np.linalg.norm(satVec)))
+
+        # If targVec_inTrack is negative, switch
+        if x_targ_sens < 0:
+            in_track_angle = -in_track_angle
+
+        # Now get the cross-track component:
+        targVec_crossTrack = np.array(satVec - [0, y_targ_sens, z_targ_sens]) # sat - target
+        # Now use dot product rule
+        cross_track_angle = np.arccos(np.dot(targVec_crossTrack, satVec)/(np.linalg.norm(targVec_crossTrack)*np.linalg.norm(satVec)))
+
+        # If targVec_crossTrack is negative, switch
+        if y_targ_sens > 0:
+            cross_track_angle = -cross_track_angle
+
+        # Convert to degrees:
+        in_track_angle = in_track_angle*180/np.pi
+        cross_track_angle = cross_track_angle*180/np.pi
+
+        # Finally calculate the range
+        range_est = np.linalg.norm(sat.orbit.r.value - meas_ECI)
+
+        return np.array([in_track_angle, cross_track_angle, range_est])
+
+    # Input: A satellite object and a bearings and range measurement
     # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_to_ECI(self, sat, measurement):
+    def convert_to_ECI(self, sat, meas_sensor):
 
         # Get the data
-        alpha, beta = measurement[0], measurement[1] 
+        alpha, beta, range = meas_sensor[0], meas_sensor[1], meas_sensor[2]
+
         # convert to radians
         alpha, beta = np.radians(alpha), np.radians(beta)
 
         # Convert satellite position to be in in-track, cross-track, radial
         rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
         vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-        u = rVec
-        w = np.cross(rVec, vVec)
-        v = np.cross(w,u)
-        T = np.array([v, w, u])
+        w = np.cross(rVec, vVec) # Cross track vector
+        T = np.array([vVec, w, rVec])
         Tinv = np.linalg.inv(T)
 
-        # Now reverse the bearings calculation
-        height = np.linalg.norm(sat.orbit.r.value) - 6378
-        in_track_targ = np.tan(alpha)*height
-        cross_track_targ = np.tan(beta)*height
+        # Start at the satellite position with a vector (0, 0, -1)
+        # This is the direction vector of where the satellite points
+        # Then rotate this vector by the bearings to get a sensor frame vector pointing to the target
+        # Then rotate this vector back to ECI
+        # And apply the range manitude ot this vector in ECI
+        # This will give the ECI position of the target
 
-        # Desired magntidue is 6378, calculate the Z value that will make the magnitude needed
-        desired = 6378
-        z_targ_local = np.sqrt(desired**2 - in_track_targ**2 - cross_track_targ**2)
+        initial = np.array([0, 0, -1])
+        # R2 rotation about y axis, with angle alpha
+        R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
+        # R1 rotation about x axis, with angle beta
+        R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
+        # Rotate the initial vector
+        targ_vec_sens = np.dot(R1, np.dot(R2, initial))
 
-        # Now rotate back to ECI
-        dir_rot = np.dot(Tinv, np.array([in_track_targ, cross_track_targ, z_targ_local]))
-        x_targ_eci, y_targ_eci, z_targ_eci = dir_rot[0:3]
+        # Rotate the vector back into ECI
+        targ_vec_ECI = np.dot(Tinv, targ_vec_sens)
 
-        return  np.array([x_targ_eci, y_targ_eci, z_targ_eci])
-    
-    # Input: A satellite and target object (one that is visible)
-    # Output: A bearings only measurement of the target with error
-    def sensor_model(self, sat, targ):
+        x_targ_eci, y_targ_eci, z_targ_eci = range*targ_vec_ECI[0:3] + sat.orbit.r.value
 
-        # In track, cross cross, along track values
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-        
-        # Radial vector
-        u = rVec
-        # Cross Track vector
-        w = np.cross(rVec, vVec)
-        # In Track vector
-        v = np.cross(w,u)
-        # Define rotation matrix
-        T = np.array([v, w, u])
-        
-        # Get the target in-track, cross-track, z components
-        dir_rot = np.dot(T, np.array(targ.pos))
-        in_track_targ, cross_track_targ, NaN = dir_rot[0:3]
-        
-        # Now have target truth position in in-track and cross-track components
-        height = np.linalg.norm(sat.orbit.r.value) - 6378
-        alpha_truth = np.arctan2(in_track_targ, height)*180/np.pi
-        beta_truth = np.arctan2(cross_track_targ, height)*180/np.pi
+        return np.array([x_targ_eci, y_targ_eci, z_targ_eci])
 
-        # Add sensor error, assuming gaussian
-        alpha_meas = alpha_truth + np.random.normal(0, self.sensorError[0])
-        beta_meas = beta_truth + np.random.normal(0, self.sensorError[1])
-        
-        return np.array([alpha_meas, beta_meas])
-    
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
     def visible_projection(self, sat):
