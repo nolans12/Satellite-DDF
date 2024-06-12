@@ -25,7 +25,7 @@ if __name__ == "__main__":
     central = centralEstimator(targetIDs = targetIDs) 
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 75, nu = 0, color='b')
     sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
 
     sats = [sat1, sat2]
@@ -54,15 +54,15 @@ if __name__ == "__main__":
 # # DEFINE THE SATELLITE OBJECTS:
 
 #     # Define a sensor model:
-#     sens1_1 = sensor(name = 'Sensor 1.1', fov = 115, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens1_2 = sensor(name = 'Sensor 1.2', fov = 115, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens1_3 = sensor(name = 'Sensor 1.3', fov = 115, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens1_4 = sensor(name = 'Sensor 1.4', fov = 115, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
+#     sens1_1 = sensor(name = 'Sensor 1.1', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_2 = sensor(name = 'Sensor 1.2', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_3 = sensor(name = 'Sensor 1.3', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_4 = sensor(name = 'Sensor 1.4', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
 
-#     sens2_1 = sensor(name = 'Sensor 2.1', fov = 100, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens2_2 = sensor(name = 'Sensor 2.2', fov = 100, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens2_3 = sensor(name = 'Sensor 2.3', fov = 100, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
-#     sens2_4 = sensor(name = 'Sensor 2.4', fov = 100, sensorError = np.array([1, 1]), detectChance= 0.05, resolution = 720)
+#     sens2_1 = sensor(name = 'Sensor 2.1', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_2 = sensor(name = 'Sensor 2.2', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_3 = sensor(name = 'Sensor 2.3', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_4 = sensor(name = 'Sensor 2.4', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
     
 #     # Define targets for the satellites to track:
 #     # TODO: should we just make the satellite track any target it can see?
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 #     env = environment(sats, targs, comms, central)
 
 # # Simulate the satellites through a vector of time:
-#     time_vec = np.linspace(0, 50, 51) * u.minute
+#     time_vec = np.linspace(0, 50, 151) * u.minute
 #     env.simulate(time_vec, display = True)
 
 # # Save the gif:

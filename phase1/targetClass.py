@@ -59,8 +59,8 @@ class target:
         # Sample MultiVariate White Noise as input to State Equation
         mean = np.array([0, 0, 0, 0, 0, 0])
         
-        # 50% chance of acceleration
-        if(np.random.uniform(0,1) < 0.5):
+        # 10% chance of acceleration
+        if(np.random.uniform(0,1) < 0.1):
             acceleration = np.random.multivariate_normal(mean, Q, 1).T
         else:
             acceleration = np.array([0, 0, 0, 0, 0, 0]).T

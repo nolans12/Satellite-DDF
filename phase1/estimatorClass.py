@@ -40,7 +40,11 @@ class centralEstimator:
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
         # If no prior estimate exists, just use the measurement from the first satellite
-            est_prior = np.array([satMeasurements[sats[0]][0], 0, satMeasurements[sats[0]][1], 0, satMeasurements[sats[0]][2], 0])
+            # Find the first satellite that has a measurement
+            for sat in satMeasurements:
+                if sat in satMeasurements:
+                    est_prior = np.array([satMeasurements[sat][0], 0, satMeasurements[sat][1], 0, satMeasurements[sat][2], 0])
+                    break
             P_prior = np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
@@ -58,6 +62,7 @@ class centralEstimator:
 
 # CALCULATE MATRICES:
     # Define the state transition matrix, F.
+    # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
         # How does our state: [x, vx, y, vy, z, vz] change over time?
         F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
                       [0, 1, 0, 0, 0, 0],
@@ -67,6 +72,7 @@ class centralEstimator:
                       [0, 0, 0, 0, 0, 1]])
 
     # Define the process noise matrix, Q.
+    # Is a 6x6 matrix representing the covariance of the process noise
         # Estimate the randomness of the acceleration
         q_x = 0.0001
         q_y = 0.0001
@@ -81,7 +87,8 @@ class centralEstimator:
                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
 
     # Define the obversation matrix, H.
-    # STACK MATRICES FOR MULTIPLE MEASUREMENTS
+    # STACK MATRICES
+    # Is a 3Nx6 matrix representing the mapping b/w state and N measurement.
         # How does our state relate to our measurement? 
         H = np.zeros((3*len(satMeasurements), 6))
         for i, sat in enumerate(satMeasurements):
@@ -90,6 +97,8 @@ class centralEstimator:
                                           [0, 0, 0, 0, 1, 0]])
 
     # Define the sensor noise matrix, R.
+    # STACK MATRICES
+    # Is a 3Nx3N matrix representing the covariance of the sensor noise for each satellite's 3x1 measurement.
         # This is the covariance estimate of the sensor error
         # We need to stack this for each satellite
         for i, sat in enumerate(satMeasurements):
@@ -225,6 +234,8 @@ class localEstimator:
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
         
+        # print("Max of Orig: ", np.max(Q))
+
     # Define the obversation matrix, H.
         # How does our state relate to our measurement? 
         # Because we alredy converted our measurement to ECI, we can just use the identity matrix
@@ -238,6 +249,28 @@ class localEstimator:
         R = self.calculate_R(sat, meas_ECI) 
         # R = np.eye(3) * 0.01
 
+# EXTRACT THE MEASUREMENTS
+        z = meas_ECI
+
+# # ATTEMPT VAN DER MERWES METHOD
+#         # Compute the innovation:
+#         y = meas_ECI - np.dot(H, est_prior)
+
+#         # Compute the innovation covariance:
+#         S = np.dot(H, np.dot(P_prior, H.T)) + R
+
+#         # Compute the expected innovation covariance?
+
+#         # Compute the Kalman gain:
+#         S_inv = np.linalg.inv(S)
+#         K = np.dot(P_prior, np.dot(H.T, S_inv))
+
+#         # Update the process noise covariance:
+#         Q = np.dot(K, np.dot(S, K.T))
+
+#         # print("Max of New: ", np.max(Q))
+
+
 # PREDICTION:
     # Predict the state and covariance
         est_pred = np.dot(F, est_prior)
@@ -248,13 +281,13 @@ class localEstimator:
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
 
     # Correct prediction
-        est = est_pred + np.dot(K, meas_ECI - np.dot(H, est_pred))
+        est = est_pred + np.dot(K, z - np.dot(H, est_pred))
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.measHist[targetID][envTime] = meas_ECI
+        self.measHist[targetID][envTime] = z
 
         return est
 
@@ -289,5 +322,8 @@ class localEstimator:
 
         # Now calculate the covariance matrix of the error
         R = np.cov(allErrors.T)
+
+        # # print the maximum value in R
+        # print("Max value in R: ", np.max(R))
 
         return R
