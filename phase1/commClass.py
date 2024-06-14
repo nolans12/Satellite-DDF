@@ -2,17 +2,17 @@ from import_libraries import *
 ## Creates the communication class, will contain the communication network and all other parameters needed to define the network
 
 class comms:
-    def __init__(self, sats, range, dataRate = 0, displayStruct = False):
+    def __init__(self, sats, maxNeighbors, maxRange, minRange, dataRate = 0, displayStruct = False):
         
     # Create a graph instance with the satellites as nodes
         self.G = nx.Graph()
         self.G.add_nodes_from(sats)
 
-        self.range = range
+        self.maxNeighbors = maxNeighbors
+        self.maxRange = maxRange
+        self.minRange = minRange
         self.dataRate = dataRate
         self.displayStruct = displayStruct
-
-        # TODO: make this not take in sats and instead each sat has its own comms?
 
 # Reset the edges in the graph and redefine them based on the range and if the Earth is blocking them.
     def make_edges(self, sats):
@@ -27,11 +27,32 @@ class comms:
                 # Check if an edge already exists b/w the two satellites:
                     if (self.G.has_edge(sat, sat2) == False):
                     # Check if the distance is within range
-                        if np.linalg.norm(sat.orbit.r - sat2.orbit.r) < self.range:
+                        if np.linalg.norm(sat.orbit.r - sat2.orbit.r) < self.maxRange and np.linalg.norm(sat.orbit.r - sat2.orbit.r) > self.minRange:
                         # Check if the Earth is blocking the two satellites
                             if self.intersect_earth(sat, sat2) == False:
                                 # Add the edge
                                 self.G.add_edge(sat, sat2)
+
+    # Now restrict to just the max number of neighbors
+        for sat in sats:
+            # If the number of neighbors is greater than the max, remove the extra neighbors
+            if len(list(self.G.neighbors(sat))) > self.maxNeighbors:
+
+                # Get the list of neighbors
+                neighbors = list(self.G.neighbors(sat))
+
+                # Get the distances to each neighbor
+                dists = []
+                for neighbor in neighbors:
+                    dists.append(np.linalg.norm(neighbor.orbit.r.value - sat.orbit.r.value))
+
+                # Sort the neighbors by distance
+                sorted_neighbors = [x for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])]# print(test)
+
+                # Now remove the extra neighbors
+                for i in range(self.maxNeighbors, len(sorted_neighbors)):
+                    self.G.remove_edge(sat, sorted_neighbors[i])
+
 
 # Check if the Earth is blocking the two satellites, uses line-sphere intersection
     def intersect_earth(self, sat1, sat2):

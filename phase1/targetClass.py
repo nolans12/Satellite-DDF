@@ -24,6 +24,9 @@ class target:
         # Input: Target Current State,
         # TimeStep
         dt = time_step.value
+
+        # print("Integrating target with timestep: ", dt)
+
         t = time.value
         
         # White Noise Intensity Vector -> should be order of maximim magnitude acceleration over dt    
@@ -56,15 +59,29 @@ class target:
         # Sample MultiVariate White Noise as input to State Equation
         mean = np.array([0, 0, 0, 0, 0, 0])
         
-        # 50% chance of acceleration
-        if(np.random.uniform(0,1) < 0.5):
+        # 10% chance of acceleration
+        if(np.random.uniform(0,1) < 0):
             acceleration = np.random.multivariate_normal(mean, Q, 1).T
         else:
             acceleration = np.array([0, 0, 0, 0, 0, 0]).T
+
+        # TODO: try to lower the process noise
+        # TODO: simulate the truth with no process noise
+        # TODO: plot monte carlo sensing estimates
+        # TODO: for now only have static target or just one static target
             
         # Propagate the state
         rDot = np.dot(A, self.r) + np.dot(B, acceleration)
         self.r = self.r + rDot*dt
+        # self.r = self.r
+        
+        # Extract for reading simplicity
+        range = self.r[0]
+        rangeRate = self.r[1]
+        elevation = self.r[2]
+        elevationRate = self.r[3]
+        azimuth = self.r[4]
+        azimuthRate = self.r[5]
         
         # Extract for reading simplicity
         range = self.r[0]
