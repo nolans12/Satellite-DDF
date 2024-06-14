@@ -60,10 +60,15 @@ class target:
         mean = np.array([0, 0, 0, 0, 0, 0])
         
         # 10% chance of acceleration
-        if(np.random.uniform(0,1) < 0.1):
+        if(np.random.uniform(0,1) < 0):
             acceleration = np.random.multivariate_normal(mean, Q, 1).T
         else:
             acceleration = np.array([0, 0, 0, 0, 0, 0]).T
+
+        # TODO: try to lower the process noise
+        # TODO: simulate the truth with no process noise
+        # TODO: plot monte carlo sensing estimates
+        # TODO: for now only have static target or just one static target
             
         # Propagate the state
         rDot = np.dot(A, self.r) + np.dot(B, acceleration)

@@ -11,8 +11,9 @@ class centralEstimator:
         self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
-        
-        self.time = 0
+
+        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
     # Input: All satellites and a single target
     # Output: A dictionary containing the satelite object and the measurement associated with that satellite
@@ -27,32 +28,36 @@ class centralEstimator:
             
         return satMeasurements
 
-    # CENTRALIZED EXTENDED KALMAN FILTER
+# CENTRALIZED EXTENDED KALMAN FILTER
     # Inputs: All satellite objects, targetID to estimate, and the environment time
-    def EKF(self, sats, targetID, envTime):
+    def EKF(self, sats, target, envTime):
 
     # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
     # Measurment: Z = [x y z] ECI coordinates
 
         # First get the measurements from the satellites at given time and targetID
+        targetID = target.targetID
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
-    
 # GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
-        # If no prior estimate exists, just use the measurement from the first satellite
-            # Find the first satellite that has a measurement
-            for sat in satMeasurements:
-                if sat in satMeasurements:
-                    est_prior = np.array([satMeasurements[sat][0], 0, satMeasurements[sat][1], 0, satMeasurements[sat][2], 0])
-                    break
-            P_prior = np.eye(6)
+        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
+    # If no prior estimates, use the first measurement and assume no velocity
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
+            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
+                                [0, 1, 0, 0, 0, 0],
+                                [0, 0, 10, 0, 0, 0],
+                                [0, 0, 0, 1, 0, 0],
+                                [0, 0, 0, 0, 10, 0],
+                                [0, 0, 0, 0, 0, 1]])
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
             self.measHist[targetID][envTime] = satMeasurements
+            self.innovationHist[targetID][envTime] = np.zeros(3)
+            self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
+        
         else:
-            # To get the prior estimate, need to get the last time, which will be the max
+    # Else, get prior estimate, need to get the last time, which will be the max
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
@@ -78,7 +83,7 @@ class centralEstimator:
         q_y = 0.0001
         q_z = 0.00001
         q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van der Merwe's METHOD FOR TUNING Q
+        # TODO: LOOK INTO Van Loan's METHOD FOR TUNING Q
         Q = np.array([[0, 0, 0, 0, 0, 0],
                       [0, dt, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
@@ -119,17 +124,23 @@ class centralEstimator:
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
 # UPDATE:
+    # Calculate innovation terms:
+        innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
+        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R_stack
+
     # Solve for the Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R_stack)))
+        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
 
     # Correct prediction
-        est = est_pred + np.dot(K, z - np.dot(H, est_pred))
+        est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
         self.measHist[targetID][envTime] = satMeasurements
+        self.innovationHist[targetID][envTime] = innovation 
+        self.innovationCovHist[targetID][envTime] = innovationCov 
 
         return est
                 
@@ -156,7 +167,7 @@ class centralEstimator:
                                                range_truth + np.random.normal(0, rangeError)])
 
             # Now calculate what this new bearings range measurement would be in ECI:
-            simMeas_ECI = sat.sensor.convert_to_ECI(sat, simMeas_bearings_range)
+            simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
 
             # Now calculate the error between the truth and the simulated ECI measurement
             allErrors[i] = simMeas_ECI - meas_ECI
@@ -179,28 +190,39 @@ class localEstimator:
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
 
+        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
-
-    # EXTENDED KALMAN FILTER
+# LOCAL EXTENDED KALMAN FILTER
     # Inputs: Satellite with a new bearings and range measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
-    def EKF(self, sat, meas_ECI, targetID, envTime):
+    def EKF(self, sat, meas_ECI, target, envTime):
 
     # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
     # Measurment: Z = [x y z] ECI coordinates
 
+        targetID = target.targetID
+
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-        # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([meas_ECI[0], 0, meas_ECI[1], 0, meas_ECI[2], 0]) 
-            P_prior = np.eye(6)
+    # If no prior estimates, use the first measurement and assume no velocity
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
+            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
+                                [0, 1, 0, 0, 0, 0],
+                                [0, 0, 10, 0, 0, 0],
+                                [0, 0, 0, 1, 0, 0],
+                                [0, 0, 0, 0, 10, 0],
+                                [0, 0, 0, 0, 0, 1]])
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
             self.measHist[targetID][envTime] = meas_ECI
+            self.innovationHist[targetID][envTime] = np.zeros(3)
+            self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
+        
         else:
-            # To get the prior estimate, need to get the last time, which will be the max
+    # Else, get prior estimate, need to get the last time, which will be the max
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
@@ -233,8 +255,6 @@ class localEstimator:
                       [0, 0, 0, dt, 0, 0],
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
-        
-        # print("Max of Orig: ", np.max(Q))
 
     # Define the obversation matrix, H.
         # How does our state relate to our measurement? 
@@ -247,29 +267,9 @@ class localEstimator:
         # This is the covariance estimate of the sensor error
         # Tuned using monte-carlo estimation at each timestep
         R = self.calculate_R(sat, meas_ECI) 
-        # R = np.eye(3) * 0.01
 
 # EXTRACT THE MEASUREMENTS
         z = meas_ECI
-
-# # ATTEMPT VAN DER MERWES METHOD
-#         # Compute the innovation:
-#         y = meas_ECI - np.dot(H, est_prior)
-
-#         # Compute the innovation covariance:
-#         S = np.dot(H, np.dot(P_prior, H.T)) + R
-
-#         # Compute the expected innovation covariance?
-
-#         # Compute the Kalman gain:
-#         S_inv = np.linalg.inv(S)
-#         K = np.dot(P_prior, np.dot(H.T, S_inv))
-
-#         # Update the process noise covariance:
-#         Q = np.dot(K, np.dot(S, K.T))
-
-#         # print("Max of New: ", np.max(Q))
-
 
 # PREDICTION:
     # Predict the state and covariance
@@ -277,17 +277,23 @@ class localEstimator:
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
 # UPDATE:
+    # Calculate innovation terms:
+        innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
+        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+
     # Solve for the Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(np.dot(H, np.dot(P_pred, H.T)) + R)))
+        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
 
     # Correct prediction
-        est = est_pred + np.dot(K, z - np.dot(H, est_pred))
+        est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
         self.measHist[targetID][envTime] = z
+        self.innovationHist[targetID][envTime] = innovation
+        self.innovationCovHist[targetID][envTime] = innovationCov
 
         return est
 
@@ -315,7 +321,7 @@ class localEstimator:
                                                range_truth + np.random.normal(0, rangeError)])
 
             # Now calculate what this new bearings range measurement would be in ECI:
-            simMeas_ECI = sat.sensor.convert_to_ECI(sat, simMeas_bearings_range)
+            simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
 
             # Now calculate the error between the truth and the simulated ECI measurement
             allErrors[i] = simMeas_ECI - meas_ECI

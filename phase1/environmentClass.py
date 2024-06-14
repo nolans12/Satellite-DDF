@@ -73,8 +73,7 @@ class environment:
         # Save the data for each satellite to a csv file
         self.log_data()
         
-        # self.plotResults(time_vec)
-        self.plotBaselines(time_vec)
+        self.plotResults(time_vec, central = True)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -119,23 +118,8 @@ class environment:
         if any(collectedFlag == 1) and self.centralEstimator:
             for targ in self.targs:
                 # Run the central estimator on the measurements
-                centralEstimate = self.centralEstimator.EKF(self.sats, targ.targetID, time_val) 
-                
-        #         # Print out central estimator results
-        #         print("=" * 50)
-        #         print("Target:", targ.name)
-        #         print(f"{'True Position:':<15} {tuple(round(coord, 2) for coord in targ.pos)}")
-        #         print(f"{'True Velocity:':<15} {tuple(round(vel, 2) for vel in targ.vel)}")
-        #         print("=" * 50)
-        #         print(f"{'Centralized Kalman Filter Estimate':^100}")
-        #         print("=" * 100)
-        #         print(f"{'Centralized Kalman Filter Position Estimate:':<40} {tuple(round(coord, 2) for coord in centralEstimate[::2])}")
-        #         print(f"{'Centralized Kalman Filter Velocity Estimate:':<40} {tuple(round(vel, 2) for vel in centralEstimate[1::2])}")
-        #         print("=" * 100)
-        #         print(f"{'Distance (Norm) between Estimate and Truth:':<40} {round(np.linalg.norm([centralEstimate[i] - targ.pos[i//2] for i in range(0, 6, 2)]), 2)}")
-        #         print(f"{'Velocity (Norm) between Estimate and Truth:':<30} {round(np.linalg.norm([centralEstimate[i] - targ.vel[i//2] for i in range(1, 7, 2)]), 2)}")
-        #         print("\n")     
-
+                centralEstimate = self.centralEstimator.EKF(self.sats, targ, time_val) 
+   
 # Plot the current state of the environment
     def plot(self):
         # Reset plot
@@ -202,14 +186,141 @@ class environment:
                             combine = [time] + list(meas)
                             writer.writerow(combine)
 
-# Plot the results of the simulation: 
-#   For each satellite
-#       For each target of a satellite
-#               Plot state estimate of the target and its real position
-#               Plot the difference between the estimate and the real position
-#                   Include the 2 sigma bounds: X_i = 2*sqrt(P_ii) for all states
+
+# Plots all of the results to the user.
+    def plotResults(self, time_vec, central = False):
+        # Close the sim plot so that sizing of plots is good
+        plt.close('all')
+        state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+
+    # FOR EACH TARGET MAKE A PLOT
+        for targ in self.targs:
+            # Create a figure
+            fig = plt.figure(figsize=(15, 8))
+            # Subtitle with the name of the target
+            fig.suptitle(f"{targ.name} State, Error, and Innovation Plots", fontsize=14)
+
+            # Create a GridSpec object with 3 rows and 6 columns
+            gs = gridspec.GridSpec(3, 6)
+
+            # Collect axes in a list of lists for easy access
+            axes = []
+
+            # Create subplots in the first two rows (6 columns each)
+            for i in range(12):  # 2 rows * 6 columns = 12
+                ax = fig.add_subplot(gs[i // 6, i % 6])
+                axes.append(ax)
+
+            # Create subplots in the third row (3 columns spanning the width)
+            for i in range(3):  # 1 row * 3 columns = 3
+                ax = fig.add_subplot(gs[2, 2*i:2*i+2])
+                axes.append(ax)
+
+            # Set the labels for the subplots
+            for i in range(6):
+                axes[i].set_xlabel("Time [min]")
+                axes[i].set_ylabel(f"{state_labels[i]} measurements")
+
+            # Do the error vs covariance plots on the second row:
+            for i in range(6):
+                axes[6 + i].set_xlabel("Time [min]")
+                axes[6 + i].set_ylabel(f"Error in {state_labels[i]}")
+
+            # Do the innovation vs innovation covariance plots on the third row:
+            for i in range(3):  # Note: only 3 plots in the third row
+                axes[12 + i].set_xlabel("Time [min]")
+                axes[12 + i].set_ylabel(f"Innovation in {state_labels[i*2]}")
+
+    # FOR EACH SATELLITE, ADD DATA
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # EXTRACT ALL DATA
+                    satColor = sat.color
+                    trueHist = targ.hist
+                    measHist = sat.estimator.measHist[targ.targetID]
+                    estHist = sat.estimator.estHist[targ.targetID]
+                    covHist = sat.estimator.covarianceHist[targ.targetID]
+                    innovationHist = sat.estimator.innovationHist[targ.targetID]
+                    innovationCovHist = sat.estimator.innovationCovHist[targ.targetID]
+                    times = [time for time in time_vec.value if time in estHist]
+                
+                    # MEASUREMENT PLOTS
+                    for i in range(6):
+                        axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+                        if i % 2 == 0:
+                            axes[i].scatter(times, [measHist[time][i // 2] for time in times], color=satColor, label='Measurement', marker='x', s=10)
+                        axes[i].plot(times, [estHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
+
+                    # ERROR PLOTS
+                    for i in range(6):
+                        axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, linestyle='dashed', label='Error')
+                        axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
+                        axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+
+                    # INNOVATION PLOTS
+                    for i in range(3):  # Note: only 3 plots in the third row
+                        axes[12 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
+                        axes[12 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
+                        axes[12 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+
+        # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
+        # USE COLOR PINK FOR CENTRAL ESTIMATOR
+            if central:
+                trueHist = targ.hist
+                estHist = self.centralEstimator.estHist[targ.targetID]
+                covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                times = [time for time in time_vec.value if time in estHist]
+
+                # MEASUREMENT PLOTS
+                for i in range(6):
+                    axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+                    axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
+
+                # ERROR PLOTS
+                for i in range(6):
+                    axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
+                    axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
+                    axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
+
+        # COLLECT LEGENDS REMOVING DUPLICATES
+            handles, labels = [], []
+            for ax in axes:
+                for handle, label in zip(*ax.get_legend_handles_labels()):
+                    if label not in labels:  # Avoid duplicates in the legend
+                        handles.append(handle)
+                        labels.append(label)
+
+        # AND SATELLITE COLORS
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # EXTRACT ALL DATA
+                    satColor = sat.color
+                    # Create a Patch object for the satellite
+                    satPatch = Patch(color=satColor, label=sat.name)
+                    # Add the Patch object to the handles and labels
+                    handles.append(satPatch)
+                    labels.append(sat.name)
+
+        # ALSO ADD CENTRAL IF FLAG IS SET
+            if central:
+                # Create a Patch object for the central estimator
+                centralPatch = Patch(color='purple', label='Central Estimator')
+                # Add the Patch object to the handles and labels
+                handles.append(centralPatch)
+                labels.append('Central Estimator')
+
+        # ADD LEGEND
+            fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
+            plt.tight_layout()
+            plt.show()
+
+
     def plotBaselines(self, time_vec):
         
+        # Close the pripr sim plot so that the sizing of plots is good
+        plt.close('all')
         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
         
         # For Each Target plot both of the satellites estimate and the central estimate
@@ -296,7 +407,11 @@ class environment:
                 
         plt.show()
 
-    def plotResults(self, time_vec):
+
+    def plotResultsOld(self, time_vec):
+
+        # Close the pripr sim plot so that the sizing of plots is good
+        plt.close('all')
         state_labels = ['X', 'Vx', 'Y', 'Vy', 'Z', 'Vz']
             
         for sat in self.sats:
@@ -313,7 +428,8 @@ class environment:
                         covHist = sat.estimator.covarianceHist[targ.targetID]
                     # Get the times for which there are estimates
                         times = [time for time in time_vec.value if time in estHist]
-                        
+
+
                         fig, axs = plt.subplots(2, 6, figsize=(15, 6))  # Create a 2x6 grid of subplots
                         fig.suptitle(f"{sat.name} and {targ.name} State and Error Plots", fontsize=16)
 
@@ -347,97 +463,36 @@ class environment:
                             ax.legend()
 
                         plt.tight_layout()  # Adjust the layout to prevent overlap
-                        plt.show()  # Show all subplots at once                
-        
-        
-        #                 for i in range(6):  # Create figures for states and their errors
-        #                     plt.figure(i)
-        #                     plt.title(f"{sat.name} and {targ.name} Estimate and Truth for: {state_labels[i]}")
-        #                     plt.xlabel("Time")
-        #                     plt.ylabel(f"State {state_labels[i]}")
-                            
-        #                     plt.figure(i + 6)
-        #                     plt.title(f"{sat.name} and {targ.name} Error and Covariance for: {state_labels[i]}")
-        #                     plt.xlabel("Time")
-        #                     plt.ylabel("Error / Covariance")
-                        
-                      
-        #                     true_positions = [trueHist[time][i] for time in times]
-        #                     estimates = [estHist[time][i] for time in times]
-        #                     errors = [estHist[time][i] - trueHist[time][i] for time in times]
-        #                     covariances = [2 * np.sqrt(covHist[time][i][i]) for time in times]
-                            
-        #                     plt.figure(i)
-        #                     plt.plot(times, true_positions, color='k', label='Truth')
-        #                     plt.plot(times, estimates, color='r', label='Estimate')
-                            
-        #                     plt.figure(i + 6)
-        #                     plt.plot(times, errors, color='r', label='Error')
-        #                     plt.plot(times, covariances, color='k', linestyle='dashed', label='2 Sigma Bounds')
-        #                     plt.plot(times, [-c for c in covariances], color='k', linestyle='dashed')
-        
-        # for i in range(12):
-        #     plt.figure(i)
-        #     plt.legend()
-        
-        # plt.show()
+                        plt.show()  # Show all subplots at once            
 
-     
-  
-            
-           
-        
-        # # Create empty array for each target to store estimates:
-        # targ_est = []
+        # NOW ALSO FOR EACH SATELLITE PLOT THE INNOVATION AND INNOVATION COVARIANCE
+        # INNOVATION IS THE DIFFERENCE BETWEEN THE MEASUREMENT AND THE H*ESTIMATE
+        # NEED 3 SUBPLOTS
+                        meas_labels = ['X', 'Y', 'Z']
+                        fig, axes = plt.subplots(1, 3, figsize=(15, 6))
+                        fig.suptitle(f"{sat.name} and {targ.name} Innovation and Innovation Covariance Plots", fontsize=16)
+                        for i in range(3):
+                            ax = axes[i]
+                            ax.set_xlabel("Time")
+                            ax.set_ylabel("Innovation & Innovation Covariance For " + meas_labels[i])
 
-        # # Now, loop through time, and for each time, plot the estimates of each satellite
-        # for t in time:
-        #     # Clear the plot
-        #     plt.clf()
-        #     plt.xlim([-300, 300])
-        #     plt.ylim([-300, 300])
-        #     plt.xlabel('X (km)')
-        #     plt.ylabel('Y (km)')
-        #     plt.title(f"Satellite Data Collection at Time: {t:.2f}")
+                            innovation_i = [sat.estimator.innovationHist[targ.targetID][time][i] for time in times] # innovation is the difference between the measurement and the H*estimate
+                            innovationCovar_i = [sat.estimator.innovationCovHist[targ.targetID][time][i][i] for time in times] # want the diagonal of the covariance matrix
 
-        #     # Make a scatter plot for each satellite, and label the color with legend, just so we can see the estimates
-        #     for sat in self.sats:
-        #         plt.scatter(-9999999, -9999999, s = 20, color = sat.color, label=sat.name)
-        #     for targ in self.targs:
-        #         plt.scatter(-9999999, -9999999, s = 20, color = targ.color, label=targ.name)
-        #     plt.legend()
+                            # Calculate the 2 sigma bounds for the innovation covariance
+                            innovationCovar_i_2sigma = [2 * np.sqrt(cov) for cov in innovationCovar_i]
 
-        #      # Initialize an empty array to store estimates for each target at this time step
-        #     current_estimates = np.ones((len(self.targs), 2))*9999999
+                            ax.plot(times, innovation_i, color='r', label='Innovation')
+                            ax.plot(times, innovationCovar_i_2sigma, color='k', linestyle='dashed', label='Innovation Covar 2 Sigma Bounds')
+                            ax.plot(times, [-cov for cov in innovationCovar_i_2sigma], color='k', linestyle='dashed')
 
-        #     for sat in self.sats:
-        #         # Get the estimates of the satellite at the time
-        #         estimates = sat.estimateHist
-        #         for est in estimates:
-        #             if est[0, 3] == t:
-        #             # Now loop through the targets
-        #                 for i, targ in enumerate(self.targs):
-        #                     x, y, z = est[i, 0:3]
-        #                     if x != 0 or y != 0 or z != 0:
+                        for ax in axes.flat:
+                            ax.legend()
 
-        #                     # Store the estimates in array for each target
-        #                         current_estimates[i] = [x, y]
-        #                     # Append the current estimates to targ_est
-        #                         targ_est.append(current_estimates.copy())
+                        plt.tight_layout()
+                        plt.show()
 
-        #                     # Plot the estimate
-        #                         plt.scatter(x, y, s = 40, color = sat.color)
 
-        #                 # For the given target, plot the estimate in dashed plot
-        #                     targ_data = [arr[i, :] for arr in targ_est]
-        #                     x_tot = [point[0] for point in targ_data]
-        #                     y_tot = [point[1] for point in targ_data]   
-        #                     plt.scatter(x_tot, y_tot, s = 10, color = targ.color)
-                        
-        #     plt.pause(pause_step) 
-        #     plt.draw()
-        # plt.show()
-            
 # Convert images to a gif
     # Save in the img struct
     def convert_imgs(self):

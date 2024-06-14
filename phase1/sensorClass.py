@@ -54,6 +54,13 @@ class sensor:
     
 
     # Input: A satellite object and a ECI measurement of a target.
+    # Output: A BEARINGS ONLY estimate from the satellite.
+    # Order is [in-track, cross-track]
+    def convert_to_bearings(self, sat, meas_ECI):
+        # Just call convert_to_range_bearings and return the first two values
+        return self.convert_to_range_bearings(sat, meas_ECI)[0:2]
+
+    # Input: A satellite object and a ECI measurement of a target.
     # Output: A bearings and range estimate from the satellite.
     # Order is [in-track, cross-track, range]
     def convert_to_range_bearings(self, sat, meas_ECI):
@@ -105,9 +112,15 @@ class sensor:
 
         return np.array([in_track_angle, cross_track_angle, range_est])
 
+
+    # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
+    # Output: A single raw ECI position, containing time and target position in ECI
+    def convert_from_bearings_to_ECI(self, sat, meas_sensor):
+        return
+
     # Input: A satellite object and a bearings and range measurement
     # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_to_ECI(self, sat, meas_sensor):
+    def convert_from_range_bearings_to_ECI(self, sat, meas_sensor):
 
         # Get the data
         alpha, beta, range = meas_sensor[0], meas_sensor[1], meas_sensor[2]
