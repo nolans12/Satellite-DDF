@@ -60,7 +60,7 @@ class target:
         mean = np.array([0, 0, 0, 0, 0, 0])
         
         # 10% chance of acceleration
-        if(np.random.uniform(0,1) < 0):
+        if(np.random.uniform(0,1) < 1):
             acceleration = np.random.multivariate_normal(mean, Q, 1).T
         else:
             acceleration = np.array([0, 0, 0, 0, 0, 0]).T

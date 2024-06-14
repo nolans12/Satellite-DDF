@@ -108,12 +108,13 @@ class centralEstimator:
         # We need to stack this for each satellite
         for i, sat in enumerate(satMeasurements):
             R = self.calculate_R(sat, satMeasurements[sat])
+            R = self.calculate_R_range(sat, satMeasurements[sat]) # For range and bearings
             if i == 0:
                 R_stack = R
             else:
                 R_stack = block_diag(R_stack, R)
 
-        # R_stack = np.eye(3*len(satMeasurements)) * 0.01
+        
 
 # EXTRACT THE MEASUREMENTS
         z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
@@ -143,11 +144,46 @@ class centralEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov 
 
         return est
-                
+
+
+    # FOR BEARINGS            
     # Input: A satellite object, and a ECI measurement
     # Output: The Covariance matrix of measurement noise, R
     # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
     def calculate_R(self, sat, meas_ECI):
+            
+            # Convert the ECI measurement into a bearings and range measurement
+            in_track_truth, cross_track_truth = sat.sensor.convert_to_bearings(sat, meas_ECI)
+
+            # Get the error from the sensor.
+            bearingsError = sat.sensor.bearingsError
+
+            # Run the monte-carlo simulation
+            numSims = 1000
+            allErrors = np.zeros((numSims, 3))
+            for i in range(numSims):
+                    
+                    # Add noise to the measurement
+                    simMeas_bearings = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
+                                                cross_track_truth + np.random.normal(0, bearingsError[1])])
+    
+                    # Now calculate what this new bearings range measurement would be in ECI:
+                    simMeas_ECI = sat.sensor.convert_from_bearings_to_ECI(sat, simMeas_bearings, meas_ECI)
+                    # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
+
+                    # Now calculate the error between the truth and the simulated ECI measurement
+                    allErrors[i] = simMeas_ECI - meas_ECI
+
+            # Now calculate the covariance matrix of the error
+            R = np.cov(allErrors.T)
+
+            return R
+    
+    # FOR BEARINGS AND RANGE
+    # Input: A satellite object, and a ECI measurement
+    # Output: The Covariance matrix of measurement noise, R
+    # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
+    def calculate_R_range(self, sat, meas_ECI):
 
         # Convert the ECI measurement into a bearings and range measurement
         in_track_truth, cross_track_truth, range_truth = sat.sensor.convert_to_range_bearings(sat, meas_ECI) # Will treat this as the truth estimate!
@@ -168,6 +204,7 @@ class centralEstimator:
 
             # Now calculate what this new bearings range measurement would be in ECI:
             simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
+            # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
 
             # Now calculate the error between the truth and the simulated ECI measurement
             allErrors[i] = simMeas_ECI - meas_ECI
@@ -266,7 +303,12 @@ class localEstimator:
     # Define the sensor noise matrix, R.
         # This is the covariance estimate of the sensor error
         # Tuned using monte-carlo estimation at each timestep
-        R = self.calculate_R(sat, meas_ECI) 
+        R = self.calculate_R(sat, meas_ECI)
+        # print the maximum value in R
+        # print("Bearings: Max in R: ", np.max(R))
+        R = self.calculate_R_range(sat, meas_ECI) # For range and bearings
+        # # print the maximum value in R
+        # print("Range: Max value in R: ", np.max(R))
 
 # EXTRACT THE MEASUREMENTS
         z = meas_ECI
@@ -298,10 +340,44 @@ class localEstimator:
         return est
 
 
+
+    # FOR BEARINGS            
     # Input: A satellite object, and a ECI measurement
     # Output: The Covariance matrix of measurement noise, R
     # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
     def calculate_R(self, sat, meas_ECI):
+            
+            # Convert the ECI measurement into a bearings and range measurement
+            in_track_truth, cross_track_truth = sat.sensor.convert_to_bearings(sat, meas_ECI)
+
+            # Get the error from the sensor.
+            bearingsError = sat.sensor.bearingsError
+
+            # Run the monte-carlo simulation
+            numSims = 1000
+            allErrors = np.zeros((numSims, 3))
+            for i in range(numSims):
+                    
+                    # Add noise to the measurement
+                    simMeas_bearings = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
+                                                cross_track_truth + np.random.normal(0, bearingsError[1])])
+    
+                    # Now calculate what this new bearings range measurement would be in ECI:
+                    simMeas_ECI = sat.sensor.convert_from_bearings_to_ECI(sat, simMeas_bearings, meas_ECI)
+                    # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
+
+                    # Now calculate the error between the truth and the simulated ECI measurement
+                    allErrors[i] = simMeas_ECI - meas_ECI
+
+            # Now calculate the covariance matrix of the error
+            R = np.cov(allErrors.T)
+
+            return R
+    
+    # Input: A satellite object, and a ECI measurement
+    # Output: The Covariance matrix of measurement noise, R
+    # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
+    def calculate_R_range(self, sat, meas_ECI):
 
         # Convert the ECI measurement into a bearings and range measurement
         in_track_truth, cross_track_truth, range_truth = sat.sensor.convert_to_range_bearings(sat, meas_ECI) # Will treat this as the truth estimate!

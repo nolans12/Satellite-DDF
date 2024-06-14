@@ -64,7 +64,17 @@ class satellite:
                     self.measurementHist[targ.targetID][self.time] = saveMeas # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
 
                     # Also save raw Estimate of target in ECI
-                    raw_ECI_meas = self.sensor.convert_from_range_bearings_to_ECI(self, measurement)
+            # FOR BEARINGS ONLY MEASUREMENTS
+                # IF IS FIRST BEARINGS ONLY MEASUREMENT, USE TRUE TARGET POSITION AS THE PRIOR ESTIMATE:
+                    if len(self.raw_ECI_measHist[targ.targetID]) == 0:
+                        prior_meas = targ.pos
+                    else:
+                        # Get the prior time step, using the max value
+                        prior_time = max(self.raw_ECI_measHist[targ.targetID].keys())
+                        prior_meas = self.raw_ECI_measHist[targ.targetID][prior_time]
+
+                    # raw_ECI_meas = self.sensor.convert_from_range_bearings_to_ECI(self, measurement)
+                    raw_ECI_meas = self.sensor.convert_from_bearings_to_ECI(self, measurement, prior_meas)
                     self.raw_ECI_measHist[targ.targetID][self.time] = raw_ECI_meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
 
                     # Local Kalman Filter on raw Estimate
