@@ -285,7 +285,7 @@ class localEstimator:
         q_y = 0.0001
         q_z = 0.00001
         q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van der Merwe's METHOD FOR TUNING Q
+        # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
         Q = np.array([[0, 0, 0, 0, 0, 0],
                       [0, dt, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
@@ -299,16 +299,10 @@ class localEstimator:
         H = np.array([[1, 0, 0, 0, 0, 0],
                       [0, 0, 1, 0, 0, 0],
                       [0, 0, 0, 0, 1, 0]])
-
     # Define the sensor noise matrix, R.
         # This is the covariance estimate of the sensor error
         # Tuned using monte-carlo estimation at each timestep
         R = self.calculate_R(sat, meas_ECI)
-        # print the maximum value in R
-        # print("Bearings: Max in R: ", np.max(R))
-        R = self.calculate_R_range(sat, meas_ECI) # For range and bearings
-        # # print the maximum value in R
-        # print("Range: Max value in R: ", np.max(R))
 
 # EXTRACT THE MEASUREMENTS
         z = meas_ECI
@@ -317,6 +311,11 @@ class localEstimator:
     # Predict the state and covariance
         est_pred = np.dot(F, est_prior)
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+
+        # TODO: jacobian of ECI to bearings measurement
+        # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
+        H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+
 
 # UPDATE:
     # Calculate innovation terms:
