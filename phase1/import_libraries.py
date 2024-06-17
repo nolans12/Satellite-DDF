@@ -13,7 +13,7 @@ import PIL
 import csv
 import copy
 import sympy as sp
-from sympy import Matrix, symbols, lambdify, Subs
+from sympy import Matrix, symbols, lambdify, Subs, Derivative, Function
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Patch
 import matplotlib.cm as cm  # Import colormap module

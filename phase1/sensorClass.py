@@ -209,8 +209,11 @@ class sensor:
         # Substitute values into the Jacobian matrix
         H_sp = H.subs({x: meas_ECI[0], y: meas_ECI[2], z: meas_ECI[4]})
 
+        # Evaluate the symbolic expression to get numeric values
+        H_sp_eval = H_sp.evalf()
+
         # Convert SymPy expression to NumPy function
-        H_func = lambdify((x, y, z), H_sp, 'numpy')
+        H_func = lambdify((x, y, z), H, 'numpy')
 
         # Evaluate the NumPy function to get the Jacobian matrix as NumPy array
         H_np = H_func(meas_ECI[0], meas_ECI[2], meas_ECI[4])
