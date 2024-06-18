@@ -188,7 +188,136 @@ class environment:
 
 
 # Plots all of the results to the user.
+# Using bearings only measurement now
     def plotResults(self, time_vec, central = False):
+        # Close the sim plot so that sizing of plots is good
+        plt.close('all')
+        state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]']
+
+    # FOR EACH TARGET MAKE A PLOT
+        for targ in self.targs:
+            # Create a figure
+            fig = plt.figure(figsize=(15, 8))
+            # Subtitle with the name of the target
+            fig.suptitle(f"{targ.name} State, Error, and Innovation Plots", fontsize=14)
+
+            # Create a GridSpec object with 3 rows and 6 columns
+            gs = gridspec.GridSpec(3, 6)
+
+            # Collect axes in a list of lists for easy access
+            axes = []
+
+            # Create subplots in the first two rows (6 columns each)
+            for i in range(12):  # 2 rows * 6 columns = 12
+                ax = fig.add_subplot(gs[i // 6, i % 6])
+                axes.append(ax)
+
+            # Create subplots in the third row (3 columns spanning the width)
+            for i in range(2):  # 1 row * 2 columns = 2
+                ax = fig.add_subplot(gs[2, 3*i:3*i+3])
+                axes.append(ax)
+
+            # Set the labels for the subplots
+            for i in range(6):
+                axes[i].set_xlabel("Time [min]")
+                axes[i].set_ylabel(f"{state_labels[i]} measurements")
+
+            # Do the error vs covariance plots on the second row:
+            for i in range(6):
+                axes[6 + i].set_xlabel("Time [min]")
+                axes[6 + i].set_ylabel(f"Error in {state_labels[i]}")
+
+            # Do the innovation vs innovation covariance plots on the third row:
+            for i in range(2):  # Note: only 2 plots in the third row
+                axes[12 + i].set_xlabel("Time [min]")
+                axes[12 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+    # FOR EACH SATELLITE, ADD DATA
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # EXTRACT ALL DATA
+                    satColor = sat.color
+                    trueHist = targ.hist
+                    estHist = sat.estimator.estHist[targ.targetID]
+                    covHist = sat.estimator.covarianceHist[targ.targetID]
+                    innovationHist = sat.estimator.innovationHist[targ.targetID]
+                    innovationCovHist = sat.estimator.innovationCovHist[targ.targetID]
+                    times = [time for time in time_vec.value if time in estHist]
+                
+                    # MEASUREMENT PLOTS
+                    for i in range(6):
+                        axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+                        axes[i].plot(times, [estHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
+
+                    # ERROR PLOTS
+                    for i in range(6):
+                        axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, linestyle='dashed', label='Error')
+                        axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
+                        axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+
+                    # INNOVATION PLOTS
+                    for i in range(2):  # Note: only 3 plots in the third row
+                        axes[12 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
+                        axes[12 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
+                        axes[12 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+
+        # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
+        # USE COLOR PINK FOR CENTRAL ESTIMATOR
+            if central:
+                trueHist = targ.hist
+                estHist = self.centralEstimator.estHist[targ.targetID]
+                covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                times = [time for time in time_vec.value if time in estHist]
+
+                # MEASUREMENT PLOTS
+                for i in range(6):
+                    axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+                    axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
+
+                # ERROR PLOTS
+                for i in range(6):
+                    axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
+                    axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
+                    axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
+
+        # COLLECT LEGENDS REMOVING DUPLICATES
+            handles, labels = [], []
+            for ax in axes:
+                for handle, label in zip(*ax.get_legend_handles_labels()):
+                    if label not in labels:  # Avoid duplicates in the legend
+                        handles.append(handle)
+                        labels.append(label)
+
+        # AND SATELLITE COLORS
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # EXTRACT ALL DATA
+                    satColor = sat.color
+                    # Create a Patch object for the satellite
+                    satPatch = Patch(color=satColor, label=sat.name)
+                    # Add the Patch object to the handles and labels
+                    handles.append(satPatch)
+                    labels.append(sat.name)
+
+        # ALSO ADD CENTRAL IF FLAG IS SET
+            if central:
+                # Create a Patch object for the central estimator
+                centralPatch = Patch(color='purple', label='Central Estimator')
+                # Add the Patch object to the handles and labels
+                handles.append(centralPatch)
+                labels.append('Central Estimator')
+
+        # ADD LEGEND
+            fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
+            plt.tight_layout()
+            plt.show()
+
+
+# Plots all of the results to the user.
+    def plotResults_old(self, time_vec, central = False):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
@@ -247,8 +376,8 @@ class environment:
                     # MEASUREMENT PLOTS
                     for i in range(6):
                         axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
-                        if i % 2 == 0:
-                            axes[i].scatter(times, [measHist[time][i // 2] for time in times], color=satColor, label='Measurement', marker='x', s=10)
+                        # if i % 2 == 0:
+                            # axes[i].scatter(times, [measHist[time][i // 2] for time in times], color=satColor, label='Measurement', marker='x', s=10)
                         axes[i].plot(times, [estHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
 
                     # ERROR PLOTS
@@ -258,7 +387,7 @@ class environment:
                         axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
 
                     # INNOVATION PLOTS
-                    for i in range(3):  # Note: only 3 plots in the third row
+                    for i in range(2):  # Note: only 3 plots in the third row
                         axes[12 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
                         axes[12 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
                         axes[12 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')

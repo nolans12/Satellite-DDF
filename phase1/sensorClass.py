@@ -4,10 +4,9 @@ from satelliteClass import satellite
 from targetClass import target
 
 class sensor:
-    def __init__(self, fov, resolution, bearingsError, rangeError, name, detectChance = 0.05):
+    def __init__(self, fov, bearingsError, name, detectChance = 0, resolution = 720):
         self.fov = fov
         self.bearingsError = bearingsError
-        self.rangeError = rangeError
         self.detectChance = detectChance
         self.name = name
         self.resolution = resolution
@@ -122,51 +121,6 @@ class sensor:
             new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
 
         return new_jacobian
-
-    
-    # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
-    # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_from_bearings_to_ECI(self, sat, meas_sensor, prev_ECI):
-    # The goal is to compute the line that the bearings measurement makes with the satellite, then find the nearest point to that line with the previous ECI estimate
-    # This will be the new ECI estimate of the target
-
-        # Get the data
-        alpha, beta = meas_sensor[0], meas_sensor[1]
-
-        # convert to radians
-        alpha, beta = np.radians(alpha), np.radians(beta)
-
-        # Convert satellite position to be in in-track, cross-track, radial
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-        w = np.cross(rVec, vVec) # Cross track vector
-        T = np.array([vVec, w, rVec])
-        Tinv = np.linalg.inv(T)
-
-        # Get the target_vec_ECI:
-        initial = np.array([0, 0, -1])
-        # R2 rotation about y axis, with angle alpha
-        R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
-        # R1 rotation about x axis, with angle beta
-        R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
-        # Rotate the initial vector
-        targ_vec_sens = np.dot(R1, np.dot(R2, initial))
-
-        # Rotate the vector back into ECI
-        targ_vec_ECI = np.dot(Tinv, targ_vec_sens) # This is the line that points to the target from the satellite!
-
-        # Now find the closest point on this line to the previous ECI estimate
-        # This is the new ECI estimate
-        x_sat, y_sat, z_sat = sat.orbit.r.value
-        x_prev, y_prev, z_prev = prev_ECI
-
-        # Find the closest point on the line to the previous ECI estimate
-        # This is the new ECI estimate
-        new_ECI = self.nearest_point_on_line([x_sat, y_sat, z_sat], targ_vec_ECI, [x_prev, y_prev, z_prev])
-
-        # print("Bearings Only Estimate: ", new_ECI)
-
-        return new_ECI
 
     # Input: A point P0 on the line, a direction vector d, and a point P
     # Output: The nearest point on the line to P
@@ -394,3 +348,47 @@ class sensor:
         else:
             return False
         
+
+        # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
+    # # Output: A single raw ECI position, containing time and target position in ECI
+    # def convert_from_bearings_to_ECI(self, sat, meas_sensor, prev_ECI):
+    # # The goal is to compute the line that the bearings measurement makes with the satellite, then find the nearest point to that line with the previous ECI estimate
+    # # This will be the new ECI estimate of the target
+
+    #     # Get the data
+    #     alpha, beta = meas_sensor[0], meas_sensor[1]
+
+    #     # convert to radians
+    #     alpha, beta = np.radians(alpha), np.radians(beta)
+
+    #     # Convert satellite position to be in in-track, cross-track, radial
+    #     rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+    #     vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+    #     w = np.cross(rVec, vVec) # Cross track vector
+    #     T = np.array([vVec, w, rVec])
+    #     Tinv = np.linalg.inv(T)
+
+    #     # Get the target_vec_ECI:
+    #     initial = np.array([0, 0, -1])
+    #     # R2 rotation about y axis, with angle alpha
+    #     R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
+    #     # R1 rotation about x axis, with angle beta
+    #     R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
+    #     # Rotate the initial vector
+    #     targ_vec_sens = np.dot(R1, np.dot(R2, initial))
+
+    #     # Rotate the vector back into ECI
+    #     targ_vec_ECI = np.dot(Tinv, targ_vec_sens) # This is the line that points to the target from the satellite!
+
+    #     # Now find the closest point on this line to the previous ECI estimate
+    #     # This is the new ECI estimate
+    #     x_sat, y_sat, z_sat = sat.orbit.r.value
+    #     x_prev, y_prev, z_prev = prev_ECI
+
+    #     # Find the closest point on the line to the previous ECI estimate
+    #     # This is the new ECI estimate
+    #     new_ECI = self.nearest_point_on_line([x_sat, y_sat, z_sat], targ_vec_ECI, [x_prev, y_prev, z_prev])
+
+    #     # print("Bearings Only Estimate: ", new_ECI)
+
+    #     return new_ECI
