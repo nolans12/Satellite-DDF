@@ -31,7 +31,7 @@ if __name__ == "__main__":
     sats = [sat1, sat2]
 
 # DEFINE THE TARGET OBJECTS: [name, targetID, cords, heading, speed] 
-    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=50,  color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5,  color = 'k')
     targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100,  color = 'r')
     targs = [targ1]
 
