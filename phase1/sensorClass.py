@@ -32,7 +32,6 @@ class sensor:
                 return 0
             else:
                 # Get the measurement and return
-                # return self.sensor_model(sat, targ)
                 return self.sensor_model(sat, targ)
         else:
         # If target isnt visible, return just 0
@@ -53,107 +52,91 @@ class sensor:
         return np.array([in_track_meas, cross_track_meas])
     
 
-    # Input: A satellite object and a ECI measurement of a target.
-    # Output: A BEARINGS ONLY estimate from the satellite.
-    # Order is [in-track, cross-track]
-    def convert_to_bearings(self, sat, meas_ECI):
-        # Just call convert_to_range_bearings and return the first two values
-        return self.convert_to_range_bearings(sat, meas_ECI)[0:2]
+    def normalize(self, vec):
+        return vec / jnp.linalg.norm(vec)
 
-    # Input: A satellite object and a ECI measurement of a target.
-    # Output: A bearings and range estimate from the satellite.
-    # Order is [in-track, cross-track, range]
-    def convert_to_range_bearings(self, sat, meas_ECI):
 
-        # Get the frame transformation:
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-        w = np.cross(rVec, vVec)
-        T = np.array([vVec, w, rVec]) # From ECI to sensor
+    def transform_eci_to_bearings(self, sat, meas_ECI):
+        rVec = self.normalize(jnp.array(sat.orbit.r.value))
+        vVec = self.normalize(jnp.array(sat.orbit.v.value))
+        wVec = self.normalize(jnp.cross(sat.orbit.r.value, sat.orbit.v.value))
+
+        # Create the transformation matrix T
+        T = jnp.stack([vVec.T, wVec.T, rVec.T])
 
         # Rotate the satellite into Sensor frame:
-        x_sat_sens, y_sat_sens, z_sat_sens = np.dot(T, sat.orbit.r.value)
+        sat_pos = jnp.array(sat.orbit.r.value)
+        x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
 
         # Rotate the measurement into the Sensor frame:
-        x_targ_sens, y_targ_sens, z_targ_sens = np.dot(T, np.array(meas_ECI))
-
-        # To get the cross track and in track angles, use the dot product
-        # theta = arccos((a dot b) / (||a|| ||b||))
-
-        # Use vectors of sat - earth and sat - target and then manually do sign check based on geometry.
+        x, y, z = meas_ECI
+        meas_ECI_sym = jnp.array([x, y, z])
+        x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym
 
         # Create a line from satellite to the center of Earth:
-        satVec = np.array([x_sat_sens, y_sat_sens, z_sat_sens]) # sat - earth
+        satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])  # sat - earth
 
-        # Now get the in-track comoonent:
-        targVec_inTrack = np.array(satVec - [x_targ_sens, 0, z_targ_sens]) # sat - target
-        # Now use dot product rule
-        in_track_angle = np.arccos(np.dot(targVec_inTrack, satVec)/(np.linalg.norm(targVec_inTrack)*np.linalg.norm(satVec)))
+        # Now get the in-track component:
+        targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
+        in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec))
 
         # If targVec_inTrack is negative, switch
-        in_track_angle = sp.Piecewise((in_track_angle, x_targ_sens >= 0), (-in_track_angle, x_targ_sens < 0))
+        if x_targ_sens < 0:
+            in_track_angle = -in_track_angle
 
         # Now get the cross-track component:
-        targVec_crossTrack = np.array(satVec - [0, y_targ_sens, z_targ_sens]) # sat - target
-        # Now use dot product rule
-        cross_track_angle = np.arccos(np.dot(targVec_crossTrack, satVec)/(np.linalg.norm(targVec_crossTrack)*np.linalg.norm(satVec)))
+        targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])  # sat - target
+        cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec))
 
         # If targVec_crossTrack is negative, switch
-        cross_track_angle = sp.Piecewise((cross_track_angle, y_targ_sens <= 0), (-cross_track_angle, y_targ_sens > 0))
+        if y_targ_sens > 0:
+            cross_track_angle = -cross_track_angle
 
         # Convert to degrees:
-        in_track_angle = in_track_angle*180/np.pi
-        cross_track_angle = cross_track_angle*180/np.pi
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
 
-        # Finally calculate the range
-        range_est = np.linalg.norm(sat.orbit.r.value - meas_ECI)
+        return jnp.array([in_track_angle_deg, cross_track_angle_deg])
+      
 
-        return np.array([in_track_angle, cross_track_angle, range_est])
+    # Input: A satellite object and a targets ECI position, in the form of [x, y, z]
+    # Output: The in-track and cross-track angles between the satellite and target
+    def convert_to_bearings(self, sat, meas_ECI):
+        sensor_measurement = self.transform_eci_to_bearings(sat, meas_ECI)
 
+        return float(sensor_measurement[0]), float(sensor_measurement[1])
 
-    # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
-    # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_from_bearings_to_ECI(self, sat, meas_sensor):
-        return
+    # Input: A satellite object and a x, vx, y, vy, z, vz measurement
+    # Output: The jacobian matrix H used in a kalman filter for the sensor
+    def jacobian_ECI_to_bearings(self, sat, meas_ECI_full):
+        # Calculate the Jacobian
+        # jacobian = jax.jacfwd(lambda x: self.transform(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
+        jacobian = jax.jacfwd(lambda x: self.transform_eci_to_bearings(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
 
-    # Input: A satellite object and a bearings and range measurement
-    # Output: A single raw ECI position, containing time and target position in ECI
-    def convert_from_range_bearings_to_ECI(self, sat, meas_sensor):
+        # Initialize a new Jacobian matrix with zeros
+        new_jacobian = jnp.zeros((2, 6))
 
-        # Get the data
-        alpha, beta, range = meas_sensor[0], meas_sensor[1], meas_sensor[2]
+        # Populate the new Jacobian matrix
+        for i in range(3):  # Original Jacobian has 3 columns
+            new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
 
-        # convert to radians
-        alpha, beta = np.radians(alpha), np.radians(beta)
+        return new_jacobian
 
-        # Convert satellite position to be in in-track, cross-track, radial
-        rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-        vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-        w = np.cross(rVec, vVec) # Cross track vector
-        T = np.array([vVec, w, rVec])
-        Tinv = np.linalg.inv(T)
+    # Input: A point P0 on the line, a direction vector d, and a point P
+    # Output: The nearest point on the line to P
+    def nearest_point_on_line(self, P0, d, P):
 
-        # Start at the satellite position with a vector (0, 0, -1)
-        # This is the direction vector of where the satellite points
-        # Then rotate this vector by the bearings to get a sensor frame vector pointing to the target
-        # Then rotate this vector back to ECI
-        # And apply the range manitude ot this vector in ECI
-        # This will give the ECI position of the target
-
-        initial = np.array([0, 0, -1])
-        # R2 rotation about y axis, with angle alpha
-        R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
-        # R1 rotation about x axis, with angle beta
-        R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
-        # Rotate the initial vector
-        targ_vec_sens = np.dot(R1, np.dot(R2, initial))
-
-        # Rotate the vector back into ECI
-        targ_vec_ECI = np.dot(Tinv, targ_vec_sens)
-
-        x_targ_eci, y_targ_eci, z_targ_eci = range*targ_vec_ECI[0:3] + sat.orbit.r.value
-
-        return np.array([x_targ_eci, y_targ_eci, z_targ_eci])
+        P0 = np.array(P0)
+        d = np.array(d)
+        P = np.array(P)
+        
+        # Calculate the parameter t
+        t = np.dot(P - P0, d) / np.dot(d, d)
+        
+        # Calculate the nearest point on the line
+        nearest_point = P0 + t * d
+        
+        return nearest_point
 
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
@@ -365,4 +348,47 @@ class sensor:
         else:
             return False
         
-    
+
+        # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
+    # # Output: A single raw ECI position, containing time and target position in ECI
+    # def convert_from_bearings_to_ECI(self, sat, meas_sensor, prev_ECI):
+    # # The goal is to compute the line that the bearings measurement makes with the satellite, then find the nearest point to that line with the previous ECI estimate
+    # # This will be the new ECI estimate of the target
+
+    #     # Get the data
+    #     alpha, beta = meas_sensor[0], meas_sensor[1]
+
+    #     # convert to radians
+    #     alpha, beta = np.radians(alpha), np.radians(beta)
+
+    #     # Convert satellite position to be in in-track, cross-track, radial
+    #     rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
+    #     vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
+    #     w = np.cross(rVec, vVec) # Cross track vector
+    #     T = np.array([vVec, w, rVec])
+    #     Tinv = np.linalg.inv(T)
+
+    #     # Get the target_vec_ECI:
+    #     initial = np.array([0, 0, -1])
+    #     # R2 rotation about y axis, with angle alpha
+    #     R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
+    #     # R1 rotation about x axis, with angle beta
+    #     R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
+    #     # Rotate the initial vector
+    #     targ_vec_sens = np.dot(R1, np.dot(R2, initial))
+
+    #     # Rotate the vector back into ECI
+    #     targ_vec_ECI = np.dot(Tinv, targ_vec_sens) # This is the line that points to the target from the satellite!
+
+    #     # Now find the closest point on this line to the previous ECI estimate
+    #     # This is the new ECI estimate
+    #     x_sat, y_sat, z_sat = sat.orbit.r.value
+    #     x_prev, y_prev, z_prev = prev_ECI
+
+    #     # Find the closest point on the line to the previous ECI estimate
+    #     # This is the new ECI estimate
+    #     new_ECI = self.nearest_point_on_line([x_sat, y_sat, z_sat], targ_vec_ECI, [x_prev, y_prev, z_prev])
+
+    #     # print("Bearings Only Estimate: ", new_ECI)
+
+    #     return new_ECI

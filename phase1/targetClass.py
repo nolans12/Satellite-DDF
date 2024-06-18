@@ -61,23 +61,24 @@ class target:
         azimuth = self.X[4]
         azimuthRate = self.X[5]
         
-        # Convert back to x,y,z ECI
-        x = range*np.sin(azimuth)*np.cos(elevation)
-        y = range*np.sin(azimuth)*np.sin(elevation)
-        z = range*np.cos(elevation)
+        # Convert Spherical to Cartesian
+        x = range * np.cos(elevation) * np.cos(azimuth)
+        y = range * np.cos(elevation) * np.sin(azimuth)
+        z = range * np.sin(elevation)
+
+        # Approximate velocities conversion (simplified version)
+        vx = rangeRate * np.cos(elevation) * np.cos(azimuth) - \
+            range * elevationRate * np.sin(elevation) * np.cos(azimuth) - \
+            range * azimuthRate * np.cos(elevation) * np.sin(azimuth)
+
+        vy = rangeRate * np.cos(elevation) * np.sin(azimuth) - \
+            range * elevationRate * np.sin(elevation) * np.sin(azimuth) + \
+            range * azimuthRate * np.cos(elevation) * np.cos(azimuth)
+
+        vz = rangeRate * np.sin(elevation) + \
+            range * elevationRate * np.cos(elevation)
         
-        self.pos = np.array([x, y, z])
-        
-        # Convert back to xdot, ydot, zdot ECI
-        vx = (rangeRate * np.sin(azimuth) * np.cos(elevation) 
-               + range * np.cos(azimuth) * np.cos(elevation) * azimuthRate 
-               - range * np.sin(azimuth) * np.sin(elevation) * elevationRate)
-        
-        vy = (rangeRate * np.sin(azimuth) * np.sin(elevation) 
-               + range * np.cos(azimuth) * np.sin(elevation) * azimuthRate 
-               + range * np.sin(azimuth) * np.cos(elevation) * elevationRate)
-        
-        vz = (rangeRate * np.cos(azimuth) 
-               - range * np.sin(azimuth) * azimuthRate)
-        
+        self.pos = np.array([x, y, z])  
         self.vel = np.array([vx, vy, vz])
+        
+        

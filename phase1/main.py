@@ -13,11 +13,11 @@ if __name__ == "__main__":
 
 ### DEFINE THE SATELLITE OBJECTS:
     # Define a sensor model:
-    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.1, 0.1]), rangeError = 0.1, detectChance= 0, resolution = 720)
-    sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0, resolution = 720)
+    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.1, 0.1]))
+    sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.1, 0.1]))
 
     # Define targets for the satellites to track:
-    targetIDs = [1]
+    targetIDs = [1, 2]
 
     # Define local estimators:
     local1 = localEstimator(targetIDs = targetIDs)
@@ -26,13 +26,13 @@ if __name__ == "__main__":
 
     # Define the satellites:
     sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 70, nu = 0, color='r')
+    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
 
     sats = [sat1, sat2]
 
-# DEFINE THE TARGET OBJECTS:
-    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
-     
+# DEFINE THE TARGET OBJECTS: [name, targetID, cords, heading, speed] 
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=50,  color = 'k')
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100,  color = 'r')
     targs = [targ1]
 
 # Define the communication network:
