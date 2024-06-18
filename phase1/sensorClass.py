@@ -56,7 +56,8 @@ class sensor:
     def normalize(self, vec):
         return vec / jnp.linalg.norm(vec)
 
-    def transform(self, sat, meas_ECI):
+
+    def transform_eci_to_bearings(self, sat, meas_ECI):
         rVec = self.normalize(jnp.array(sat.orbit.r.value))
         vVec = self.normalize(jnp.array(sat.orbit.v.value))
         wVec = self.normalize(jnp.cross(sat.orbit.r.value, sat.orbit.v.value))
@@ -78,7 +79,7 @@ class sensor:
 
         # Now get the in-track component:
         targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
-        in_track_angle = jnp.arccos(jnp.dot(targVec_inTrack, satVec) / (jnp.linalg.norm(targVec_inTrack) * jnp.linalg.norm(satVec)))
+        in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec))
 
         # If targVec_inTrack is negative, switch
         if x_targ_sens < 0:
@@ -86,7 +87,7 @@ class sensor:
 
         # Now get the cross-track component:
         targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])  # sat - target
-        cross_track_angle = jnp.arccos(jnp.dot(targVec_crossTrack, satVec) / (jnp.linalg.norm(targVec_crossTrack) * jnp.linalg.norm(satVec)))
+        cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec))
 
         # If targVec_crossTrack is negative, switch
         if y_targ_sens > 0:
@@ -97,19 +98,21 @@ class sensor:
         cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
 
         return jnp.array([in_track_angle_deg, cross_track_angle_deg])
-
+      
 
     # Input: A satellite object and a targets ECI position, in the form of [x, y, z]
     # Output: The in-track and cross-track angles between the satellite and target
     def convert_to_bearings(self, sat, meas_ECI):
-        sensor_measurement = self.transform(sat, meas_ECI)
+        sensor_measurement = self.transform_eci_to_bearings(sat, meas_ECI)
+
         return float(sensor_measurement[0]), float(sensor_measurement[1])
 
     # Input: A satellite object and a x, vx, y, vy, z, vz measurement
     # Output: The jacobian matrix H used in a kalman filter for the sensor
     def jacobian_ECI_to_bearings(self, sat, meas_ECI_full):
         # Calculate the Jacobian
-        jacobian = jax.jacfwd(lambda x: self.transform(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
+        # jacobian = jax.jacfwd(lambda x: self.transform(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
+        jacobian = jax.jacfwd(lambda x: self.transform_eci_to_bearings(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
 
         # Initialize a new Jacobian matrix with zeros
         new_jacobian = jnp.zeros((2, 6))
