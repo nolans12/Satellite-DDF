@@ -38,6 +38,10 @@ class centralEstimator:
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
+        
+        if not (satMeasurements):
+            return None
+        
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
@@ -97,12 +101,12 @@ class centralEstimator:
         # We need to stack this for each satellite
         for i, sat in enumerate(satMeasurements):
             R = self.calculate_R(sat, satMeasurements[sat])
-            R = self.calculate_R_range(sat, satMeasurements[sat]) # For range and bearings
             if i == 0:
                 R_stack = R
             else:
                 R_stack = block_diag(R_stack, R)
 
+        
         
 
 # EXTRACT THE MEASUREMENTS
@@ -249,6 +253,38 @@ class centralEstimator:
 
     #     return R
     
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q
     
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets

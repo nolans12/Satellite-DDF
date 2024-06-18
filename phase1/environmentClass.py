@@ -73,7 +73,8 @@ class environment:
         # Save the data for each satellite to a csv file
         self.log_data()
         
-        self.plotResults(time_vec, central = True)
+        # self.plotResults(time_vec)
+        self.plotBaselines(time_vec)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -152,7 +153,7 @@ class environment:
         for targ in self.targs:
         # Plot the current xyz location of the target
             x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
+            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name, marker='*')
             
         self.ax.legend()
 
@@ -462,45 +463,55 @@ class environment:
             once = True
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
+                    
+                    # Get the Measurement, Estimate, True, and Covariance history for the target
                     measHist = sat.estimator.measHist[targ.targetID]
                     estHist = sat.estimator.estHist[targ.targetID]
-                    trueHist = targ.hist
                     covHist = sat.estimator.covarianceHist[targ.targetID]
+                    trueHist = targ.hist
+                    
+                    # Filter out times that don't have estimates
                     times = [time for time in time_vec.value if time in estHist]
                     
                     for i in range(6):  # Create subplots for states and their errors
-                        if i % 2 == 0:
+                        if i % 2 == 0: # Position
                             axs = axs1
                             fig = fig1
-                        else:
+                        else: # Velocity
                             axs = axs2
                             fig = fig2
 
                         j = i // 2  # Adjust index for 2x3 grid
 
+                        # Set Axis Labels for Both Plots
                         axs[0, j].set_xlabel("Time [min]")
                         axs[0, j].set_ylabel(f"State {state_labels[i]}")
 
                         axs[1, j].set_xlabel("Time")
                         axs[1, j].set_ylabel("Error / Covariance")
 
+                        # Get all valid measurements, estimates, errors, and covariances
                         measurements = [measHist[time][round(i/2)] for time in times]
-                        true_positions = [trueHist[time][i] for time in times]
+                        true_positions = [trueHist[time][i] for time in time_vec.value]
                         estimates = [estHist[time][i] for time in times]
                         errors = [estHist[time][i] - trueHist[time][i] for time in times]
                         covariances = [2 * np.sqrt(covHist[time][i][i]) for time in times]
-                            
+                        
+                        # Plot the estimate    
                         axs[0, j].plot(times, estimates, color=sat.color, label=f"Satellite: {sat.name} Estimate")
 
+                        # Plot Position Measurements
                         if i % 2 == 0:
                             axs[0, j].scatter(times, measurements, color=sat.color, label=f"Satellite: {sat.name} Measurement")
 
+                        # Plot Error and Covariance
                         axs[1, j].plot(times, errors, color=sat.color, label=f"Satellite: {sat.name} Error")
-                        axs[1, j].plot(times, covariances, color=sat.color, linestyle='dashed', label=f"Satellite: {sat.name} 2 Sigma Bounds")
+                        axs[1, j].plot(times, [-c for c in covariances], color=sat.color, linestyle='dashed', label=f"Satellite: {sat.name} 2 Sigma Bounds")
+
 
                         if once:
-                            axs[0, j].plot(times, true_positions, color='g')
-                            axs[0, j].scatter(times, true_positions, color='g', label='Truth')
+                            axs[0, j].plot(time_vec.value, true_positions, color='g')
+                            axs[0, j].scatter(time_vec.value, true_positions, color='g', label='Truth')
                     
                     once = False
             
@@ -526,13 +537,14 @@ class environment:
                 
             
             # Plot Error and Covariance    
-            axs[1, j].plot(centralTimes, centralErrors, color='k', label='Central Error')
-            axs[1, j].plot(centralTimes, centralCovs, color='k', linestyle='dashed', label='Central 2 Sigma Bounds')
+            axs[1, j].plot(centralTimes, centralErrors, color='r', label='Central Error')
+            axs[1, j].plot(centralTimes, centralCovs, color='b', linestyle='dashed', label='Central 2 Sigma Bounds')
             axs[1, j].plot(centralTimes, [-c for c in centralCovs], color='k', linestyle='dashed')
                     
             if i // 2 == 2:
                 axs[0, j].legend()
                 axs[1, j].legend()
+                plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
                 
         plt.show()
 

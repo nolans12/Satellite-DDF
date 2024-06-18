@@ -62,8 +62,12 @@ class satellite:
                     saveMeas = np.append(saveMeas, measurement)
                     self.measurementHist[targ.targetID][self.time] = saveMeas # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
 
-                    # Now perform kalman filter estimate
-                    estimate = self.estimator.EKF(self, measurement, targ, self.time) 
+                    # Also save raw Estimate of target in ECI
+                    raw_ECI_meas = self.sensor.convert_from_range_bearings_to_ECI(self, measurement)
+                    self.raw_ECI_measHist[targ.targetID][self.time] = raw_ECI_meas # Index with targetID and time, Format is [x, y, z] in ECI coordinates of target
+
+                    # Local Kalman Filter on raw Estimate
+                    estimate = self.estimator.EKF(self, raw_ECI_meas, targ, self.time)  
                                                              
         return collectedFlag
 
