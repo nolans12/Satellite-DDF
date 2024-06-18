@@ -77,20 +77,9 @@ class centralEstimator:
                       [0, 0, 0, 0, 0, 1]])
 
     # Define the process noise matrix, Q.
-    # Is a 6x6 matrix representing the covariance of the process noise
-        # Estimate the randomness of the acceleration
-        q_x = 0.0001
-        q_y = 0.0001
-        q_z = 0.00001
-        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van Loan's METHOD FOR TUNING Q
-        Q = np.array([[0, 0, 0, 0, 0, 0],
-                      [0, dt, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, dt, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
-
+        Q = self.calculate_Q(dt, intensity=[0,1,1])
+        
+        
     # Define the obversation matrix, H.
     # STACK MATRICES
     # Is a 3Nx6 matrix representing the mapping b/w state and N measurement.
@@ -145,7 +134,7 @@ class centralEstimator:
 
         return est
 
-    def calculate_Q(self, dt, intensity=0.001):
+    def calculate_Q(self, dt, intensity=np.array([0, 0.001, 0.001])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -156,7 +145,7 @@ class centralEstimator:
                       [0, 0, 0, 0, 0, 1],
                       [0, 0, 0, 0, 0, 0]])
         
-        # Assume there could be noise impacting the cartesian acceleration
+        # Assume there could be noise impacting the cartesian velocity 
         Gamma = np.array([[0, 0, 0],
                           [1, 0, 0],
                           [0, 0, 0],
@@ -165,7 +154,13 @@ class centralEstimator:
                           [0, 0, 1]])
         
         # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        W = intensity*np.eye(3)
+        rangeNoise, elevationNoise, azimuthNoise = intensity
+        
+        x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
+        y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
+        z = rangeNoise * np.sin(elevationNoise) # TODO: Maybe add in velocity transformation or differential noise
+        
+        W = np.array([[x, 0, 0],[0, y, 0],[0, 0, z]])
     
         # Form Block Matrix Z
         Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
@@ -174,8 +169,15 @@ class centralEstimator:
         vanLoan = np.exp(Z)
         
         # Extract Q = F.T * VanLoan[0:6, 6:12]
-        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        #Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
         
+        F = np.array([[1, dt, 0, 0, 0, 0], # TODO: WHY IS THIS F Better?
+                      [0, 1, 0, 0, 0, 0],
+                      [0, 0, 1, dt, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 1, dt],
+                      [0, 0, 0, 0, 0, 1]])        
+        Q = F @ vanLoan[0:6, 6:12]
         return Q
     
 
@@ -309,22 +311,8 @@ class localEstimator:
                       [0, 0, 0, 0, 1, dt],
                       [0, 0, 0, 0, 0, 1]])
         
-    # Define the process noise matrix, Q.
-        # Estimate the randomness of the acceleration
-        q_x = 0.0001
-        q_y = 0.0001
-        q_z = 0.00001
-        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
-        Q = np.array([[0, 0, 0, 0, 0, 0],
-                      [0, dt, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, dt, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
-        
-        Q = self.calculate_Q(dt, intensity=1)
-
+    # Define the process noise matrix, Q.       
+        Q = self.calculate_Q(dt, intensity=[0,1,1])
 
 # EXTRACT THE MEASUREMENTS
         z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
@@ -367,7 +355,7 @@ class localEstimator:
 
         return est
 
-    def calculate_Q(self, dt, intensity=0.001):
+    def calculate_Q(self, dt, intensity=np.array([0, 0.001, 0.001])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -378,7 +366,7 @@ class localEstimator:
                       [0, 0, 0, 0, 0, 1],
                       [0, 0, 0, 0, 0, 0]])
         
-        # Assume there could be noise impacting the cartesian acceleration
+        # Assume there could be noise impacting the cartesian velocity 
         Gamma = np.array([[0, 0, 0],
                           [1, 0, 0],
                           [0, 0, 0],
@@ -387,30 +375,30 @@ class localEstimator:
                           [0, 0, 1]])
         
         # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        W = intensity*np.eye(3)
+        rangeNoise, elevationNoise, azimuthNoise = intensity
+        
+        x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
+        y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
+        z = rangeNoise * np.sin(elevationNoise) # TODO: Maybe add in velocity transformation or differential noise
+        
+        W = np.array([[x, 0, 0],[0, y, 0],[0, 0, z]])
     
         # Form Block Matrix Z
         Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
         
         # Compute Matrix Exponential
         vanLoan = np.exp(Z)
-
-        # check the F matrix, 
-        # F = vanLoan[6:12, 6:12].T
-
         
         # Extract Q = F.T * VanLoan[0:6, 6:12]
-        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+        F = np.array([[1, dt, 0, 0, 0, 0], # TODO: WHY IS THIS F Better?
                       [0, 1, 0, 0, 0, 0],
                       [0, 0, 1, dt, 0, 0],
                       [0, 0, 0, 1, 0, 0],
                       [0, 0, 0, 0, 1, dt],
                       [0, 0, 0, 0, 0, 1]])
-
-        Q = F @ vanLoan[0:6, 6:12]
-
-        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        #Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        Q = F.T @ vanLoan[0:6, 6:12]
         
         return Q
     
