@@ -302,7 +302,8 @@ class localEstimator:
     # Define the sensor noise matrix, R.
         # This is the covariance estimate of the sensor error
         # Tuned using monte-carlo estimation at each timestep
-        R = self.calculate_R(sat, meas_ECI)
+        # R = self.calculate_R(sat, meas_ECI)
+        R = np.eye(3)
 
 # EXTRACT THE MEASUREMENTS
         z = meas_ECI
@@ -315,6 +316,14 @@ class localEstimator:
         # TODO: jacobian of ECI to bearings measurement
         # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
         H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+        print("Jacobian: ", H_test)
+        # now estimate the measurement
+        est_meas = np.dot(H_test, est_pred)
+        print("Estimate: ", est_meas)
+        # get the true angle measurement
+        true_meas = sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))
+        print("True Measurement: ", true_meas)                                               
+
 
 
 # UPDATE:

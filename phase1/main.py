@@ -25,13 +25,13 @@ if __name__ == "__main__":
     central = centralEstimator(targetIDs = targetIDs) 
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='b')
     sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 70, nu = 0, color='r')
 
-    sats = [sat1, sat2]
+    sats = [sat1]
 
 # DEFINE THE TARGET OBJECTS:
-    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6378, 0, 0, 0, 0, 0]),color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, r = np.array([6278, 0, 0, 0, 0, 0]),color = 'k')
      
     targs = [targ1]
 

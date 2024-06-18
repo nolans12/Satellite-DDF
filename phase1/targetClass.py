@@ -94,7 +94,7 @@ class target:
         
         # Convert back to x,y,z ECI
         x = range*np.sin(azimuth)*np.cos(elevation)
-        y = range*np.sin(azimuth)*np.sin(elevation)
+        y = range*np.sin(azimuth)*np.sin(elevation) 
         z = range*np.cos(elevation)
         
         self.pos = np.array([x, y, z])

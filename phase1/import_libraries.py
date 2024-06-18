@@ -12,6 +12,9 @@ import os
 import PIL
 import csv
 import copy
+import jax
+import jax.numpy as jnp
+from jax import jacfwd, jacrev
 import sympy as sp
 from sympy import Matrix, symbols, lambdify, Subs, Derivative, Function
 import matplotlib.gridspec as gridspec
