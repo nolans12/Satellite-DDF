@@ -108,12 +108,13 @@ class centralEstimator:
         # We need to stack this for each satellite
         for i, sat in enumerate(satMeasurements):
             R = self.calculate_R(sat, satMeasurements[sat])
+            R = self.calculate_R_range(sat, satMeasurements[sat]) # For range and bearings
             if i == 0:
                 R_stack = R
             else:
                 R_stack = block_diag(R_stack, R)
 
-        # R_stack = np.eye(3*len(satMeasurements)) * 0.01
+        
 
 # EXTRACT THE MEASUREMENTS
         z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
@@ -143,63 +144,131 @@ class centralEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov 
 
         return est
-                
-    # Input: A satellite object, and a ECI measurement
-    # Output: The Covariance matrix of measurement noise, R
-    # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
-    def calculate_R(self, sat, meas_ECI):
 
-        # Convert the ECI measurement into a bearings and range measurement
-        in_track_truth, cross_track_truth, range_truth = sat.sensor.convert_to_range_bearings(sat, meas_ECI) # Will treat this as the truth estimate!
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q
+    
 
-        # Get the error from the sensor.
-        bearingsError = sat.sensor.bearingsError
-        rangeError = sat.sensor.rangeError
-
-        # Run the monte-carlo simulation
-        numSims = 1000
-        allErrors = np.zeros((numSims, 3))
-        for i in range(numSims):
+    # # FOR BEARINGS            
+    # # Input: A satellite object, and a ECI measurement
+    # # Output: The Covariance matrix of measurement noise, R
+    # # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
+    # def calculate_R(self, sat, meas_ECI):
             
-            # Add noise to the measurement
-            simMeas_bearings_range = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
-                                               cross_track_truth + np.random.normal(0, bearingsError[1]), 
-                                               range_truth + np.random.normal(0, rangeError)])
+    #         # Convert the ECI measurement into a bearings and range measurement
+    #         in_track_truth, cross_track_truth = sat.sensor.convert_to_bearings(sat, meas_ECI)
 
-            # Now calculate what this new bearings range measurement would be in ECI:
-            simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
+    #         # Get the error from the sensor.
+    #         bearingsError = sat.sensor.bearingsError
 
-            # Now calculate the error between the truth and the simulated ECI measurement
-            allErrors[i] = simMeas_ECI - meas_ECI
+    #         # Run the monte-carlo simulation
+    #         numSims = 1000
+    #         allErrors = np.zeros((numSims, 3))
+    #         for i in range(numSims):
+                    
+    #                 # Add noise to the measurement
+    #                 simMeas_bearings = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
+    #                                             cross_track_truth + np.random.normal(0, bearingsError[1])])
+    
+    #                 # Now calculate what this new bearings range measurement would be in ECI:
+    #                 simMeas_ECI = sat.sensor.convert_from_bearings_to_ECI(sat, simMeas_bearings, meas_ECI)
+    #                 # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
 
-        # Now calculate the covariance matrix of the error
-        R = np.cov(allErrors.T)
+    #                 # Now calculate the error between the truth and the simulated ECI measurement
+    #                 allErrors[i] = simMeas_ECI - meas_ECI
 
-        return R
+    #         # Now calculate the covariance matrix of the error
+    #         R = np.cov(allErrors.T)
+
+    #         return R
+    
+    # # FOR BEARINGS AND RANGE
+    # # Input: A satellite object, and a ECI measurement
+    # # Output: The Covariance matrix of measurement noise, R
+    # # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
+    # def calculate_R_range(self, sat, meas_ECI):
+
+    #     # Convert the ECI measurement into a bearings and range measurement
+    #     in_track_truth, cross_track_truth, range_truth = sat.sensor.convert_to_range_bearings(sat, meas_ECI) # Will treat this as the truth estimate!
+
+    #     # Get the error from the sensor.
+    #     bearingsError = sat.sensor.bearingsError
+    #     rangeError = sat.sensor.rangeError
+
+    #     # Run the monte-carlo simulation
+    #     numSims = 1000
+    #     allErrors = np.zeros((numSims, 3))
+    #     for i in range(numSims):
+            
+    #         # Add noise to the measurement
+    #         simMeas_bearings_range = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
+    #                                            cross_track_truth + np.random.normal(0, bearingsError[1]), 
+    #                                            range_truth + np.random.normal(0, rangeError)])
+
+    #         # Now calculate what this new bearings range measurement would be in ECI:
+    #         simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
+    #         # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
+
+    #         # Now calculate the error between the truth and the simulated ECI measurement
+    #         allErrors[i] = simMeas_ECI - meas_ECI
+
+    #     # Now calculate the covariance matrix of the error
+    #     R = np.cov(allErrors.T)
+
+    #     return R
     
     
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
-        # TODO: add the input being a sensor error, so we can predefine an R
 
     # Define the targets to track
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
-        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
-        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates
+        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in bearings only, from the sensor
+        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
+        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
 
         self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
 # LOCAL EXTENDED KALMAN FILTER
-    # Inputs: Satellite with a new bearings and range measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
+    # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
-    def EKF(self, sat, meas_ECI, target, envTime):
-
-    # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-    # Measurment: Z = [x y z] ECI coordinates
+    def EKF(self, sat, measurement, target, envTime):
+         
+# Desired estimate: Xdot = [x, vx, y, vy, z, vz]
+    # Measurment: Z = [in_track, cross_track] bearings measurement
 
         targetID = target.targetID
 
@@ -216,7 +285,7 @@ class localEstimator:
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
-            self.measHist[targetID][envTime] = meas_ECI
+            self.measHist[targetID][envTime] = measurement # bearings measurement
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
@@ -229,8 +298,6 @@ class localEstimator:
 
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
-
-        # print("Integrating filter with time step: ", dt)
 
 # CALCULATE MATRICES:
     # Define the state transition matrix, F. 
@@ -248,37 +315,40 @@ class localEstimator:
         q_y = 0.0001
         q_z = 0.00001
         q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van der Merwe's METHOD FOR TUNING Q
+        # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
         Q = np.array([[0, 0, 0, 0, 0, 0],
                       [0, dt, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, dt, 0, 0],
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
+        
+        Q = self.calculate_Q(dt, intensity=1)
 
-    # Define the obversation matrix, H.
-        # How does our state relate to our measurement? 
-        # Because we alredy converted our measurement to ECI, we can just use the identity matrix
-        H = np.array([[1, 0, 0, 0, 0, 0],
-                      [0, 0, 1, 0, 0, 0],
-                      [0, 0, 0, 0, 1, 0]])
-
-    # Define the sensor noise matrix, R.
-        # This is the covariance estimate of the sensor error
-        # Tuned using monte-carlo estimation at each timestep
-        R = self.calculate_R(sat, meas_ECI) 
 
 # EXTRACT THE MEASUREMENTS
-        z = meas_ECI
+        z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
 
 # PREDICTION:
     # Predict the state and covariance
-        est_pred = np.dot(F, est_prior)
+        est_pred = np.dot(F, est_prior) # ECI coordinates
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+
+# Use the predicted state to calculate H and R?
+    # Define the obversation matrix, H.
+        # How does our state relate to our measurement?
+        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+
+    # Define the sensor noise matrix, R.
+        # This is the covariance estimate of the sensor error
+        # just use the bearing error for now?
+        R = np.eye(2)*sat.sensor.bearingsError**2
 
 # UPDATE:
     # Calculate innovation terms:
-        innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
+        # y = z - h(x)
+        innovation = z - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
+        # then use big H
         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
 
     # Solve for the Kalman gain
@@ -291,45 +361,198 @@ class localEstimator:
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.measHist[targetID][envTime] = z
+        self.measHist[targetID][envTime] = measurement
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
 
         return est
 
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
 
-    # Input: A satellite object, and a ECI measurement
-    # Output: The Covariance matrix of measurement noise, R
-    # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
-    def calculate_R(self, sat, meas_ECI):
+        # check the F matrix, 
+        # F = vanLoan[6:12, 6:12].T
 
-        # Convert the ECI measurement into a bearings and range measurement
-        in_track_truth, cross_track_truth, range_truth = sat.sensor.convert_to_range_bearings(sat, meas_ECI) # Will treat this as the truth estimate!
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+                      [0, 1, 0, 0, 0, 0],
+                      [0, 0, 1, dt, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 1, dt],
+                      [0, 0, 0, 0, 0, 1]])
 
-        # Get the error from the sensor.
-        bearingsError = sat.sensor.bearingsError
-        rangeError = sat.sensor.rangeError
+        Q = F @ vanLoan[0:6, 6:12]
 
-        # Run the monte-carlo simulation
-        numSims = 1000
-        allErrors = np.zeros((numSims, 3))
-        for i in range(numSims):
+        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q
+    
+
+
+#     def EKF_old(self, sat, meas_ECI, target, envTime):
+
+#     # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
+#     # Measurment: Z = [x y z] ECI coordinates
+
+#         targetID = target.targetID
+
+# # GET THE PRIOR DATA
+#         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
+#     # If no prior estimates, use the first measurement and assume no velocity
+#             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
+#             P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
+#                                 [0, 1, 0, 0, 0, 0],
+#                                 [0, 0, 10, 0, 0, 0],
+#                                 [0, 0, 0, 1, 0, 0],
+#                                 [0, 0, 0, 0, 10, 0],
+#                                 [0, 0, 0, 0, 0, 1]])
+#         # Store these and return for first iteration
+#             self.estHist[targetID][envTime] = est_prior
+#             self.covarianceHist[targetID][envTime] = P_prior
+#             self.measHist[targetID][envTime] = meas_ECI
+#             self.innovationHist[targetID][envTime] = np.zeros(3)
+#             self.innovationCovHist[targetID][envTime] = np.eye(3)
+#             return est_prior
+        
+#         else:
+#     # Else, get prior estimate, need to get the last time, which will be the max
+#             time_prior = max(self.estHist[targetID].keys())
+#             est_prior = self.estHist[targetID][time_prior]
+#             P_prior = self.covarianceHist[targetID][time_prior]
+
+#         # Now to get dt, use time since last measurement
+#         dt = envTime - time_prior
+
+#         # print("Integrating filter with time step: ", dt)
+
+# # CALCULATE MATRICES:
+#     # Define the state transition matrix, F. 
+#         # How does our state: [x, vx, y, vy, z, vz] change over time?
+#         F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+#                       [0, 1, 0, 0, 0, 0],
+#                       [0, 0, 1, dt, 0, 0],
+#                       [0, 0, 0, 1, 0, 0],
+#                       [0, 0, 0, 0, 1, dt],
+#                       [0, 0, 0, 0, 0, 1]])
+        
+#     # Define the process noise matrix, Q.
+#         # Estimate the randomness of the acceleration
+#         q_x = 0.0001
+#         q_y = 0.0001
+#         q_z = 0.00001
+#         q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
+#         # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
+#         Q = np.array([[0, 0, 0, 0, 0, 0],
+#                       [0, dt, 0, 0, 0, 0],
+#                       [0, 0, 0, 0, 0, 0],
+#                       [0, 0, 0, dt, 0, 0],
+#                       [0, 0, 0, 0, 0, 0],
+#                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
+        
+#         Q = self.calculate_Q(dt)
+
+#     # Define the obversation matrix, H.
+#         # How does our state relate to our measurement? 
+#         # Because we alredy converted our measurement to ECI, we can just use the identity matrix
+#         H = np.array([[1, 0, 0, 0, 0, 0],
+#                       [0, 0, 1, 0, 0, 0],
+#                       [0, 0, 0, 0, 1, 0]])
+#     # Define the sensor noise matrix, R.
+#         # This is the covariance estimate of the sensor error
+#         # Tuned using monte-carlo estimation at each timestep
+#         # R = self.calculate_R(sat, meas_ECI)
+#         R = np.eye(3)
+
+# # EXTRACT THE MEASUREMENTS
+#         z = meas_ECI
+
+# # PREDICTION:
+#     # Predict the state and covariance
+#         est_pred = np.dot(F, est_prior)
+#         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+
+#         # # TODO: jacobian of ECI to bearings measurement
+#         # # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
+#         # H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+#         # print("Jacobian: ", H_test)
+
+
+# # UPDATE:
+#     # Calculate innovation terms:
+#         innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
+#         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+
+#     # Solve for the Kalman gain
+#         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
+
+#     # Correct prediction
+#         est = est_pred + np.dot(K, innovation)
+#         P = P_pred - np.dot(K, np.dot(H, P_pred))
+
+# # SAVE THE DATA
+#         self.estHist[targetID][envTime] = est
+#         self.covarianceHist[targetID][envTime] = P
+#         self.measHist[targetID][envTime] = z
+#         self.innovationHist[targetID][envTime] = innovation
+#         self.innovationCovHist[targetID][envTime] = innovationCov
+
+#         return est
+    # # FOR AN ECI MEASUREMENT
+    # # Input: A satellite object, and a ECI measurement
+    # # Output: The Covariance matrix of measurement noise, R
+    # # Description: Uses monte-carlo estimation. Treats the ECI measurement as truth and run X nums of sims with sensor noise to estimate R. 
+    # def calculate_R_old(self, sat, meas_ECI):
             
-            # Add noise to the measurement
-            simMeas_bearings_range = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
-                                               cross_track_truth + np.random.normal(0, bearingsError[1]), 
-                                               range_truth + np.random.normal(0, rangeError)])
+    #         # Convert the ECI measurement into a bearings and range measurement
+    #         in_track_truth, cross_track_truth = sat.sensor.convert_to_bearings(sat, meas_ECI)
 
-            # Now calculate what this new bearings range measurement would be in ECI:
-            simMeas_ECI = sat.sensor.convert_from_range_bearings_to_ECI(sat, simMeas_bearings_range)
+    #         # Get the error from the sensor.
+    #         bearingsError = sat.sensor.bearingsError
 
-            # Now calculate the error between the truth and the simulated ECI measurement
-            allErrors[i] = simMeas_ECI - meas_ECI
+    #         # Run the monte-carlo simulation
+    #         numSims = 1000
+    #         allErrors = np.zeros((numSims, 3))
+    #         for i in range(numSims):
+                    
+    #                 # Add noise to the measurement
+    #                 simMeas_bearings = np.array([in_track_truth + np.random.normal(0, bearingsError[0]), 
+    #                                             cross_track_truth + np.random.normal(0, bearingsError[1])])
+    
+    #                 # Now calculate what this new bearings range measurement would be in ECI:
+    #                 simMeas_ECI = sat.sensor.convert_from_bearings_to_ECI(sat, simMeas_bearings, meas_ECI)
+    #                 # INPUT MEAS ECI AS THE POINT TO INTERSECT THE BEARINGS LINE WITH
 
-        # Now calculate the covariance matrix of the error
-        R = np.cov(allErrors.T)
+    #                 # Now calculate the error between the truth and the simulated ECI measurement
+    #                 allErrors[i] = simMeas_ECI - meas_ECI
 
-        # # print the maximum value in R
-        # print("Max value in R: ", np.max(R))
+    #         # Now calculate the covariance matrix of the error
+    #         R = np.cov(allErrors.T)
 
-        return R
+    #         return R
