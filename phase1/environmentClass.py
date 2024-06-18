@@ -74,7 +74,7 @@ class environment:
         self.log_data()
         
         # self.plotResults(time_vec)
-        #self.plotBaselines(time_vec)
+        self.plotBaselines(time_vec)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -116,10 +116,10 @@ class environment:
             satNum += 1
 
         # Update Central Estimator on all targets if measurments were collected
-        # if any(collectedFlag == 1) and self.centralEstimator:
-        #     for targ in self.targs:
-        #         # Run the central estimator on the measurements
-        #         centralEstimate = self.centralEstimator.EKF(self.sats, targ, time_val) 
+        if any(collectedFlag == 1) and self.centralEstimator:
+            for targ in self.targs:
+                # Run the central estimator on the measurements
+                centralEstimate = self.centralEstimator.EKF(self.sats, targ, time_val) 
    
 # Plot the current state of the environment
     def plot(self):

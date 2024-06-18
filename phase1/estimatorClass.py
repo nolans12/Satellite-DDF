@@ -38,6 +38,10 @@ class centralEstimator:
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
+        
+        if not (satMeasurements):
+            return None
+        
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
@@ -79,18 +83,18 @@ class centralEstimator:
     # Define the process noise matrix, Q.
     # Is a 6x6 matrix representing the covariance of the process noise
         # Estimate the randomness of the acceleration
-        q_x = 0.0001
-        q_y = 0.0001
-        q_z = 0.00001
-        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van Loan's METHOD FOR TUNING Q
-        Q = np.array([[0, 0, 0, 0, 0, 0],
-                      [0, dt, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, dt, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
-
+        # q_x = 0.0001
+        # q_y = 0.0001
+        # q_z = 0.00001
+        # q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
+        # # TODO: LOOK INTO Van Loan's METHOD FOR TUNING Q
+        # Q = np.array([[0, 0, 0, 0, 0, 0],
+        #               [0, dt, 0, 0, 0, 0],
+        #               [0, 0, 0, 0, 0, 0],
+        #               [0, 0, 0, dt, 0, 0],
+        #               [0, 0, 0, 0, 0, 0],
+        #               [0, 0, 0, 0, 0, dt]]) * q_mat**2
+        Q = self.calculate_Q(dt)
     # Define the obversation matrix, H.
     # STACK MATRICES
     # Is a 3Nx6 matrix representing the mapping b/w state and N measurement.
@@ -108,7 +112,7 @@ class centralEstimator:
         # We need to stack this for each satellite
         for i, sat in enumerate(satMeasurements):
             R = self.calculate_R(sat, satMeasurements[sat])
-            R = self.calculate_R_range(sat, satMeasurements[sat]) # For range and bearings
+            #R = self.calculate_R_range(sat, satMeasurements[sat]) # For range and bearings
             if i == 0:
                 R_stack = R
             else:
@@ -214,6 +218,38 @@ class centralEstimator:
 
         return R
     
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q
     
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
@@ -281,18 +317,20 @@ class localEstimator:
         
     # Define the process noise matrix, Q.
         # Estimate the randomness of the acceleration
-        q_x = 0.0001
-        q_y = 0.0001
-        q_z = 0.00001
-        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
-        Q = np.array([[0, 0, 0, 0, 0, 0],
-                      [0, dt, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, dt, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
-
+        # q_x = 0.0001
+        # q_y = 0.0001
+        # q_z = 0.00001
+        # q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
+        # # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
+        # Q = np.array([[0, 0, 0, 0, 0, 0],
+        #               [0, dt, 0, 0, 0, 0],
+        #               [0, 0, 0, 0, 0, 0],
+        #               [0, 0, 0, dt, 0, 0],
+        #               [0, 0, 0, 0, 0, 0],
+        #               [0, 0, 0, 0, 0, dt]]) * q_mat**2
+       
+        Q = self.calculate_Q(dt)
+        
     # Define the obversation matrix, H.
         # How does our state relate to our measurement? 
         # Because we alredy converted our measurement to ECI, we can just use the identity matrix
@@ -314,7 +352,7 @@ class localEstimator:
 
         # TODO: jacobian of ECI to bearings measurement
         # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
-        H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+        #H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
 
 
 # UPDATE:
@@ -408,3 +446,39 @@ class localEstimator:
         # print("Max value in R: ", np.max(R))
 
         return R
+    
+    # We are assuming linear movement over the time step even tho it is entirely spherical dynamics
+    
+    
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q

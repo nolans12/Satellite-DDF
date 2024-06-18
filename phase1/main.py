@@ -17,7 +17,7 @@ if __name__ == "__main__":
     sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.1, 0.1]), rangeError = 0, detectChance= 0, resolution = 720)
 
     # Define targets for the satellites to track:
-    targetIDs = [1]
+    targetIDs = [1,2]
 
 
     # Define local estimators:
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     sats = [sat1, sat2]
 
     # DEFINE THE TARGET OBJECTS: [name, targetID, cords, heading, speed] 
-    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([0,0,0]), heading=0, speed=100,  color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=100,  color = 'k')
     targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100,  color = 'r')
     targs = [targ1, targ2]
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     env = environment(sats, targs, comms, central)
 
 # Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0, 120, 21) * u.minute
+    time_vec = np.linspace(0, 10, 11) * u.minute
     env.simulate(time_vec, display = True)
 
 # Save the gif:

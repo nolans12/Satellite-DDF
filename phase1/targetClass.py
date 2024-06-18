@@ -61,6 +61,7 @@ class target:
         azimuth = self.X[4]
         azimuthRate = self.X[5]
         
+        # Convert Spherical to Cartesian
         x = range * np.cos(elevation) * np.cos(azimuth)
         y = range * np.cos(elevation) * np.sin(azimuth)
         z = range * np.sin(elevation)
@@ -76,33 +77,8 @@ class target:
 
         vz = rangeRate * np.sin(elevation) + \
             range * elevationRate * np.cos(elevation)
-            
-        # # Convert back to x,y,z ECI
-        # x = range*np.cos(azimuth)*np.cos(elevation)
-        # y = range*np.sin(azimuth)*np.cos(elevation)
-        # z = range*np.sin(elevation)
         
-        self.pos = np.array([x, y, z])
-        
-        # # Convert back to xdot, ydot, zdot ECI
-        # vx = (rangeRate * np.sin(azimuth) * np.sin(elevation) 
-        #        + range * np.cos(azimuth) * np.sin(elevation) * azimuthRate 
-        #        + range * np.sin(azimuth) * np.cos(elevation) * elevationRate)       
-       
-        # vy = (rangeRate * np.sin(azimuth) * np.cos(elevation) 
-        #        + range * np.cos(azimuth) * np.cos(elevation) * azimuthRate 
-        #        - range * np.sin(azimuth) * np.sin(elevation) * elevationRate)
-        
-        # vz = (rangeRate * np.cos(azimuth) 
-        #        - range * np.sin(azimuth) * azimuthRate)
-        
+        self.pos = np.array([x, y, z])  
         self.vel = np.array([vx, vy, vz])
-        
-        
-        # Print Everything about target
-        print("Target State: ", self.X)
-        print("Target Position: ", self.pos)
-        print("Target Velocity: ", self.vel)
-        print('*'*50)
         
         
