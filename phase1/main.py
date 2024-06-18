@@ -12,8 +12,9 @@ from commClass import comms
 if __name__ == "__main__":
 
 ### DEFINE THE SATELLITE OBJECTS:
-    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.1, 0.1]), rangeError = 0.1, detectChance= 0, resolution = 720)
-    sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0, resolution = 720)
+    # Define a sensor model:
+    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0, 0]), rangeError = 0, detectChance= 0, resolution = 720)
+    sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.1, 0.1]), rangeError = 0, detectChance= 0, resolution = 720)
 
     # Define targets for the satellites to track:
     targetIDs = [1]
@@ -25,9 +26,9 @@ if __name__ == "__main__":
     central = centralEstimator(targetIDs = targetIDs) # TODO: why not just make centralized always do all targets? since it is the baseline?
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 45, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='r')
-    
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 70, nu = 0, color='r')
+
     sats = [sat1, sat2]
 
     # DEFINE THE TARGET OBJECTS: [name, targetID, cords, heading, speed] 
@@ -84,10 +85,10 @@ if __name__ == "__main__":
 #     central = centralEstimator(targetIDs = targetIDs) 
     
 #     ## Cluster 1: Polar orbits:
-#     sat1_1 = satellite(name = 'Sat1', sensor = sens1_1, targetIDs=targetIDs, estimator = local1_1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -90, nu = 0, color='b')
-#     sat1_2 = satellite(name = 'Sat2', sensor = sens1_2, targetIDs=targetIDs, estimator = local1_2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -70, nu = 0, color='b')
-#     sat1_3 = satellite(name = 'Sat3', sensor = sens1_3, targetIDs=targetIDs, estimator = local1_3, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -50, nu = 0, color='b')
-#     sat1_4 = satellite(name = 'Sat4', sensor = sens1_4, targetIDs=targetIDs, estimator = local1_4, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -30, nu = 0, color='b')
+#     sat1_1 = satellite(name = 'Sat1', sensor = sens1_1, targetIDs=targetIDs, estimator = local1_1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 0, nu = 0, color='b')
+#     sat1_2 = satellite(name = 'Sat2', sensor = sens1_2, targetIDs=targetIDs, estimator = local1_2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 20, nu = 0, color='b')
+#     sat1_3 = satellite(name = 'Sat3', sensor = sens1_3, targetIDs=targetIDs, estimator = local1_3, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 40, nu = 0, color='b')
+#     sat1_4 = satellite(name = 'Sat4', sensor = sens1_4, targetIDs=targetIDs, estimator = local1_4, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 60, nu = 0, color='b')
 
 #     ## Cluster 2: Equatorial orbits:
 #     sat2_1 = satellite(name = 'Sat5', sensor = sens2_1, targetIDs=targetIDs, estimator = local2_1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = 0, argp = -180, nu = 0, color='r')
