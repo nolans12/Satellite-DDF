@@ -60,7 +60,7 @@ class satellite:
                     # Need time, satellite positon, and measurement
                     saveMeas = np.array([self.orbit.r.value[0], self.orbit.r.value[1], self.orbit.r.value[2]])
                     saveMeas = np.append(saveMeas, measurement)
-                    self.measurementHist[targ.targetID][self.time] = saveMeas # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
+                    self.measurementHist[targ.targetID][self.time] = measurement # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
 
                     # Now perform kalman filter estimate
                     estimate = self.estimator.EKF(self, measurement, targ, self.time) 
