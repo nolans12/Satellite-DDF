@@ -145,6 +145,39 @@ class centralEstimator:
 
         return est
 
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
+        
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
+        
+        return Q
+    
 
     # # FOR BEARINGS            
     # # Input: A satellite object, and a ECI measurement
@@ -289,6 +322,8 @@ class localEstimator:
                       [0, 0, 0, dt, 0, 0],
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
+        
+        Q = self.calculate_Q(dt, intensity=1)
 
 
 # EXTRACT THE MEASUREMENTS
@@ -332,116 +367,163 @@ class localEstimator:
 
         return est
 
-
-
-    def EKF_old(self, sat, meas_ECI, target, envTime):
-
-    # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-    # Measurment: Z = [x y z] ECI coordinates
-
-        targetID = target.targetID
-
-# GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-    # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
-            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
-                                [0, 1, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 1, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 1]])
-        # Store these and return for first iteration
-            self.estHist[targetID][envTime] = est_prior
-            self.covarianceHist[targetID][envTime] = P_prior
-            self.measHist[targetID][envTime] = meas_ECI
-            self.innovationHist[targetID][envTime] = np.zeros(3)
-            self.innovationCovHist[targetID][envTime] = np.eye(3)
-            return est_prior
+    def calculate_Q(self, dt, intensity=0.001):
+        # Use Van Loan's method to tune Q using the matrix exponential
         
-        else:
-    # Else, get prior estimate, need to get the last time, which will be the max
-            time_prior = max(self.estHist[targetID].keys())
-            est_prior = self.estHist[targetID][time_prior]
-            P_prior = self.covarianceHist[targetID][time_prior]
+        # Define the state transition matrix, A.
+        A = np.array([[0, 1, 0, 0, 0, 0], 
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, 0, 0, 0]])
+        
+        # Assume there could be noise impacting the cartesian acceleration
+        Gamma = np.array([[0, 0, 0],
+                          [1, 0, 0],
+                          [0, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 0],
+                          [0, 0, 1]])
+        
+        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        W = intensity*np.eye(3)
+    
+        # Form Block Matrix Z
+        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+        # Compute Matrix Exponential
+        vanLoan = np.exp(Z)
 
-        # Now to get dt, use time since last measurement
-        dt = envTime - time_prior
+        # check the F matrix, 
+        # F = vanLoan[6:12, 6:12].T
 
-        # print("Integrating filter with time step: ", dt)
-
-# CALCULATE MATRICES:
-    # Define the state transition matrix, F. 
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
+        
+        # Extract Q = F.T * VanLoan[0:6, 6:12]
+        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
         F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
                       [0, 1, 0, 0, 0, 0],
                       [0, 0, 1, dt, 0, 0],
                       [0, 0, 0, 1, 0, 0],
                       [0, 0, 0, 0, 1, dt],
                       [0, 0, 0, 0, 0, 1]])
+
+        Q = F @ vanLoan[0:6, 6:12]
+
+        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
         
-    # Define the process noise matrix, Q.
-        # Estimate the randomness of the acceleration
-        q_x = 0.0001
-        q_y = 0.0001
-        q_z = 0.00001
-        q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
-        # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
-        Q = np.array([[0, 0, 0, 0, 0, 0],
-                      [0, dt, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, dt, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, dt]]) * q_mat**2
-
-    # Define the obversation matrix, H.
-        # How does our state relate to our measurement? 
-        # Because we alredy converted our measurement to ECI, we can just use the identity matrix
-        H = np.array([[1, 0, 0, 0, 0, 0],
-                      [0, 0, 1, 0, 0, 0],
-                      [0, 0, 0, 0, 1, 0]])
-    # Define the sensor noise matrix, R.
-        # This is the covariance estimate of the sensor error
-        # Tuned using monte-carlo estimation at each timestep
-        # R = self.calculate_R(sat, meas_ECI)
-        R = np.eye(3)
-
-# EXTRACT THE MEASUREMENTS
-        z = meas_ECI
-
-# PREDICTION:
-    # Predict the state and covariance
-        est_pred = np.dot(F, est_prior)
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-
-        # # TODO: jacobian of ECI to bearings measurement
-        # # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
-        # H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-        # print("Jacobian: ", H_test)
+        return Q
+    
 
 
-# UPDATE:
-    # Calculate innovation terms:
-        innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+#     def EKF_old(self, sat, meas_ECI, target, envTime):
 
-    # Solve for the Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
+#     # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
+#     # Measurment: Z = [x y z] ECI coordinates
 
-    # Correct prediction
-        est = est_pred + np.dot(K, innovation)
-        P = P_pred - np.dot(K, np.dot(H, P_pred))
+#         targetID = target.targetID
 
-# SAVE THE DATA
-        self.estHist[targetID][envTime] = est
-        self.covarianceHist[targetID][envTime] = P
-        self.measHist[targetID][envTime] = z
-        self.innovationHist[targetID][envTime] = innovation
-        self.innovationCovHist[targetID][envTime] = innovationCov
+# # GET THE PRIOR DATA
+#         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
+#     # If no prior estimates, use the first measurement and assume no velocity
+#             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
+#             P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
+#                                 [0, 1, 0, 0, 0, 0],
+#                                 [0, 0, 10, 0, 0, 0],
+#                                 [0, 0, 0, 1, 0, 0],
+#                                 [0, 0, 0, 0, 10, 0],
+#                                 [0, 0, 0, 0, 0, 1]])
+#         # Store these and return for first iteration
+#             self.estHist[targetID][envTime] = est_prior
+#             self.covarianceHist[targetID][envTime] = P_prior
+#             self.measHist[targetID][envTime] = meas_ECI
+#             self.innovationHist[targetID][envTime] = np.zeros(3)
+#             self.innovationCovHist[targetID][envTime] = np.eye(3)
+#             return est_prior
+        
+#         else:
+#     # Else, get prior estimate, need to get the last time, which will be the max
+#             time_prior = max(self.estHist[targetID].keys())
+#             est_prior = self.estHist[targetID][time_prior]
+#             P_prior = self.covarianceHist[targetID][time_prior]
 
-        return est
+#         # Now to get dt, use time since last measurement
+#         dt = envTime - time_prior
+
+#         # print("Integrating filter with time step: ", dt)
+
+# # CALCULATE MATRICES:
+#     # Define the state transition matrix, F. 
+#         # How does our state: [x, vx, y, vy, z, vz] change over time?
+#         F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+#                       [0, 1, 0, 0, 0, 0],
+#                       [0, 0, 1, dt, 0, 0],
+#                       [0, 0, 0, 1, 0, 0],
+#                       [0, 0, 0, 0, 1, dt],
+#                       [0, 0, 0, 0, 0, 1]])
+        
+#     # Define the process noise matrix, Q.
+#         # Estimate the randomness of the acceleration
+#         q_x = 0.0001
+#         q_y = 0.0001
+#         q_z = 0.00001
+#         q_mat = np.array([0, q_x, 0, q_y, 0, q_z])
+#         # TODO: LOOK INTO Van loan's METHOD FOR TUNING Q
+#         Q = np.array([[0, 0, 0, 0, 0, 0],
+#                       [0, dt, 0, 0, 0, 0],
+#                       [0, 0, 0, 0, 0, 0],
+#                       [0, 0, 0, dt, 0, 0],
+#                       [0, 0, 0, 0, 0, 0],
+#                       [0, 0, 0, 0, 0, dt]]) * q_mat**2
+        
+#         Q = self.calculate_Q(dt)
+
+#     # Define the obversation matrix, H.
+#         # How does our state relate to our measurement? 
+#         # Because we alredy converted our measurement to ECI, we can just use the identity matrix
+#         H = np.array([[1, 0, 0, 0, 0, 0],
+#                       [0, 0, 1, 0, 0, 0],
+#                       [0, 0, 0, 0, 1, 0]])
+#     # Define the sensor noise matrix, R.
+#         # This is the covariance estimate of the sensor error
+#         # Tuned using monte-carlo estimation at each timestep
+#         # R = self.calculate_R(sat, meas_ECI)
+#         R = np.eye(3)
+
+# # EXTRACT THE MEASUREMENTS
+#         z = meas_ECI
+
+# # PREDICTION:
+#     # Predict the state and covariance
+#         est_pred = np.dot(F, est_prior)
+#         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+
+#         # # TODO: jacobian of ECI to bearings measurement
+#         # # Want the size to be 2x6, when we multiply by our measurement, the bearings angles, we get the state
+#         # H_test = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+#         # print("Jacobian: ", H_test)
 
 
+# # UPDATE:
+#     # Calculate innovation terms:
+#         innovation = z - np.dot(H, est_pred) # Difference between the measurement and the predicted measurement
+#         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+
+#     # Solve for the Kalman gain
+#         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
+
+#     # Correct prediction
+#         est = est_pred + np.dot(K, innovation)
+#         P = P_pred - np.dot(K, np.dot(H, P_pred))
+
+# # SAVE THE DATA
+#         self.estHist[targetID][envTime] = est
+#         self.covarianceHist[targetID][envTime] = P
+#         self.measHist[targetID][envTime] = z
+#         self.innovationHist[targetID][envTime] = innovation
+#         self.innovationCovHist[targetID][envTime] = innovationCov
+
+#         return est
     # # FOR AN ECI MEASUREMENT
     # # Input: A satellite object, and a ECI measurement
     # # Output: The Covariance matrix of measurement noise, R
