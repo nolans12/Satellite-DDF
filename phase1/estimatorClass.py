@@ -15,7 +15,7 @@ class centralEstimator:
         self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.nistHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
     # Input: All satellites and a single target
     # Output: A dictionary containing the satelite object and the measurement associated with that satellite
@@ -41,17 +41,21 @@ class centralEstimator:
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
+        if len(satMeasurements) == 0:
+            return None
         
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
-            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
-                                [0, 10, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 10, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 10]])
+            # start with true position plus some noise
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 20 km/min, then plus some noise 
+            P_prior = np.array([[5, 0, 0, 0, 0, 0],
+                                [0, 20, 0, 0, 0, 0],
+                                [0, 0, 5, 0, 0, 0],
+                                [0, 0, 0, 20, 0, 0],
+                                [0, 0, 0, 0, 5, 0],
+                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -143,7 +147,7 @@ class centralEstimator:
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
-        self.nistHist[targetID][envTime] = nis
+        self.nisHist[targetID][envTime] = nis
 
 
     def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
@@ -189,7 +193,6 @@ class centralEstimator:
         
         return Q
     
-    
 class localEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
 
@@ -204,7 +207,7 @@ class localEstimator:
         self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.nistHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
 # LOCAL EXTENDED KALMAN FILTER
     # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
@@ -219,13 +222,15 @@ class localEstimator:
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
-            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
-                                [0, 10, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 10, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 10]])
+            # start with true position plus some noise
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
+            P_prior = np.array([[5, 0, 0, 0, 0, 0],
+                                [0, 20, 0, 0, 0, 0],
+                                [0, 0, 5, 0, 0, 0],
+                                [0, 0, 0, 20, 0, 0],
+                                [0, 0, 0, 0, 5, 0],
+                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -306,7 +311,7 @@ class localEstimator:
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
-        self.nistHist[targetID][envTime] = nis
+        self.nisHist[targetID][envTime] = nis
                                
 
     def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
@@ -351,3 +356,5 @@ class localEstimator:
         Q = F @ vanLoan[0:6, 6:12]
         
         return Q
+
+    

@@ -49,7 +49,7 @@ class environment:
     # Time range is a numpy array of time steps, must have poliastro units associated!
     # Pause step is the time to pause between each step, if displaying as animation
     # Display is a boolean, if true will display the plot as an animation
-    def simulate(self, time_vec, pause_step = 0.1, display = False):
+    def simulate(self, time_vec, pause_step = 0.1, savePlot = False, saveName = None, showSim = False):
         
         # Initalize based on the current time
         time_vec = time_vec + self.time
@@ -59,21 +59,20 @@ class environment:
         # Propagate the satellites and environments position
             self.propagate(t_d)
 
-        # Update the plot environment
-            self.plot()
-
-        # Save the current plot to the images list, for gif later
-            self.convert_imgs()
-
-            if display:
-            # Display the plot in a animation
-                plt.pause(pause_step) 
-                plt.draw()
-
-        # Save the data for each satellite to a csv file
-        self.log_data()
+            if savePlot:
+            # Update the plot environment
+                self.plot()
+                self.convert_imgs
+                if showSim:
+                    plt.pause(pause_step)
+                    plt.draw()
         
-        self.plotResults(time_vec, central = True)
+        if savePlot:
+            # Plot the results of the simulation.        
+            self.plotResults(time_vec, central = True, savePlot = savePlot, saveName = saveName)
+
+        return self.collectData()
+        
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -152,7 +151,7 @@ class environment:
         for targ in self.targs:
         # Plot the current xyz location of the target
             x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, color = targ.color, label=targ.name)
+            self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
             
         self.ax.legend()
 
@@ -165,30 +164,9 @@ class environment:
                 x2, y2, z2 = sat2.orbit.r.value
                 self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
 
-# For each satellite, saves the measurement history of each target to a csv file:
-    def log_data(self):
-        # Make the file, current directory /data/satellite_name.csv
-        filePath = os.path.dirname(os.path.realpath(__file__))
-        # Delete all files already within the data folder
-        for file in os.listdir(filePath + '/data/'):
-            os.remove(filePath + '/data/' + file)
-            
-    # Loop through all satellites
-        for sat in self.sats:
-        # Loop through all targets for each satellite
-            for targ in self.targs:
-                if targ.targetID in sat.targetIDs:
-                    with open(filePath + '/data/' + sat.name + '_' + targ.name + '.csv', mode='w') as file:
-                        writer = csv.writer(file)
-                        writer.writerow(sat.sensor.stringHeader)
-                        for time, meas in sat.measurementHist[targ.targetID].items():
-                            # combine time into the measurment array
-                            combine = [time] + list(meas)
-                            writer.writerow(combine)
-
 # Plots all of the results to the user.
 # Using bearings only measurement now
-    def plotResults(self, time_vec, central = False):
+    def plotResults(self, time_vec, savePlot, saveName, central = False):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
@@ -243,7 +221,7 @@ class environment:
                     innovationHist = sat.estimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.estimator.innovationCovHist[targ.targetID]
                     times = [time for time in time_vec.value if time in estHist]
-                
+
                     # MEASUREMENT PLOTS
                     for i in range(6):
                         axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
@@ -312,33 +290,53 @@ class environment:
         # ADD LEGEND
             fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
             plt.tight_layout()
-            plt.show()
+            if savePlot:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                if saveName is None:
+                    plt.savefig(os.path.join(plotPath, f"{targ.name}_results.png"), dpi=300)
+                    return
+                plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_results.png"), dpi=300)
 
-            # TODO, save the figure instead of showing the figure
+# Returns the NEES and NIS data for the simulation
+    def collectData(self):
+        # We want to return the NEES and NIS data for the simulation in an easy to read format
+        # Create a dictionary of targetIDs
+        data = {targetID: defaultdict(dict) for targetID in (targ.targetID for targ in self.targs)}
+        # Now for each targetID, make a dictionary for each satellite:
+        for targ in self.targs:
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # Extract the data
+                    data[targ.targetID][sat.name] = {'NEES': sat.estimator.neesHist[targ.targetID], 'NIS': sat.estimator.nisHist[targ.targetID]}
 
-            # also plot the nis and the nees on a seperate subplot, just a 1x2 subplot:
-            # fig = plt.figure(figsize=(15, 8))
-            # ax1 = fig.add_subplot(121)
-            # ax2 = fig.add_subplot(122)
-            # for sat in self.sats:
-            #     if targ.targetID in sat.targetIDs:
-            #         times = [time for time in time_vec.value if time in sat.estimator.nistHist[targ.targetID]]
-            #         ax1.plot(times, [sat.estimator.nistHist[time][targ.targetID] for time in times], color=sat.color, label=sat.name)
-            #         ax2.plot(times, [sat.estimator.neesHist[time][targ.targetID] for time in times], color=sat.color, label=sat.name)
-            # if central:
-            #     times = [time for time in time_vec.value if time in self.centralEstimator.nistHist]
-            #     ax1.plot(times, [self.centralEstimator.nistHist[time][targ.targetID] for time in times], color='purple', label='Central Estimator')
-            #     ax2.plot(times, [self.centralEstimator.neesHist[time][targ.targetID] for time in times], color='purple', label='Central Estimator')
-            # ax1.set_xlabel("Time [min]")
-            # ax1.set_ylabel("NIS")
-            # ax2.set_xlabel("Time [min]")
-            # ax2.set_ylabel("NEES")
-            # ax1.legend()
-            # ax2.legend()
-            # plt.show()
+            # If central estimator is used, also add that data
+            if self.centralEstimator:
+                data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
 
+        return data
 
-
+# For each satellite, saves the measurement history of each target to a csv file:
+    def log_data(self):
+        # Make the file, current directory /data/satellite_name.csv
+        filePath = os.path.dirname(os.path.realpath(__file__))
+        # Delete all files already within the data folder
+        for file in os.listdir(filePath + '/data/'):
+            os.remove(filePath + '/data/' + file)
+            
+    # Loop through all satellites
+        for sat in self.sats:
+        # Loop through all targets for each satellite
+            for targ in self.targs:
+                if targ.targetID in sat.targetIDs:
+                    with open(filePath + '/data/' + sat.name + '_' + targ.name + '.csv', mode='w') as file:
+                        writer = csv.writer(file)
+                        writer.writerow(sat.sensor.stringHeader)
+                        for time, meas in sat.measurementHist[targ.targetID].items():
+                            # combine time into the measurment array
+                            combine = [time] + list(meas)
+                            writer.writerow(combine)
 
 # Convert images to a gif
     # Save in the img struct
