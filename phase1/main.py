@@ -29,7 +29,7 @@ def create_environment():
     dataFusionAlg = dataFusion(targetIDs = targetIDs)
     
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 45, raan = 0, argp = 80, nu = 0, color='b')
     sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
 
     sats = [sat1, sat2]

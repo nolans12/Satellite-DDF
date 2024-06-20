@@ -4,7 +4,7 @@ from import_libraries import *
 # Target class that moves linearly around the earth with constant velocity
 # Inputs: Name, TargetID, Initial Position, Heading, Speed, Color
 class target:
-    def __init__(self, name, targetID, cords, heading, speed, climbrate, color):
+    def __init__(self, name, targetID, cords, heading, speed, climbrate, color, changeAoA = False):
         # Intial target ID, name, color
         self.targetID = targetID
         self.name = name
@@ -21,6 +21,7 @@ class target:
                 
         range = cords[2] + 6378 # range from center of earth km
         rangeRate = climbrate # constant altitude
+        self.changaAoA = changeAoA # True if target should change Angle of Attack 
         
         elevation = np.deg2rad(cords[0]) # [rad] latitude where 0 is equator
         azimuth = np.deg2rad(cords[1]) # [rad] longitude where 0 prime meridian
@@ -49,6 +50,15 @@ class target:
                       [0, 0, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 1],
                       [0, 0, 0, 0, 0, 0]])
+        
+        #B = np.array([0, 1, 0, 0, 0, 0]).T # Assume control input can only change angle of attack
+        # TODO: Add control input to change angle of attack
+        if (self.changaAoA):
+            # Change angle of attack every 10 minutes
+            if (time % 10 == 0):
+                # Change angle of attack
+                self.X[1] = -self.X[1]
+            
         
         # Assume no control input, then new state = prev state + xdot*dt
         x_dot = np.dot(A, self.X)
