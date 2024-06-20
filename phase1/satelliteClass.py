@@ -63,7 +63,7 @@ class satellite:
                     self.measurementHist[targ.targetID][self.time] = measurement # Index with targetID and time, Format is [x, y, z, alpha, beta] in ECI coordinates of satellite
 
                     # Now perform kalman filter estimate
-                    estimate = self.estimator.EKF(self, measurement, targ, self.time) 
+                    self.estimator.EKF(self, measurement, targ, self.time) 
                                                              
         return collectedFlag
 

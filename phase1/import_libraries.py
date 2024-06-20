@@ -14,6 +14,7 @@ import csv
 import copy
 import jax
 import jax.numpy as jnp
+from jax.scipy.linalg import expm
 from jax import jacfwd, jacrev
 import sympy as sp
 from sympy import Matrix, symbols, lambdify, Subs, Derivative, Function

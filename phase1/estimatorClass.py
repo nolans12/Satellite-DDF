@@ -8,12 +8,14 @@ class centralEstimator:
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
-        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in bearings only, from the sensor
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
 
         self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+
+        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
     # Input: All satellites and a single target
     # Output: A dictionary containing the satelite object and the measurement associated with that satellite
@@ -39,22 +41,24 @@ class centralEstimator:
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
+        if len(satMeasurements) == 0:
+            return None
         
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
-            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
-                                [0, 1, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 1, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 1]])
+            # start with true position plus some noise
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 20 km/min, then plus some noise 
+            P_prior = np.array([[5, 0, 0, 0, 0, 0],
+                                [0, 20, 0, 0, 0, 0],
+                                [0, 0, 5, 0, 0, 0],
+                                [0, 0, 0, 20, 0, 0],
+                                [0, 0, 0, 0, 5, 0],
+                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
-            # TODO: this will not work in the future if you want to index into measHist, a
-            self.measHist[targetID][envTime] = satMeasurements
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
@@ -127,15 +131,26 @@ class centralEstimator:
         est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
+    # CALCUATE NEES AND NIS
+        # For nees, we need to get the error compared to the truth data:
+        # Get the true position
+        true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
+        # Get the error
+        error = est - true
+        # Get the covariance of the error
+        nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
+        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
+
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.measHist[targetID][envTime] = satMeasurements
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
+        self.neesHist[targetID][envTime] = nees
+        self.nisHist[targetID][envTime] = nis
 
 
-    def calculate_Q(self, dt, intensity=np.array([0.001, 1, 1])):
+    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -169,16 +184,10 @@ class centralEstimator:
         Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
         
         # Compute Matrix Exponential
-        vanLoan = np.exp(Z)
+        vanLoan = expm(Z)
 
         # Extract Q = F.T * VanLoan[0:6, 6:12]
-        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
+        F = vanLoan[6:12, 0:6].T
 
         Q = F @ vanLoan[0:6, 6:12]
         
@@ -191,12 +200,14 @@ class localEstimator:
         self.targs = targetIDs
 
     # Define history vectors for each extended kalman filter
-        self.measHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in bearings only, from the sensor
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
 
         self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+
+        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
 # LOCAL EXTENDED KALMAN FILTER
     # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
@@ -211,17 +222,18 @@ class localEstimator:
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) # start with true position, no velocity
-            P_prior = np.array([[10, 0, 0, 0, 0, 0], # initalize positions to be +- 10 km and velocities to be +- 1 km/s
-                                [0, 1, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 1, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 1]])
+            # start with true position plus some noise
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
+            P_prior = np.array([[5, 0, 0, 0, 0, 0],
+                                [0, 20, 0, 0, 0, 0],
+                                [0, 0, 5, 0, 0, 0],
+                                [0, 0, 0, 20, 0, 0],
+                                [0, 0, 0, 0, 5, 0],
+                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
-            self.measHist[targetID][envTime] = measurement # bearings measurement
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
@@ -254,6 +266,7 @@ class localEstimator:
         # This is the covariance estimate of the sensor error
         # just use the bearing error for now?
         R = np.eye(2)*sat.sensor.bearingsError**2
+        # TODO: could start with tuning this
 
 # EXTRACT THE MEASUREMENTS
         z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
@@ -282,16 +295,26 @@ class localEstimator:
         est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
 
+    # CALCUATE NEES AND NIS
+        # For nees, we need to get the error compared to the truth data:
+        # Get the true position
+        true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
+        # Get the error
+        error = est - true
+        # Get the covariance of the error
+        nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
+        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
+
 # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.measHist[targetID][envTime] = measurement
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
+        self.neesHist[targetID][envTime] = nees
+        self.nisHist[targetID][envTime] = nis
+                               
 
-        return est
-
-    def calculate_Q(self, dt, intensity=np.array([0.001, 1, 1])):
+    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -325,18 +348,13 @@ class localEstimator:
         Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
         
         # Compute Matrix Exponential
-        vanLoan = np.exp(Z)
+        vanLoan = expm(Z)
 
         # Extract Q = F.T * VanLoan[0:6, 6:12]
-        # Q = vanLoan[6:12, 6:12].T @ vanLoan[0:6, 6:12]
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
+        F = vanLoan[6:12, 0:6].T
 
         Q = F @ vanLoan[0:6, 6:12]
         
         return Q
+
     

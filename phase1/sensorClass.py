@@ -15,7 +15,6 @@ class sensor:
         # Used for saving data
         self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle", "Range"]
 
-
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
     def get_measurement(self, sat, targ):
@@ -110,7 +109,6 @@ class sensor:
     # Output: The jacobian matrix H used in a kalman filter for the sensor
     def jacobian_ECI_to_bearings(self, sat, meas_ECI_full):
         # Calculate the Jacobian
-        # jacobian = jax.jacfwd(lambda x: self.transform(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
         jacobian = jax.jacfwd(lambda x: self.transform_eci_to_bearings(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
 
         # Initialize a new Jacobian matrix with zeros
@@ -121,22 +119,6 @@ class sensor:
             new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
 
         return new_jacobian
-
-    # Input: A point P0 on the line, a direction vector d, and a point P
-    # Output: The nearest point on the line to P
-    def nearest_point_on_line(self, P0, d, P):
-
-        P0 = np.array(P0)
-        d = np.array(d)
-        P = np.array(P)
-        
-        # Calculate the parameter t
-        t = np.dot(P - P0, d) / np.dot(d, d)
-        
-        # Calculate the nearest point on the line
-        nearest_point = P0 + t * d
-        
-        return nearest_point
 
     # Input: A satellite object
     # Output: The 4 xyz points of the projection box, based on FOV and sat position
@@ -347,48 +329,3 @@ class sensor:
             return True
         else:
             return False
-        
-
-        # Input: A satellite object, a bearings measurement, and the last ECI estimate of the target
-    # # Output: A single raw ECI position, containing time and target position in ECI
-    # def convert_from_bearings_to_ECI(self, sat, meas_sensor, prev_ECI):
-    # # The goal is to compute the line that the bearings measurement makes with the satellite, then find the nearest point to that line with the previous ECI estimate
-    # # This will be the new ECI estimate of the target
-
-    #     # Get the data
-    #     alpha, beta = meas_sensor[0], meas_sensor[1]
-
-    #     # convert to radians
-    #     alpha, beta = np.radians(alpha), np.radians(beta)
-
-    #     # Convert satellite position to be in in-track, cross-track, radial
-    #     rVec = sat.orbit.r.value/np.linalg.norm(sat.orbit.r.value)
-    #     vVec = sat.orbit.v.value/np.linalg.norm(sat.orbit.v.value)
-    #     w = np.cross(rVec, vVec) # Cross track vector
-    #     T = np.array([vVec, w, rVec])
-    #     Tinv = np.linalg.inv(T)
-
-    #     # Get the target_vec_ECI:
-    #     initial = np.array([0, 0, -1])
-    #     # R2 rotation about y axis, with angle alpha
-    #     R2 = np.array([[np.cos(-alpha), 0, np.sin(-alpha)], [0, 1, 0], [-np.sin(-alpha), 0, np.cos(-alpha)]])
-    #     # R1 rotation about x axis, with angle beta
-    #     R1 = np.array([[1, 0, 0], [0, np.cos(-beta), -np.sin(-beta)], [0, np.sin(-beta), np.cos(-beta)]])
-    #     # Rotate the initial vector
-    #     targ_vec_sens = np.dot(R1, np.dot(R2, initial))
-
-    #     # Rotate the vector back into ECI
-    #     targ_vec_ECI = np.dot(Tinv, targ_vec_sens) # This is the line that points to the target from the satellite!
-
-    #     # Now find the closest point on this line to the previous ECI estimate
-    #     # This is the new ECI estimate
-    #     x_sat, y_sat, z_sat = sat.orbit.r.value
-    #     x_prev, y_prev, z_prev = prev_ECI
-
-    #     # Find the closest point on the line to the previous ECI estimate
-    #     # This is the new ECI estimate
-    #     new_ECI = self.nearest_point_on_line([x_sat, y_sat, z_sat], targ_vec_ECI, [x_prev, y_prev, z_prev])
-
-    #     # print("Bearings Only Estimate: ", new_ECI)
-
-    #     return new_ECI

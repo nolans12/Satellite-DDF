@@ -4,7 +4,7 @@ from import_libraries import *
 # Target class that moves linearly around the earth with constant velocity
 # Inputs: Name, TargetID, Initial Position, Heading, Speed, Color
 class target:
-    def __init__(self, name, targetID, cords, heading, speed, color):
+    def __init__(self, name, targetID, cords, heading, speed, climbrate, color):
         # Intial target ID, name, color
         self.targetID = targetID
         self.name = name
@@ -16,10 +16,11 @@ class target:
         # Desired State X = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]' -> [km, km/s, rad, rad/s, rad, rad/s]
         # Input: Cords = [lat lon alt] -> [deg, deg, km]
         #        Heading = Deg CW from North
-        #        Speed = Speed km/min           add climb rate later
+        #        Speed = Speed km/min           
+        #        ClimbRate = Rate of climb km/min
                 
         range = cords[2] + 6378 # range from center of earth km
-        rangeRate = 0 # constant altitude
+        rangeRate = climbrate # constant altitude
         
         elevation = np.deg2rad(cords[0]) # [rad] latitude where 0 is equator
         azimuth = np.deg2rad(cords[1]) # [rad] longitude where 0 prime meridian

@@ -1,4 +1,4 @@
-# Import pre-definied libraries
+# Import pre-defined libraries
 from import_libraries import *
 
 # Import classes
@@ -9,15 +9,16 @@ from estimatorClass import centralEstimator, localEstimator
 from sensorClass import sensor
 from commClass import comms
 
-if __name__ == "__main__":
-
-### DEFINE THE SATELLITE OBJECTS:
+#####################
+# Environment # 1:
+#####################
+def create_environment():
     # Define a sensor model:
-    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.1, 0.1]))
+    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
     sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.1, 0.1]))
 
     # Define targets for the satellites to track:
-    targetIDs = [1, 2]
+    targetIDs = [1]
 
     # Define local estimators:
     local1 = localEstimator(targetIDs = targetIDs)
@@ -30,39 +31,112 @@ if __name__ == "__main__":
 
     sats = [sat1, sat2]
 
-# DEFINE THE TARGET OBJECTS: [name, targetID, cords, heading, speed] 
-    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=50,  color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100,  color = 'r')
-    targs = [targ1]
+    # Define the target objects:
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100, climbrate = 1, color = 'r')
+    targs = [targ1, targ2]
 
-# Define the communication network:
-    comms = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
+    # Define the communication network:
+    comms_network = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
 
-# Create an environment instance:
-    env = environment(sats, targs, comms, central)
+    # Create and return an environment instance:
+    return environment(sats, targs, comms_network, central)
 
-# Simulate the satellites through a vector of time:
-    time_vec = np.linspace(0, 10, 11) * u.minute
-    env.simulate(time_vec, display = True)
 
-# Save the gif:
-    env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+# Plot the NEES and NIS results:
+def plot_NEES_NIS(simData):
 
+    # Now that the simulations are done, we can plot the results for NEES and NIS:
+    def nested_dict():
+        return defaultdict(list)
+
+    # Now that the simulations are done, we can plot the results for NEES and NIS:
+    nees_net = defaultdict(lambda: defaultdict(nested_dict))
+    nis_net = defaultdict(lambda: defaultdict(nested_dict))
+    # Just loop trough everything and append the data to the dictionaries:
+    # Loop through all sims
+    # Define a satellite vector we can loop through, want to add
+    for i in range(numSims):
+        # Loop through all the targets
+        for targ in simData[i].keys():
+            # Loop through all sats
+            for sat in simData[i][targ].keys():
+                # Loop through all times:
+                for time in time_vec.to_value():
+                    nees_data = simData[i][targ][sat]['NEES'][time]
+                    nis_data = simData[i][targ][sat]['NIS'][time]
+                    # If not empty, append to the dictionary
+                    if nees_data and nis_data:
+                        # Append to the data at that time:
+                        if time not in nees_net[targ][sat].keys():
+                            nees_net[targ][sat][time] = []
+                        if time not in nis_net[targ][sat].keys():
+                            nis_net[targ][sat][time] = []
+                        nees_net[targ][sat][time].append(nees_data)
+                        nis_net[targ][sat][time].append(nis_data)
+                    
+    # Now we can finally plot the NEES and NIS plots:
+    # Goal is to make one plot for each target.
+    # Each plot will have 2 subplots, one for NEES and one for NIS plots
+    # The data on the plots will be the average NEES and NIS values for each satellite at each time step
+    for targ in nees_net.keys():
+        fig, axs = plt.subplots(1,2, figsize=(15, 8))
+        fig.suptitle(f'Target {targ} NEES and NIS plots over {numSims} simulations', fontsize=16)
+        axs[0].set_title('Average NEES vs Time')
+        axs[0].set_xlabel('Time [min]')
+        axs[0].set_ylabel('NEES')
+        axs[1].set_title('Average NIS vs Time')
+        axs[1].set_xlabel('Time [min]')
+        axs[1].set_ylabel('NIS')
+        for sat in nees_net[targ].keys():
+            # Calculate the average NEES and NIS values for each time step
+            nees_avg = np.array([np.mean(nees_net[targ][sat][time]) for time in nees_net[targ][sat].keys()])
+            nis_avg = np.array([np.mean(nis_net[targ][sat][time]) for time in nis_net[targ][sat].keys()])
+            # Plot the data
+            axs[0].plot(nees_net[targ][sat].keys(), nees_avg, label=f'{sat}')
+            axs[1].plot(nis_net[targ][sat].keys(), nis_avg, label=f'{sat}')
+
+                        
+        axs[0].legend()
+        axs[1].legend()
+        # Save the plots
+        filePath = os.path.dirname(os.path.realpath(__file__))
+        plotPath = os.path.join(filePath, 'plots')
+        os.makedirs(plotPath, exist_ok=True)
+        plt.savefig(os.path.join(plotPath,"NEES_NIS_results.png"), dpi=300)
+
+if __name__ == "__main__":
+    # Vector of time for simulation:
+    time_vec = np.linspace(0, 40, 11) * u.minute
+
+    # Number of simulations:
+    numSims = 1
+    simData = defaultdict(dict)
+    for i in range(numSims):
+        print(f'Simulation {i + 1} out of {numSims}')
+        # Create a new environment instance for each simulation run:
+        env = create_environment()
+        # Simulate the satellites through the vector of time:
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = str(i + 1), showSim = True)
+
+        
+    # Plot the NEES and NIS results:
+    plot_NEES_NIS(simData)
+    
 
 # ### CLUSTER SIM BELOW:
 
 # # DEFINE THE SATELLITE OBJECTS:
 
 #     # Define a sensor model:
-#     sens1_1 = sensor(name = 'Sensor 1.1', fov = 115, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens1_2 = sensor(name = 'Sensor 1.2', fov = 115, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens1_3 = sensor(name = 'Sensor 1.3', fov = 115, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens1_4 = sensor(name = 'Sensor 1.4', fov = 115, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-
-#     sens2_1 = sensor(name = 'Sensor 2.1', fov = 100, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens2_2 = sensor(name = 'Sensor 2.2', fov = 100, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens2_3 = sensor(name = 'Sensor 2.3', fov = 100, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
-#     sens2_4 = sensor(name = 'Sensor 2.4', fov = 100, sensorError = np.array([1, 1]), detectError= 0.05, resolution = 720)
+#     sens1_1 = sensor(name = 'Sensor 1.1', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_2 = sensor(name = 'Sensor 1.2', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_3 = sensor(name = 'Sensor 1.3', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens1_4 = sensor(name = 'Sensor 1.4', fov = 115, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_1 = sensor(name = 'Sensor 2.1', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_2 = sensor(name = 'Sensor 2.2', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_3 = sensor(name = 'Sensor 2.3', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
+#     sens2_4 = sensor(name = 'Sensor 2.4', fov = 100, bearingsError = np.array([0.5, 0.5]), rangeError = 0.5, detectChance= 0.05, resolution = 720)
     
 #     # Define targets for the satellites to track:
 #     # TODO: should we just make the satellite track any target it can see?
