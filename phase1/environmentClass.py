@@ -87,7 +87,7 @@ class environment:
         for sat in self.sats:
             sat.time = time_val
 
-    # Propagate the targets position
+        # Propagate the targets position
         for targ in self.targs:
 
             # Propagate the target
@@ -112,6 +112,18 @@ class environment:
         # Collect measurements on any avaliable targets
             collectedFlag[satNum] = sat.collect_measurements(self.targs) # if any measurement was collected, will be true
             satNum += 1
+            
+        # Check if other satellites collected information on same target -> do data fusion
+        CI_threshold = 1
+        if self.comms.displayStruct:
+            for sat in self.sats:
+                for sat2 in self.sats:
+                    if sat != sat2:
+                        if self.comms.G.has_edge(sat, sat2):
+                            for targetID in sat.targetIDs:
+                                if targetID in sat2.targetIDs:
+                                    if any(collectedFlag == 1): # TODO: if either satellite collected data or if threshold is met
+                                        sat.dataFusion.covariance_intersection(sat, sat2, targetID, time_val)                                    
 
         # Update Central Estimator on all targets if measurments were collected
         if any(collectedFlag == 1) and self.centralEstimator:
@@ -220,18 +232,29 @@ class environment:
                     covHist = sat.estimator.covarianceHist[targ.targetID]
                     innovationHist = sat.estimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.estimator.innovationCovHist[targ.targetID]
+                    
+                    # Adding in Data Fusion Estimate
+                    CI_estHist = sat.dataFusion.CI_estHist[targ.targetID]
+                    CI_covHist = sat.dataFusion.CI_covHist[targ.targetID]
+                    
                     times = [time for time in time_vec.value if time in estHist]
+                    CI_times = [time for time in time_vec.value if time in CI_estHist]
 
                     # MEASUREMENT PLOTS
                     for i in range(6):
                         axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
                         axes[i].plot(times, [estHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
+                        axes[i].plot(CI_times, [CI_estHist[time][i] for time in CI_times], color='g', label='CI Estimate', marker='*')
 
                     # ERROR PLOTS
                     for i in range(6):
                         axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, linestyle='dashed', label='Error')
                         axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
                         axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+                        
+                        axes[6 + i].plot(CI_times, [CI_estHist[time][i] - trueHist[time][i] for time in CI_times], color='g', linestyle='dashed', label='CI Error')
+                        axes[6 + i].plot(CI_times, [2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted', label='CI 2 Sigma Bounds')
+                        axes[6 + i].plot(CI_times, [-2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted')
 
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
