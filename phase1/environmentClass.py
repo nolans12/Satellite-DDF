@@ -62,7 +62,7 @@ class environment:
             if savePlot:
             # Update the plot environment
                 self.plot()
-                self.convert_imgs
+                self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
                     plt.draw()
@@ -115,15 +115,15 @@ class environment:
             
         # Check if other satellites collected information on same target -> do data fusion
         CI_threshold = 1
-        if self.comms.displayStruct:
-            for sat in self.sats:
-                for sat2 in self.sats:
-                    if sat != sat2:
-                        if self.comms.G.has_edge(sat, sat2):
-                            for targetID in sat.targetIDs:
-                                if targetID in sat2.targetIDs:
-                                    if any(collectedFlag == 1): # TODO: if either satellite collected data or if threshold is met
-                                        sat.dataFusion.covariance_intersection(sat, sat2, targetID, time_val)                                    
+        # if self.comms.displayStruct:
+        #     for sat in self.sats:
+        #         for sat2 in self.sats:
+        #             if sat != sat2:
+        #                 if self.comms.G.has_edge(sat, sat2):
+        #                     for targetID in sat.targetIDs:
+        #                         if targetID in sat2.targetIDs:
+        #                             if any(collectedFlag == 1): # TODO: if either satellite collected data or if threshold is met
+        #                                 sat.dataFusion.covariance_intersection(sat, sat2, targetID, time_val)                                    
 
         # Update Central Estimator on all targets if measurments were collected
         if any(collectedFlag == 1) and self.centralEstimator:
@@ -156,6 +156,7 @@ class environment:
         # Plot the visible projection of the satellite sensor
             points = sat.sensor.projBox
             self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], color = sat.color, marker = 'x')
+            
             box = np.array([points[0], points[3], points[1], points[2], points[0]])
             self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
