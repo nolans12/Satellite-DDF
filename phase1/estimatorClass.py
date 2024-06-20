@@ -362,6 +362,13 @@ class localEstimator:
 class dataFusion:
     def __init__(self, targetIDs):
         self.targs = targetIDs
+        
+        # Store Original Estimates and Covariances
+        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.covHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        
+        # Store Covariance Intersection Estimates and Covariances
+        self.CI_omegaOpt = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.CI_estHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.CI_covHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         
@@ -382,21 +389,31 @@ class dataFusion:
         covFused = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
         estFused = covFused @ (omegaOpt*np.linalg.inv(cov1) @ est1 + (1-omegaOpt)*np.linalg.inv(cov2) @ est2)
         
+        # Store fused covariance and estimate as most recent estimate and covariance
+        self.estHist[targetID][envTime] = est1
+        self.covHist[targetID][envTime] = cov1
         self.CI_estHist[targetID][envTime] = estFused
         self.CI_covHist[targetID][envTime] = covFused
+        self.CI_omegaOpt[targetID][envTime] = omegaOpt
+        
+        # Update in satellite structure
+        # sat1.estimator.estHist[targetID][envTime] = estFused
+        # sat1.estimator.covarianceHist[targetID][envTime] = covFused
+        # sat2.estimator.estHist[targetID][envTime] = estFused
+        # sat2.estimator.covarianceHist[targetID][envTime] = covFused
         
         # Print Out the New State Estimate and Covaraince
-        np.set_printoptions(precision=4, suppress=True)
+        # np.set_printoptions(precision=4, suppress=True)
 
-        print('*' * 50)
-        print(f"Sat1 Estimate:\n{est1}")
-        print(f"Sat1 Covariance:\n{cov1}\n")
-        print(f"Sat2 Estimate:\n{est2}")
-        print(f"Sat2 Covariance:\n{cov2}\n")
-        print(f"Fused Estimate:\n{estFused}")
-        print(f"Fused Covariance:\n{covFused}")
-        print(f"Optimal Weight: {omegaOpt}")
-        print('*' * 50)
+        # print('*' * 50)
+        # print(f"Sat1 Estimate:\n{est1}")
+        # print(f"Sat1 Covariance:\n{cov1}\n")
+        # print(f"Sat2 Estimate:\n{est2}")
+        # print(f"Sat2 Covariance:\n{cov2}\n")
+        # print(f"Fused Estimate:\n{estFused}")
+        # print(f"Fused Covariance:\n{covFused}")
+        # print(f"Optimal Weight: {omegaOpt}")
+        # print('*' * 50)
         
     
     def det_of_fused_covariance(self, omega, cov1, cov2):

@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
         
     # Plot the NEES and NIS results:
-    plot_NEES_NIS(simData)
+    #plot_NEES_NIS(simData)
     
 
 # ### CLUSTER SIM BELOW:
