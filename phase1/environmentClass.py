@@ -87,7 +87,7 @@ class environment:
         for sat in self.sats:
             sat.time = time_val
 
-    # Propagate the targets position
+        # Propagate the targets position
         for targ in self.targs:
 
             # Propagate the target
@@ -112,6 +112,19 @@ class environment:
         # Collect measurements on any avaliable targets
             collectedFlag[satNum] = sat.collect_measurements(self.targs) # if any measurement was collected, will be true
             satNum += 1
+            
+        # Check if other satellites collected information on same target -> do data fusion
+        if self.comms.displayStruct:
+            for sat in self.sats:
+                for sat2 in self.sats:
+                    if sat != sat2:
+                        if self.comms.G.has_edge(sat, sat2):
+                            for targetID in sat.targetIDs:
+                                if targetID in sat2.targetIDs:
+                                    sat.dataFusion.covariance_intersection(sat, sat2, targetID, time_val)
+                                    # Print True target state
+                                    print(f"True Target State: {self.targs[0].hist[time_val]}")
+                                    
 
         # Update Central Estimator on all targets if measurments were collected
         if any(collectedFlag == 1) and self.centralEstimator:

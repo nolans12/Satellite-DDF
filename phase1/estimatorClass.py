@@ -357,4 +357,52 @@ class localEstimator:
         
         return Q
 
+
+
+class dataFusion:
+    def __init__(self, targetIDs):
+        self.targs = targetIDs
+        self.CI_estHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        self.CI_covHist = {targetID: defaultdict(dict) for targetID in targetIDs}
+        
     
+    def covariance_intersection(self, sat1, sat2, targetID, envTime):
+        # Grab the most recent estimate and covariance on common target for both satellites
+        time_prior = max(sat1.estimator.estHist[targetID].keys())
+        
+        est1 = sat1.estimator.estHist[targetID][time_prior]
+        est2 = sat2.estimator.estHist[targetID][time_prior]
+        cov1 = sat1.estimator.covarianceHist[targetID][time_prior]
+        cov2 = sat2.estimator.covarianceHist[targetID][time_prior]
+        
+        # Minimum Covariance Determinant
+        omegaOpt= minimize(self.det_of_fused_covariance, [0.5], args=(cov1, cov2), bounds=[(0, 1)]).x
+        
+        # Compute Fused Covariance
+        covFused = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+        estFused = covFused @ (omegaOpt*np.linalg.inv(cov1) @ est1 + (1-omegaOpt)*np.linalg.inv(cov2) @ est2)
+        
+        self.CI_estHist[targetID][envTime] = estFused
+        self.CI_covHist[targetID][envTime] = covFused
+        
+        # Print Out the New State Estimate and Covaraince
+        np.set_printoptions(precision=4, suppress=True)
+
+        print('*' * 50)
+        print(f"Sat1 Estimate:\n{est1}")
+        print(f"Sat1 Covariance:\n{cov1}\n")
+        print(f"Sat2 Estimate:\n{est2}")
+        print(f"Sat2 Covariance:\n{cov2}\n")
+        print(f"Fused Estimate:\n{estFused}")
+        print(f"Fused Covariance:\n{covFused}")
+        print(f"Optimal Weight: {omegaOpt}")
+        print('*' * 50)
+        
+    
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        # Calculate the determinant of the fused covariance matrix
+        # omega is the weight of the first covariance matrix
+        # cov1 and cov2 are the covariance matrices of the two estimates
+        omega = omega[0]
+        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        return np.linalg.det(P)

@@ -5,7 +5,7 @@ from import_libraries import *
 from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
-from estimatorClass import centralEstimator, localEstimator
+from estimatorClass import centralEstimator, localEstimator, dataFusion
 from sensorClass import sensor
 from commClass import comms
 
@@ -25,16 +25,19 @@ def create_environment():
     local2 = localEstimator(targetIDs = targetIDs)
     central = centralEstimator(targetIDs = targetIDs) # TODO: why not just make centralized always do all targets? since it is the baseline?
 
+    # Define the Data Fusion Algorithm
+    dataFusionAlg = dataFusion(targetIDs = targetIDs)
+    
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
+    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 80, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
 
     sats = [sat1, sat2]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100, climbrate = 1, color = 'r')
-    targs = [targ1, targ2]
+    #targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100, climbrate = 1, color = 'r')
+    targs = [targ1]#, targ2]
 
     # Define the communication network:
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
@@ -107,7 +110,7 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 40, 11) * u.minute
+    time_vec = np.linspace(0, 10, 11) * u.minute
 
     # Number of simulations:
     numSims = 1

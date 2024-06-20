@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, estimator, name, color):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, estimator, dataFusion, name, color):
     
     # Sensor to use
         self.sensor = sensor
@@ -13,6 +13,9 @@ class satellite:
 
     # Estimator to use
         self.estimator = estimator
+    
+    # Data Fusion to use
+        self.dataFusion = dataFusion
 
     # Other parameters
         self.name = name
