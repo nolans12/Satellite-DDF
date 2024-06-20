@@ -156,40 +156,40 @@ def testCase_environment():
     # Define the satellites:
     # Constellation 1: Polar Orbit at 0 degrees right ascension of ascending node
     sat1 = satellite(name = 'Sat1', sensor = sensor1, targetIDs=targetIDs, estimator = local1, dataFusion=dataFusionAlg1, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sensor2, targetIDs=targetIDs, estimator = local2, dataFusion=dataFusionAlg2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 10, nu = 0, color='r')
-    sat3 = satellite(name = 'Sat3', sensor = sensor3, targetIDs=targetIDs, estimator = local3, dataFusion=dataFusionAlg3, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 20, nu = 0, color='g')
-    sat4 = satellite(name = 'Sat4', sensor = sensor4, targetIDs=targetIDs, estimator = local4, dataFusion=dataFusionAlg4, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 30, nu = 0, color='c')
-    sat5 = satellite(name = 'Sat5', sensor = sensor5, targetIDs=targetIDs, estimator = local5, dataFusion=dataFusionAlg5, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 40, nu = 0, color='m')
+    sat2 = satellite(name = 'Sat2', sensor = sensor2, targetIDs=targetIDs, estimator = local2, dataFusion=dataFusionAlg2, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 10, nu = 0, color='b')
+    sat3 = satellite(name = 'Sat3', sensor = sensor3, targetIDs=targetIDs, estimator = local3, dataFusion=dataFusionAlg3, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 20, nu = 0, color='b')
+    sat4 = satellite(name = 'Sat4', sensor = sensor4, targetIDs=targetIDs, estimator = local4, dataFusion=dataFusionAlg4, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 30, nu = 0, color='b')
+    sat5 = satellite(name = 'Sat5', sensor = sensor5, targetIDs=targetIDs, estimator = local5, dataFusion=dataFusionAlg5, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 40, nu = 0, color='b')
     
     # Constellation 2: Polar Orbit at 30 degrees right ascension of ascending node
-    sat6 = satellite(name = 'Sat6', sensor = sensor6, targetIDs=targetIDs, estimator = local6, dataFusion=dataFusionAlg6, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 0, color='b')
+    sat6 = satellite(name = 'Sat6', sensor = sensor6, targetIDs=targetIDs, estimator = local6, dataFusion=dataFusionAlg6, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 0, color='r')
     sat7 = satellite(name = 'Sat7', sensor = sensor7, targetIDs=targetIDs, estimator = local7, dataFusion=dataFusionAlg7, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 10, nu = 0, color='r')
-    sat8 = satellite(name = 'Sat8', sensor = sensor8, targetIDs=targetIDs, estimator = local8, dataFusion=dataFusionAlg8, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 20, nu = 0, color='g')
-    sat9 = satellite(name = 'Sat9', sensor = sensor9, targetIDs=targetIDs, estimator = local9, dataFusion=dataFusionAlg9, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 30, nu = 0, color='c')
-    sat10 = satellite(name = 'Sat10', sensor = sensor10, targetIDs=targetIDs, estimator = local10, dataFusion=dataFusionAlg10, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 40, nu = 0, color='m')
+    sat8 = satellite(name = 'Sat8', sensor = sensor8, targetIDs=targetIDs, estimator = local8, dataFusion=dataFusionAlg8, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 20, nu = 0, color='r')
+    sat9 = satellite(name = 'Sat9', sensor = sensor9, targetIDs=targetIDs, estimator = local9, dataFusion=dataFusionAlg9, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 30, nu = 0, color='r')
+    sat10 = satellite(name = 'Sat10', sensor = sensor10, targetIDs=targetIDs, estimator = local10, dataFusion=dataFusionAlg10, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 40, nu = 0, color='r')
     
     # Constellation 3: Polar Orbit at 60 degrees right ascension of ascending node
-    sat11 = satellite(name = 'Sat11', sensor = sensor11, targetIDs=targetIDs, estimator = local11, dataFusion=dataFusionAlg11, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = -30, color='b')
-    sat12 = satellite(name = 'Sat12', sensor = sensor12, targetIDs=targetIDs, estimator = local12, dataFusion=dataFusionAlg12, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 10, nu = -30, color='r')
+    sat11 = satellite(name = 'Sat11', sensor = sensor11, targetIDs=targetIDs, estimator = local11, dataFusion=dataFusionAlg11, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = -30, color='g')
+    sat12 = satellite(name = 'Sat12', sensor = sensor12, targetIDs=targetIDs, estimator = local12, dataFusion=dataFusionAlg12, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 10, nu = -30, color='g')
     sat13 = satellite(name = 'Sat13', sensor = sensor13, targetIDs=targetIDs, estimator = local13, dataFusion=dataFusionAlg13, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 20, nu = -30, color='g')
-    sat14 = satellite(name = 'Sat14', sensor = sensor14, targetIDs=targetIDs, estimator = local14, dataFusion=dataFusionAlg14, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 30, nu = -30, color='c')
-    sat15 = satellite(name = 'Sat15', sensor = sensor15, targetIDs=targetIDs, estimator = local15, dataFusion=dataFusionAlg15, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 40, nu = -30, color='m')
+    sat14 = satellite(name = 'Sat14', sensor = sensor14, targetIDs=targetIDs, estimator = local14, dataFusion=dataFusionAlg14, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 30, nu = -30, color='g')
+    sat15 = satellite(name = 'Sat15', sensor = sensor15, targetIDs=targetIDs, estimator = local15, dataFusion=dataFusionAlg15, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 40, nu = -30, color='g')
     
     # Constellation 4: Polar Orbit at 90 degrees right ascension of ascending node
-    sat16 = satellite(name = 'Sat16', sensor = sensor16, targetIDs=targetIDs, estimator = local16, dataFusion=dataFusionAlg16, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 10, color='b')
-    sat17 = satellite(name = 'Sat17', sensor = sensor17, targetIDs=targetIDs, estimator = local17, dataFusion=dataFusionAlg17, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 10, nu = 10, color='r')
-    sat18 = satellite(name = 'Sat18', sensor = sensor18, targetIDs=targetIDs, estimator = local18, dataFusion=dataFusionAlg18, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 20, nu = 10, color='g')
+    sat16 = satellite(name = 'Sat16', sensor = sensor16, targetIDs=targetIDs, estimator = local16, dataFusion=dataFusionAlg16, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 10, color='c')
+    sat17 = satellite(name = 'Sat17', sensor = sensor17, targetIDs=targetIDs, estimator = local17, dataFusion=dataFusionAlg17, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 10, nu = 10, color='c')
+    sat18 = satellite(name = 'Sat18', sensor = sensor18, targetIDs=targetIDs, estimator = local18, dataFusion=dataFusionAlg18, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 20, nu = 10, color='c')
     sat19 = satellite(name = 'Sat19', sensor = sensor19, targetIDs=targetIDs, estimator = local19, dataFusion=dataFusionAlg19, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 30, nu = 10, color='c')
-    sat20 = satellite(name = 'Sat20', sensor = sensor20, targetIDs=targetIDs, estimator = local20, dataFusion=dataFusionAlg20, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 40, nu = 10, color='m')
+    sat20 = satellite(name = 'Sat20', sensor = sensor20, targetIDs=targetIDs, estimator = local20, dataFusion=dataFusionAlg20, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 40, nu = 10, color='c')
     
     sats = [sat1, sat2, sat3, sat4, sat5, sat6, sat7, sat8, sat9, sat10, sat11, sat12, sat13, sat14, sat15, sat16, sat17, sat18, sat19, sat20]
 
     # Define the target objects:
-    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=50, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,15,200]), heading=0, speed=50, climbrate = 0, color = 'r')
-    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,30,100]), heading=0, speed=50, climbrate = 0, color = 'g')
-    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,60,50]), heading=0, speed=50, climbrate = 0, color = 'c')
-    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,90,0]), heading=0, speed=50, climbrate = 0, color = 'm')
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,15,200]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,30,100]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,60,50]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,90,0]), heading=0, speed=5, climbrate = 0, color = 'k')
     
     
     targs = [targ1, targ2, targ3, targ4, targ5]
@@ -265,7 +265,7 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 240, 241) * u.minute
+    time_vec = np.linspace(0, 120, 241) * u.minute
 
     env = testCase_environment()
     env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = True)
