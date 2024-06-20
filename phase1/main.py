@@ -5,7 +5,7 @@ from import_libraries import *
 from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
-from estimatorClass import centralEstimator, localEstimator, dataFusion
+from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
 from sensorClass import sensor
 from commClass import comms
 
@@ -14,30 +14,31 @@ from commClass import comms
 #####################
 def create_environment():
     # Define a sensor model:
-    sens1 = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
-    sens2 = sensor(name = 'Sensor 2', fov = 115, bearingsError = np.array([0.1, 0.1]))
-
+    sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
+   
     # Define targets for the satellites to track:
     targetIDs = [1]
 
     # Define local estimators:
-    local1 = localEstimator(targetIDs = targetIDs)
-    local2 = localEstimator(targetIDs = targetIDs)
-    central = centralEstimator(targetIDs = targetIDs) # TODO: why not just make centralized always do all targets? since it is the baseline?
+    local = indeptEstimator(targetIDs = targetIDs)
 
-    # Define the Data Fusion Algorithm
-    dataFusionAlg = dataFusion(targetIDs = targetIDs)
+    # Define the Data Fusion Algorithm, use the covariance intersection estimator:
+    ddf = ddfEstimator(targetIDs = targetIDs)
+
+    # Define the centralized estimator
+    central = centralEstimator(targetIDs = targetIDs) 
     
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = sens1, targetIDs=targetIDs, estimator = local1, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 45, raan = 0, argp = 80, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = sens2, targetIDs=targetIDs, estimator = local2, dataFusion=dataFusionAlg, a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 80, nu = 0, color='r')
+    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 85, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 60, nu = 0, color='r')
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='y')
 
-    sats = [sat1, sat2]
+    sats = [sat1, sat2, sat3]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    #targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,200]), heading=90, speed=100, climbrate = 1, color = 'r')
-    targs = [targ1]#, targ2]
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([60,-45,200]), heading=90, speed=10, climbrate = 1, color = 'r')
+    targs = [targ1]
 
     # Define the communication network:
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
@@ -110,7 +111,7 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 11) * u.minute
+    time_vec = np.linspace(0, 10, 61) * u.minute
 
     # Number of simulations:
     numSims = 1
@@ -120,12 +121,14 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = str(i + 1), showSim = True)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = True)
 
         
     # Plot the NEES and NIS results:
-    #plot_NEES_NIS(simData)
+    # plot_NEES_NIS(simData)
     
+    # Save the gif:
+    # env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
 
 # ### CLUSTER SIM BELOW:
 

@@ -59,10 +59,13 @@ class environment:
         # Propagate the satellites and environments position
             self.propagate(t_d)
 
+        # Collect individual data measurements for satellites and then do data fusion
+            self.data_fusion(t_d)
+
             if savePlot:
             # Update the plot environment
                 self.plot()
-                self.convert_imgs
+                self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
                     plt.draw()
@@ -73,6 +76,65 @@ class environment:
 
         return self.collectData()
         
+# Collect measurements from all satellites and do data fusion
+    def data_fusion(self, time_step):
+        # Collect measurements on any avaliable targets
+        # Create a dictionary of flags for each satellite. 
+        # Dictionary contains true or false on if the given sat/targ combo collected a measurement
+        collectedFlag = defaultdict(lambda: defaultdict(dict))
+        for targ in self.targs:
+            for sat in self.sats:
+                # This will collect the bearing measurement, if avaliable, and also perform local estimation on the target
+                # If a measurement is collected, the flag will be set to true
+                collectedFlag[targ][sat] = sat.collect_measurements_and_filter(targ)
+
+        # Now perform data fusion on the collected measurements
+        # First check, did any new satellites get measurements?
+        
+        # Loop through all targets
+        for targ in self.targs:
+            # Check, did any of the satellies collect a measurement on this target?
+            # If so, we should perform centralized fusion
+            if any(collectedFlag[targ].values()):
+                self.centralEstimator.EKF(self.sats, targ, self.time.to_value())
+
+            # Now check, need to perform covariance intersection. 
+            # Loop through all satellites, if any satellite has a new measurement, queue it to send to all its neighbors
+            # Once have looped through all satellites, perform CI on all the measurements
+            # for sat in self.sats:
+            #     if collectedFlag[targ][sat]:
+            #         # Loop through all neighbors of the satellite
+            #         for neighbor in self.comms.G.neighbors(sat):
+            #             # Queue the measurement to send to the neighbor
+            #             self.comms.send_measurement(sat, neighbor, sat.measurementHist[targ.targetID][self.time.to_value()], targ.targetID, self.time.to_value())
+                    
+            for sat in self.sats:
+                for neighbor in self.comms.G.neighbors(sat):
+                # Check if the most recent estimate time is newer than the neighbor
+                    # Check for if sat has any estimates yet
+                    if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                        continue # If sat doesnt have estimates yet, nothing to send
+
+                    # Most recent measurement time by satellite
+                    satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
+
+                    # Check if the neighbor has any estimates yet
+                    if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                        # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
+                        self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
+                        continue
+
+                    # Most recent measurement time by neighbor
+                    neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
+
+                    # If the neighbor has an older estimate, send the most recent estimate
+                    if satTime > neighborTime:
+                        self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
+
+            # Now, each satellite will perform covariance intersection on the measurements sent to it
+            for sat in self.sats:
+                # For each satellite, perform CI on the measurements it received
+                sat.ddfEstimator.CI(self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -109,28 +171,6 @@ class environment:
         # Update the communication network for the new sat position:
             self.comms.make_edges(self.sats)
 
-        # Collect measurements on any avaliable targets
-            collectedFlag[satNum] = sat.collect_measurements(self.targs) # if any measurement was collected, will be true
-            satNum += 1
-            
-        # Check if other satellites collected information on same target -> do data fusion
-        CI_threshold = 1
-        if self.comms.displayStruct:
-            for sat in self.sats:
-                for sat2 in self.sats:
-                    if sat != sat2:
-                        if self.comms.G.has_edge(sat, sat2):
-                            for targetID in sat.targetIDs:
-                                if targetID in sat2.targetIDs:
-                                    if any(collectedFlag == 1): # TODO: if either satellite collected data or if threshold is met
-                                        sat.dataFusion.covariance_intersection(sat, sat2, targetID, time_val)                                    
-
-        # Update Central Estimator on all targets if measurments were collected
-        if any(collectedFlag == 1) and self.centralEstimator:
-            for targ in self.targs:
-                # Run the central estimator on the measurements
-                self.centralEstimator.EKF(self.sats, targ, time_val) 
-   
 # Plot the current state of the environment
     def plot(self):
         # Reset plot
@@ -174,8 +214,11 @@ class environment:
                 sat2 = edge[1]
                 x1, y1, z1 = sat1.orbit.r.value
                 x2, y2, z2 = sat2.orbit.r.value
-                self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
-
+                if self.comms.G.edges[edge]['active']:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color=(0.3, 1.0, 0.3), linestyle='dashed', linewidth=2)
+                else:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
+        
 # Plots all of the results to the user.
 # Using bearings only measurement now
     def plotResults(self, time_vec, savePlot, saveName, central = False):
@@ -228,23 +271,23 @@ class environment:
                     # EXTRACT ALL DATA
                     satColor = sat.color
                     trueHist = targ.hist
-                    estHist = sat.estimator.estHist[targ.targetID]
-                    covHist = sat.estimator.covarianceHist[targ.targetID]
-                    innovationHist = sat.estimator.innovationHist[targ.targetID]
-                    innovationCovHist = sat.estimator.innovationCovHist[targ.targetID]
+                    estHist = sat.indeptEstimator.estHist[targ.targetID]
+                    covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+                    innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+                    innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
                     
-                    # Adding in Data Fusion Estimate
-                    CI_estHist = sat.dataFusion.CI_estHist[targ.targetID]
-                    CI_covHist = sat.dataFusion.CI_covHist[targ.targetID]
+                    # # Adding in Data Fusion Estimate
+                    # CI_estHist = sat.dataFusion.CI_estHist[targ.targetID]
+                    # CI_covHist = sat.dataFusion.CI_covHist[targ.targetID]
                     
                     times = [time for time in time_vec.value if time in estHist]
-                    CI_times = [time for time in time_vec.value if time in CI_estHist]
+                    # CI_times = [time for time in time_vec.value if time in CI_estHist]
 
                     # MEASUREMENT PLOTS
                     for i in range(6):
                         axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
                         axes[i].plot(times, [estHist[time][i] for time in times], color=satColor, label='Kalman Estimate')
-                        axes[i].plot(CI_times, [CI_estHist[time][i] for time in CI_times], color='g', label='CI Estimate', marker='*')
+                        # axes[i].plot(CI_times, [CI_estHist[time][i] for time in CI_times], color='g', label='CI Estimate', marker='*')
 
                     # ERROR PLOTS
                     for i in range(6):
@@ -252,9 +295,9 @@ class environment:
                         axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
                         axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
                         
-                        axes[6 + i].plot(CI_times, [CI_estHist[time][i] - trueHist[time][i] for time in CI_times], color='g', linestyle='dashed', label='CI Error')
-                        axes[6 + i].plot(CI_times, [2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted', label='CI 2 Sigma Bounds')
-                        axes[6 + i].plot(CI_times, [-2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted')
+                        # axes[6 + i].plot(CI_times, [CI_estHist[time][i] - trueHist[time][i] for time in CI_times], color='g', linestyle='dashed', label='CI Error')
+                        # axes[6 + i].plot(CI_times, [2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted', label='CI 2 Sigma Bounds')
+                        # axes[6 + i].plot(CI_times, [-2 * np.sqrt(CI_covHist[time][i][i]) for time in CI_times], color='g', linestyle='dotted')
 
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
@@ -265,23 +308,24 @@ class environment:
         # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
         # USE COLOR PINK FOR CENTRAL ESTIMATOR
             if central:
-                trueHist = targ.hist
-                estHist = self.centralEstimator.estHist[targ.targetID]
-                covHist = self.centralEstimator.covarianceHist[targ.targetID]
-                innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-                innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                times = [time for time in time_vec.value if time in estHist]
+                if targ.targetID in self.centralEstimator.estHist:
+                    trueHist = targ.hist
+                    estHist = self.centralEstimator.estHist[targ.targetID]
+                    covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                    innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                    innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                    times = [time for time in time_vec.value if time in estHist]
 
-                # MEASUREMENT PLOTS
-                for i in range(6):
-                    axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
-                    axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
+                    # MEASUREMENT PLOTS
+                    for i in range(6):
+                        axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+                        axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
 
-                # ERROR PLOTS
-                for i in range(6):
-                    axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
-                    axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
-                    axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
+                    # ERROR PLOTS
+                    for i in range(6):
+                        axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
+                        axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
+                        axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
 
         # COLLECT LEGENDS REMOVING DUPLICATES
             handles, labels = [], []
@@ -332,11 +376,12 @@ class environment:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
                     # Extract the data
-                    data[targ.targetID][sat.name] = {'NEES': sat.estimator.neesHist[targ.targetID], 'NIS': sat.estimator.nisHist[targ.targetID]}
+                    data[targ.targetID][sat.name] = {'NEES': sat.indeptEstimator.neesHist[targ.targetID], 'NIS': sat.indeptEstimator.nisHist[targ.targetID]}
 
             # If central estimator is used, also add that data
             if self.centralEstimator:
-                data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
+                if targ.targetID in self.centralEstimator.neesHist:
+                    data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
 
         return data
 

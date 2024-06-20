@@ -14,6 +14,7 @@ import csv
 import copy
 import jax
 import jax.numpy as jnp
+from copy import deepcopy
 from jax.scipy.linalg import expm
 from jax import jacfwd, jacrev
 import sympy as sp

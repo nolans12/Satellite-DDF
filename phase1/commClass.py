@@ -6,13 +6,45 @@ class comms:
         
     # Create a graph instance with the satellites as nodes
         self.G = nx.Graph()
-        self.G.add_nodes_from(sats)
+        
+        # Add nodes with a list for queued data (list of arrays)
+        for sat in sats:
+            self.G.add_node(sat, queued_data={})
 
         self.maxNeighbors = maxNeighbors
         self.maxRange = maxRange
         self.minRange = minRange
         self.dataRate = dataRate
         self.displayStruct = displayStruct
+
+# Function to send a measurement from one satellite to another
+    # Send from sender to receiver, with the measurement, targetID, and time
+    # Inputs:
+    # sender: Satellite sending the measurement
+    # receiver: Satellite receiving the measurement
+    # est_meas: Estimate measurement to send
+    # cov_meas: Covariance measurement to send
+    # targetID: ID of the target the measurement is from
+    # time: time the measurement was taken
+    def send_measurement(self, sender, receiver, est_meas, cov_meas, targetID, time):
+        # Check if the receiver is in the sender's neighbors
+        if not self.G.has_edge(sender, receiver):
+            return 
+        
+        # Initialize the targetID key in the receiver's queued data if not present
+        if targetID not in self.G.nodes[receiver]['queued_data']:
+            self.G.nodes[receiver]['queued_data'][targetID] = {}
+        
+        # Initialize the time key in the targetID's queued data if not present
+        if time not in self.G.nodes[receiver]['queued_data'][targetID]:
+            self.G.nodes[receiver]['queued_data'][targetID][time] = {'est': [], 'cov': []}
+
+        # Add the measurement to the receiver's queued data at the specified targetID and time
+        self.G.nodes[receiver]['queued_data'][targetID][time]['est'].append(est_meas)
+        self.G.nodes[receiver]['queued_data'][targetID][time]['cov'].append(cov_meas)
+
+        # Also activate the edge between the two satellites
+        self.G.edges[sender, receiver]['active'] = True
 
 # Reset the edges in the graph and redefine them based on the range and if the Earth is blocking them.
     def make_edges(self, sats):
@@ -31,7 +63,7 @@ class comms:
                         # Check if the Earth is blocking the two satellites
                             if self.intersect_earth(sat, sat2) == False:
                                 # Add the edge
-                                self.G.add_edge(sat, sat2)
+                                self.G.add_edge(sat, sat2, active = False)
 
     # Now restrict to just the max number of neighbors
         for sat in sats:
@@ -52,7 +84,6 @@ class comms:
                 # Now remove the extra neighbors
                 for i in range(self.maxNeighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-
 
 # Check if the Earth is blocking the two satellites, uses line-sphere intersection
     def intersect_earth(self, sat1, sat2):
