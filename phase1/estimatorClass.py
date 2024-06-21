@@ -404,11 +404,24 @@ class ddfEstimator:
             estPrior = self.estHist[targetID][priorTime]
             covPrior = self.covarianceHist[targetID][priorTime]
 
+            # Propegate the estPrior to the new time?
+            dt = sentTime - priorTime
+            # How does our state: [x, vx, y, vy, z, vz] change over time?
+            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+                        [0, 1, 0, 0, 0, 0],
+                        [0, 0, 1, dt, 0, 0],
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 0, 0, 1, dt],
+                        [0, 0, 0, 0, 0, 1]])
+            
+            estPrior_prop = np.dot(F, estPrior)
+            print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
+
         # Check, should we THROW OUT the prior? or do CI with it?
             # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
-            if sentTime - priorTime > 5: 
+            if dt > 5: 
                 print(str(sat.name) + " is throwing out prior estimate and covariance from " + str(priorTime) + " for " + str(commNode['queued_data'][targetID][sentTime]['sender']) + "s new update at " + str(sentTime))
-                estPrior = commNode['queued_data'][targetID][sentTime]['est'][0]
+                estPrior_prop = commNode['queued_data'][targetID][sentTime]['est'][0]
                 covPrior = commNode['queued_data'][targetID][sentTime]['cov'][0]
             # If the time b/w prior and new estimate is less than 5 mins, keep the prior the same, then do CI
 
@@ -425,89 +438,14 @@ class ddfEstimator:
                 cov1 = covPrior
                 cov2 = covSent
                 covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
-                estPrior = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
+                estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
         # Finally, save the fused estimate and covariance
-            self.estHist[targetID][sentTime] = estPrior
+            self.estHist[targetID][sentTime] = estPrior_prop
             self.covarianceHist[targetID][sentTime] = covPrior
 
         # Clear the queued data
         commNode['queued_data'][targetID] = {}
-
-
-
-    #         # If the time is not in the estimator history, add it:
-    #         if sentTime not in self.estHist[targetID]:
-    #             self.estHist[targetID][sentTime] = {}
-    #             self.covarianceHist[targetID][sentTime] = {}
-
-    #         # Perform covariance intersection on the new information:
-    #         self.covariance_intersection(sat, commNode, targetID, sentTime)
-        
-
-
-
-
-    #     ciMaxTime = max(commNode['queued_data'][targetID].keys())
-
-    # #### First check does the target have any prior estimates or covariances?
-    #     if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
-    #     #### If not, just use the send estimate and covariance to initalize filter
-    #         self.estHist[targetID][ciMaxTime] = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
-    #         self.covarianceHist[targetID][ciMaxTime] = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
-
-    #     else:
-    # #### If the sat has a prior estimate and covariance, check, should we THORW OUT PRIOR OR CI PRIOR?
-    #         estMaxTime = max(self.estHist[targetID].keys())
-
-
-    # #### MERGE NEW ESTIMATE WITH OLD ESTIMATE, DOING CI
-
-
-
-
-    #     if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
-    #         covCur = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
-    #         estCur = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
-    #     else:
-    #         estMaxTime = max(self.estHist[targetID].keys())
-    #         covCur = self.covarianceHist[targetID][estMaxTime] 
-    #         estCur = self.estHist[targetID][estMaxTime]
-
-    # #### THROW AWAY OLD ESTIMATE AND COVARIANCE, JUST USE NEW ESTIMATE AND COVARIANCE FROM CI
-
-    #     covCur = self.covarianceHist[targetID][ciMaxTime] 
-    #     estCur = self.estHist[targetID][ciMaxTime]
-
-    #     # If no prior estimate, we can just use the first estimate and covariance
-    #     if len(estCur) == 0 and len(covCur) == 0:
-    #         covCur = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
-    #         estCur = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
-
-    #     # If there is CI information through the queue, then fuse the information
-    #     for i in range(len(commNode['queued_data'][targetID][ciMaxTime]['cov'])):
-
-    #         # Extract the estimate and covariance
-    #         est = commNode['queued_data'][targetID][ciMaxTime]['est'][i]
-    #         cov = commNode['queued_data'][targetID][ciMaxTime]['cov'][i]
-
-    #         # Minimize the covariance determinant
-    #         omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covCur, cov), bounds=[(0, 1)]).x
-
-    #         # Now compute the fused covariance
-    #         cov1 = covCur
-    #         cov2 = cov
-    #         covCur = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
-    #         estCur = covCur @ (omegaOpt * np.linalg.inv(cov1) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov2) @ est)
-
-    #     # estCur = covCur @ (omegaOpt * np.linalg.inv(covCur) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov) @ est)
-
-    #     # Save the fused estimate and covariance
-    #     self.estHist[targetID][ciMaxTime] = estCur
-    #     self.covarianceHist[targetID][ciMaxTime] = covCur
-
-    #     # Clear the queued data
-    #     commNode['queued_data'][targetID] = {}
 
 
     # LOCAL EXTENDED KALMAN FILTER
