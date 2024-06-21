@@ -134,7 +134,7 @@ def testCase_environment():
     
     
     # Define 5 sensor models with constant FOV and different bearings error matrixes:
-    bearings_Error_matrix = np.array([[0.001,0.001], [0.1, 0.1], [0.2, 0.2], [0.5, 0.5], [1, 1] ])
+    bearings_Error_matrix = np.array([ [0.1,0.1], [0.15, 0.15], [0.2, 0.2], [0.5, 0.5], [1, 1] ])
     
     sensorA = sensor(name = 'Sensor A', fov = 115, bearingsError = bearings_Error_matrix[0])
     sensorB = sensor(name = 'Sensor B', fov = 115, bearingsError = bearings_Error_matrix[1])
@@ -163,11 +163,11 @@ def testCase_environment():
     sat5 = satellite(name = 'Sat5', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 20, color='b')
     
     # Constellation 2: Polar Orbit at 30 degrees right ascension of ascending node
-    sat6 = satellite(name = 'Sat6', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 0, color='r')
-    sat7 = satellite(name = 'Sat7', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 5, color='r')
-    sat8 = satellite(name = 'Sat8', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 10, color='r')
-    sat9 = satellite(name = 'Sat9', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 15, color='r')
-    sat10 = satellite(name = 'Sat10', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 20, color='r')
+    sat6 = satellite(name = 'Sat6', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 0, color='y')
+    sat7 = satellite(name = 'Sat7', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 5, color='y')
+    sat8 = satellite(name = 'Sat8', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 10, color='y')
+    sat9 = satellite(name = 'Sat9', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 15, color='y')
+    sat10 = satellite(name = 'Sat10', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 20, color='y')
     
     # Constellation 3: Polar Orbit at 60 degrees right ascension of ascending node
    
@@ -177,10 +177,10 @@ def testCase_environment():
     
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,15,200]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,30,100]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,60,50]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,90,0]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,30,200]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,30,100]), heading=90, speed=5, climbrate = 0, color = 'k')
+    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,30,50]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
     
     
     targs = [targ1, targ2, targ3, targ4, targ5]
@@ -193,21 +193,21 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 11) * u.minute
+    time_vec = np.linspace(0, 30, 31) * u.minute
 
     # Number of simulations:
-    numSims = 1
-    simData = defaultdict(dict)
-    for i in range(numSims):
-        print(f'Simulation {i + 1} out of {numSims}')
-        # Create a new environment instance for each simulation run:
-        env = create_environment()
-        # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
+    # numSims = 1
+    # simData = defaultdict(dict)
+    # for i in range(numSims):
+    #     print(f'Simulation {i + 1} out of {numSims}')
+    #     # Create a new environment instance for each simulation run:
+    #     env = create_environment()
+    #     # Simulate the satellites through the vector of time:
+    #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
     
-    #env = testCase_environment()
-    #env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = True)
+    env = testCase_environment()
+    env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = False)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)

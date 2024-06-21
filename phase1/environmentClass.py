@@ -369,6 +369,8 @@ class environment:
                             plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_results.png"), dpi=300)
                             return
                         plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_results.png"), dpi=300)
+                    
+                    plt.close()
 
 # Returns the NEES and NIS data for the simulation
     def collectData(self):
