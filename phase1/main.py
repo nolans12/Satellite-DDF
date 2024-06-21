@@ -27,13 +27,16 @@ def create_environment():
 
     # Define the centralized estimator
     central = centralEstimator(targetIDs = targetIDs) 
-    
-    # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 85, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 60, nu = 0, color='c')
-    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='y')
 
-    sats = [sat1, sat2, sat3]
+    # Define the satellites:
+    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 0, nu = 0, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -25, nu = 0, color='c')
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -50, nu = 0, color='y')
+    sat4 = satellite(name = 'Sat4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -30, nu = 0, color='r')
+    sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -60, nu = 0, color='g')
+    sat6 = satellite(name = 'Sat6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -90, nu = 0, color='m')
+
+    sats = [sat1, sat2, sat3, sat4, sat5, sat6]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
@@ -46,7 +49,6 @@ def create_environment():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
-
 # Plot the NEES and NIS results:
 def plot_NEES_NIS(simData):
 
@@ -57,6 +59,8 @@ def plot_NEES_NIS(simData):
     # Now that the simulations are done, we can plot the results for NEES and NIS:
     nees_net = defaultdict(lambda: defaultdict(nested_dict))
     nis_net = defaultdict(lambda: defaultdict(nested_dict))
+    
+    numSims = len(simData)
     # Just loop trough everything and append the data to the dictionaries:
     # Loop through all sims
     # Define a satellite vector we can loop through, want to add
@@ -203,7 +207,13 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 240, 241) * u.minute
+    time_vec = np.linspace(0, 80, 80*2 + 1) * u.minute
+    
+    env = create_environment()
+    env.simulate(time_vec, savePlot = True, saveName = "new", showSim = True)
+        
+    # Plot the NEES and NIS results:
+    # plot_NEES_NIS(simData)
 
     # Number of simulations:
     # numSims = 1
@@ -215,12 +225,5 @@ if __name__ == "__main__":
     #     # Simulate the satellites through the vector of time:
     #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
-    
-    env = testCase_environment()
-    env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = False)
-        
-    # Plot the NEES and NIS results:
-    # plot_NEES_NIS(simData)
-    
     # Save the gif:
     env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)

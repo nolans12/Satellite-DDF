@@ -98,43 +98,35 @@ class environment:
             if any(collectedFlag[targ].values()):
                 self.centralEstimator.EKF(self.sats, targ, self.time.to_value())
 
-            # Now check, need to perform covariance intersection. 
-            # Loop through all satellites, if any satellite has a new measurement, queue it to send to all its neighbors
-            # Once have looped through all satellites, perform CI on all the measurements
-            # for sat in self.sats:
-            #     if collectedFlag[targ][sat]:
-            #         # Loop through all neighbors of the satellite
-            #         for neighbor in self.comms.G.neighbors(sat):
-            #             # Queue the measurement to send to the neighbor
-            #             self.comms.send_measurement(sat, neighbor, sat.measurementHist[targ.targetID][self.time.to_value()], targ.targetID, self.time.to_value())
-                    
             for sat in self.sats:
-                for neighbor in self.comms.G.neighbors(sat):
-                # Check if the most recent estimate time is newer than the neighbor
-                    # Check for if sat has any estimates yet
-                    if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
-                        continue # If sat doesnt have estimates yet, nothing to send
+                if sat.ddfEstimator:
+                    for neighbor in self.comms.G.neighbors(sat):
+                    # Check if the most recent estimate time is newer than the neighbor
+                        # Check for if sat has any estimates yet
+                        if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                            continue # If sat doesnt have estimates yet, nothing to send
 
-                    # Most recent measurement time by satellite
-                    satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
+                        # Most recent measurement time by satellite
+                        satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
 
-                    # Check if the neighbor has any estimates yet
-                    if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
-                        # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
-                        self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
-                        continue
+                        # Check if the neighbor has any estimates yet
+                        # TODO: IMPLCIT REQUIREMENT FOR TIMINGS TO BE KNOWN FOR NEIGHBOR
+                        if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                            # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
+                            self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
+                            continue
 
-                    # Most recent measurement time by neighbor
-                    neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
+                        # Most recent measurement time by neighbor
+                        neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
-                    # If the neighbor has an older estimate, send the most recent estimate
-                    if satTime >= neighborTime:
-                        self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
+                        # If the neighbor has an older estimate, send the most recent estimate
+                        if satTime > neighborTime:
+                            self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
-            # Now, each satellite will perform covariance intersection on the measurements sent to it
-            for sat in self.sats:
-                # For each satellite, perform CI on the measurements it received
-                sat.ddfEstimator.CI(self.comms.G.nodes[sat], targ.targetID)
+                    # Now, each satellite will perform covariance intersection on the measurements sent to it
+                    for sat in self.sats:
+                        # For each satellite, perform CI on the measurements it received
+                        sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -276,15 +268,17 @@ class environment:
                     covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+                    
+                    if sat.ddfEstimator:
                         
-                    ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
-                    ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
-                    ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
-                    ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+                        ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+                        ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+                        ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+                        ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+                        ddf_times = [time for time in time_vec.value if time in ddf_estHist]
+                        ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
                         
                     times = [time for time in time_vec.value if time in estHist]
-                    ddf_times = [time for time in time_vec.value if time in ddf_estHist]
-                    ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
 
                     # ERROR PLOTS
                     for i in range(6):
@@ -292,9 +286,10 @@ class environment:
                         axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                         axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
                         
-                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
-                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
-                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                        if sat.ddfEstimator:
+                            axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                            axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                            axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
                             
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
@@ -302,10 +297,11 @@ class environment:
                         axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
                         axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
                         
-                        axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
-                        axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
-                        axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
-                        
+                        if sat.ddfEstimator:
+                            axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
+                            axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
+                            axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                            
 
                     # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
                     # USE COLOR PINK FOR CENTRAL ESTIMATOR
@@ -332,17 +328,6 @@ class environment:
                                 handles.append(handle)
                                 labels.append(label)
 
-                    # AND SATELLITE COLORS
-                    # for sat in self.sats:
-                    #     if targ.targetID in sat.targetIDs:
-                            # EXTRACT ALL DATA
-                    satColor = sat.color
-                    # Create a Patch object for the satellite
-                    satPatch = Patch(color=satColor, label=sat.name)
-                    # Add the Patch object to the handles and labels
-                    handles.append(satPatch)
-                    labels.append(sat.name)
-
                     # ALSO ADD CENTRAL IF FLAG IS SET
                     if central:
                         # Create a Patch object for the central estimator
@@ -351,10 +336,11 @@ class environment:
                         handles.append(centralPatch)
                         labels.append('Central Estimator')
                         
-                    # CREATE A DDF PATCH
-                    ddfPatch = Patch(color='r', label='DDF Estimator')
-                    handles.append(ddfPatch)
-                    labels.append('DDF Estimator')
+                    if sat.ddfEstimator:
+                        # CREATE A DDF PATCH
+                        ddfPatch = Patch(color='r', label='DDF Estimator')
+                        handles.append(ddfPatch)
+                        labels.append('DDF Estimator')
 
                     # ADD LEGEND
                     fig.legend(handles, labels, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))

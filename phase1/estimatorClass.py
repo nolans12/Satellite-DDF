@@ -378,38 +378,136 @@ class ddfEstimator:
     #   - commNode: communication node object, containing potentially queued information
     #   - targetID: target ID
     #   - envTime: environment time
-    def CI(self, commNode, targetID):
+    def CI(self, sat, commNode, targetID):
+
         # Check if there is any information in the queue:
-        if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data']:
+        if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
             return
+
+
+    ### There is information in the queue
+
+        # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
+        for sentTime in commNode['queued_data'][targetID].keys():
+
+        # First check, do we have any prior estimate and covariance?
+            # Should only ever happen once on first run through
+            # If we dont, use the sent estimate and covariance to initalize
+            if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
+                self.estHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['est'][0]
+                self.covarianceHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['cov'][0]
+
+        # Now, we have a prior estimate and covariance, so we need to perform covariance intersection?
+
+            priorTime = max(self.estHist[targetID].keys())
+            estPrior = self.estHist[targetID][priorTime]
+            covPrior = self.covarianceHist[targetID][priorTime]
+
+        # Check, should we THROW OUT the prior? or do CI with it?
+            # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
+            if sentTime - priorTime > 5: 
+                print(str(sat.name) + " is throwing out prior estimate and covariance from " + str(priorTime) + " for " + str(commNode['queued_data'][targetID][sentTime]['sender']) + "s new update at " + str(sentTime))
+                estPrior = commNode['queued_data'][targetID][sentTime]['est'][0]
+                covPrior = commNode['queued_data'][targetID][sentTime]['cov'][0]
+            # If the time b/w prior and new estimate is less than 5 mins, keep the prior the same, then do CI
+
+        # Now do CI on all new estimates and covariances taken at that time step
+            for i in range(len(commNode['queued_data'][targetID][sentTime]['est'])):
+
+                estSent = commNode['queued_data'][targetID][sentTime]['est'][i]
+                covSent = commNode['queued_data'][targetID][sentTime]['cov'][i]
+
+                # Minimize the covariance determinant
+                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior, covSent), bounds=[(0, 1)]).x
+
+                # Now compute the fused covariance
+                cov1 = covPrior
+                cov2 = covSent
+                covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+                estPrior = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
+
+        # Finally, save the fused estimate and covariance
+            self.estHist[targetID][sentTime] = estPrior
+            self.covarianceHist[targetID][sentTime] = covPrior
+
+        # Clear the queued data
+        commNode['queued_data'][targetID] = {}
+
+
+
+    #         # If the time is not in the estimator history, add it:
+    #         if sentTime not in self.estHist[targetID]:
+    #             self.estHist[targetID][sentTime] = {}
+    #             self.covarianceHist[targetID][sentTime] = {}
+
+    #         # Perform covariance intersection on the new information:
+    #         self.covariance_intersection(sat, commNode, targetID, sentTime)
         
-        # Start with inital conditions
-        maxTime = max(commNode['queued_data'][targetID].keys())
-        covCur = self.covarianceHist[targetID][maxTime] 
-        estCur = self.estHist[targetID][maxTime]
 
-        # If no prior estimate, we can just use the first estimate and covariance
-        if len(estCur) == 0 and len(covCur) == 0:
-            covCur = commNode['queued_data'][targetID][maxTime]['cov'][0]
-            estCur = commNode['queued_data'][targetID][maxTime]['est'][0]
 
-        # If there is CI information through the queue, then fuse the information
-        for i in range(len(commNode['queued_data'][targetID][maxTime]['cov'])):
-            # Extract the estimate and covariance
-            est = commNode['queued_data'][targetID][maxTime]['est'][i]
-            cov = commNode['queued_data'][targetID][maxTime]['cov'][i]
 
-            # Minimize the covariance determinant
-            omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covCur, cov), bounds=[(0, 1)]).x
 
-            # Now compute the fused covariance
-            covFused = np.linalg.inv(omegaOpt * np.linalg.inv(covCur) + (1 - omegaOpt) * np.linalg.inv(cov))
-            estCur = covFused @ (omegaOpt * np.linalg.inv(covCur) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov) @ est)
+    #     ciMaxTime = max(commNode['queued_data'][targetID].keys())
 
-        # Save the fused estimate and covariance
-        self.estHist[targetID][maxTime] = estCur
-        self.covarianceHist[targetID][maxTime] = covCur
-      
+    # #### First check does the target have any prior estimates or covariances?
+    #     if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
+    #     #### If not, just use the send estimate and covariance to initalize filter
+    #         self.estHist[targetID][ciMaxTime] = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
+    #         self.covarianceHist[targetID][ciMaxTime] = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
+
+    #     else:
+    # #### If the sat has a prior estimate and covariance, check, should we THORW OUT PRIOR OR CI PRIOR?
+    #         estMaxTime = max(self.estHist[targetID].keys())
+
+
+    # #### MERGE NEW ESTIMATE WITH OLD ESTIMATE, DOING CI
+
+
+
+
+    #     if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
+    #         covCur = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
+    #         estCur = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
+    #     else:
+    #         estMaxTime = max(self.estHist[targetID].keys())
+    #         covCur = self.covarianceHist[targetID][estMaxTime] 
+    #         estCur = self.estHist[targetID][estMaxTime]
+
+    # #### THROW AWAY OLD ESTIMATE AND COVARIANCE, JUST USE NEW ESTIMATE AND COVARIANCE FROM CI
+
+    #     covCur = self.covarianceHist[targetID][ciMaxTime] 
+    #     estCur = self.estHist[targetID][ciMaxTime]
+
+    #     # If no prior estimate, we can just use the first estimate and covariance
+    #     if len(estCur) == 0 and len(covCur) == 0:
+    #         covCur = commNode['queued_data'][targetID][ciMaxTime]['cov'][0]
+    #         estCur = commNode['queued_data'][targetID][ciMaxTime]['est'][0]
+
+    #     # If there is CI information through the queue, then fuse the information
+    #     for i in range(len(commNode['queued_data'][targetID][ciMaxTime]['cov'])):
+
+    #         # Extract the estimate and covariance
+    #         est = commNode['queued_data'][targetID][ciMaxTime]['est'][i]
+    #         cov = commNode['queued_data'][targetID][ciMaxTime]['cov'][i]
+
+    #         # Minimize the covariance determinant
+    #         omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covCur, cov), bounds=[(0, 1)]).x
+
+    #         # Now compute the fused covariance
+    #         cov1 = covCur
+    #         cov2 = cov
+    #         covCur = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+    #         estCur = covCur @ (omegaOpt * np.linalg.inv(cov1) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov2) @ est)
+
+    #     # estCur = covCur @ (omegaOpt * np.linalg.inv(covCur) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov) @ est)
+
+    #     # Save the fused estimate and covariance
+    #     self.estHist[targetID][ciMaxTime] = estCur
+    #     self.covarianceHist[targetID][ciMaxTime] = covCur
+
+    #     # Clear the queued data
+    #     commNode['queued_data'][targetID] = {}
+
 
     # LOCAL EXTENDED KALMAN FILTER
     # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
@@ -421,16 +519,10 @@ class ddfEstimator:
 
         targetID = target.targetID
 
-    # TODO: initalize estimator from CI
-    # TODO: share the state but maybe not covariance, might get too conservative
-
 # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
-            if sat.name != 'Sat1':
-                test = 1
-                
             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
             # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[5, 0, 0, 0, 0, 0],
@@ -439,6 +531,7 @@ class ddfEstimator:
                                 [0, 0, 0, 20, 0, 0],
                                 [0, 0, 0, 0, 5, 0],
                                 [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
+            
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -474,7 +567,6 @@ class ddfEstimator:
         # This is the covariance estimate of the sensor error
         # just use the bearing error for now?
         R = np.eye(2)*sat.sensor.bearingsError**2
-        # TODO: could start with tuning this
 
 # EXTRACT THE MEASUREMENTS
         z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
@@ -521,7 +613,6 @@ class ddfEstimator:
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
                                
-
     def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
@@ -564,50 +655,6 @@ class ddfEstimator:
         Q = F @ vanLoan[0:6, 6:12]
         
         return Q
-
-
-    def covariance_intersection(self, sat1, sat2, targetID, envTime):
-        # Grab the most recent estimate and covariance on common target for both satellites
-        time_prior = max(sat1.estimator.estHist[targetID].keys())
-        
-        est1 = sat1.estimator.estHist[targetID][time_prior]
-        est2 = sat2.estimator.estHist[targetID][time_prior]
-        cov1 = sat1.estimator.covarianceHist[targetID][time_prior]
-        cov2 = sat2.estimator.covarianceHist[targetID][time_prior]
-        
-        # Minimum Covariance Determinant
-        omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(cov1, cov2), bounds=[(0, 1)]).x
-        
-        # Compute Fused Covariance
-        covFused = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
-        estFused = covFused @ (omegaOpt*np.linalg.inv(cov1) @ est1 + (1-omegaOpt)*np.linalg.inv(cov2) @ est2)
-        
-        # Store fused covariance and estimate as most recent estimate and covariance
-        self.estHist[targetID][envTime] = est1
-        self.covHist[targetID][envTime] = cov1
-        self.CI_estHist[targetID][envTime] = estFused
-        self.CI_covHist[targetID][envTime] = covFused
-        self.CI_omegaOpt[targetID][envTime] = omegaOpt
-        
-        # Update in satellite structure
-        # sat1.estimator.estHist[targetID][envTime] = estFused
-        # sat1.estimator.covarianceHist[targetID][envTime] = covFused
-        # sat2.estimator.estHist[targetID][envTime] = estFused
-        # sat2.estimator.covarianceHist[targetID][envTime] = covFused
-        
-        # Print Out the New State Estimate and Covaraince
-        # np.set_printoptions(precision=4, suppress=True)
-
-        # print('*' * 50)
-        # print(f"Sat1 Estimate:\n{est1}")
-        # print(f"Sat1 Covariance:\n{cov1}\n")
-        # print(f"Sat2 Estimate:\n{est2}")
-        # print(f"Sat2 Covariance:\n{cov2}\n")
-        # print(f"Fused Estimate:\n{estFused}")
-        # print(f"Fused Covariance:\n{covFused}")
-        # print(f"Optimal Weight: {omegaOpt}")
-        # print('*' * 50)
-        
     
     def det_of_fused_covariance(self, omega, cov1, cov2):
         # Calculate the determinant of the fused covariance matrix
