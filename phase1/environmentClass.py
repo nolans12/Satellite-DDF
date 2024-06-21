@@ -211,6 +211,7 @@ class environment:
                 else:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
         
+
 # Plots all of the results to the user.
 # Using bearings only measurement now
     def plotResults(self, time_vec, savePlot, saveName, central = False):
@@ -219,76 +220,73 @@ class environment:
         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]']
 
-    # FOR EACH TARGET MAKE A PLOT
+    # FOR EACH TARGET and EACH SATELLITE MAKE A PLOT
         for targ in self.targs:
-            # Create a figure
-            fig = plt.figure(figsize=(15, 8))
-            # Subtitle with the name of the target
-            fig.suptitle(f"{targ.name} State, Error, and Innovation Plots", fontsize=14)
-
-            # Create a GridSpec object with 3 rows and 6 columns
-            gs = gridspec.GridSpec(3, 6)
-
-            # Collect axes in a list of lists for easy access
-            axes = []
-
-            # Create subplots in the first two rows (6 columns each)
-            for i in range(12):  # 2 rows * 6 columns = 12
-                ax = fig.add_subplot(gs[i // 6, i % 6])
-                axes.append(ax)
-
-            # Create subplots in the third row (3 columns spanning the width)
-            for i in range(2):  # 1 row * 2 columns = 2
-                ax = fig.add_subplot(gs[2, 3*i:3*i+3])
-                axes.append(ax)
-
-            # Set the labels for the subplots
-            for i in range(6):
-                axes[i].set_xlabel("Time [min]")
-                axes[i].set_ylabel(f"{state_labels[i]} measurements")
-
-            # Do the error vs covariance plots on the second row:
-            for i in range(6):
-                axes[6 + i].set_xlabel("Time [min]")
-                axes[6 + i].set_ylabel(f"Error in {state_labels[i]}")
-
-            # Do the innovation vs innovation covariance plots on the third row:
-            for i in range(2):  # Note: only 2 plots in the third row
-                axes[12 + i].set_xlabel("Time [min]")
-                axes[12 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
-
-    # FOR EACH SATELLITE, ADD DATA
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
-                    # EXTRACT ALL DATA
+                    
+                    # Create a figure
+                    fig = plt.figure(figsize=(15, 8))
+                    
+                    # Subtitle with the name of the target
+                    fig.suptitle(f"{targ.name}, {sat.name} Estimation Error and Innovation Plots", fontsize=14)
+
+                    # Create a GridSpec object with 3 rows and 6 columns (3 col x y z, 3 col vx vy vz , 2 col alpha beta)
+                    gs = gridspec.GridSpec(3, 6)
+
+                    # Collect axes in a list of lists for easy access
+                    axes = []
+
+                    # Create subplots in the first two rows (3 2-columns spanning the width)
+                    for i in range(3):  # 2 rows * 6 columns = 3
+                        ax = fig.add_subplot(gs[0, 2*i:2*i + 2])
+                        axes.append(ax)
+                        
+                        ax = fig.add_subplot(gs[1, 2*i:2*i + 2])
+                        axes.append(ax)
+
+                    # Create subplots in the third row (3 columns spanning the width)
+                    for i in range(2):  # 1 row * 2 columns = 2
+                        ax = fig.add_subplot(gs[2, 3*i:3*i+3])
+                        axes.append(ax)
+
+                    # Set the labels for the subplots
+                    # Do the error vs covariance plots on the first row:
+                    for i in range(6):
+                        axes[i].set_xlabel("Time [min]")
+                        axes[i].set_ylabel(f"Error in {state_labels[i]}")
+
+                    # Do the innovation vs innovation covariance plots on the third row:
+                    for i in range(2):  # Note: only 2 plots in the third row
+                        axes[6 + i].set_xlabel("Time [min]")
+                        axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+            # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
                     satColor = sat.color
                     trueHist = targ.hist
                     estHist = sat.indeptEstimator.estHist[targ.targetID]
                     covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
-                    
-                    if sat.ddfEstimator:
                         
-                        ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
-                        ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
-                        ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
-                        ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
-                        ddf_times = [time for time in time_vec.value if time in ddf_estHist]
-                        ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
+                    ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+                    ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+                    ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+                    ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                         
                     times = [time for time in time_vec.value if time in estHist]
+                    ddf_times = [time for time in time_vec.value if time in ddf_estHist]
+                    ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
 
                     # ERROR PLOTS
                     for i in range(6):
-                        axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, linestyle='dashed', label='Error')
-                        axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
-                        axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+                        axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
+                        axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                        axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
                         
-                        if sat.ddfEstimator:
-                            axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
-                            axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
-                            axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
                             
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
@@ -296,41 +294,46 @@ class environment:
                         axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
                         axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
                         
-                        if sat.ddfEstimator:
-                            axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
-                            axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
-                            axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
-                            
+                        axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
+                        axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
+                        axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                        
 
-        # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
-        # USE COLOR PINK FOR CENTRAL ESTIMATOR
-            if central:
-                if targ.targetID in self.centralEstimator.estHist:
-                    trueHist = targ.hist
-                    estHist = self.centralEstimator.estHist[targ.targetID]
-                    covHist = self.centralEstimator.covarianceHist[targ.targetID]
-                    innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-                    innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                    times = [time for time in time_vec.value if time in estHist]
+                    # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
+                    # USE COLOR PINK FOR CENTRAL ESTIMATOR
+                    if central:
+                        if targ.targetID in self.centralEstimator.estHist:
+                            trueHist = targ.hist
+                            estHist = self.centralEstimator.estHist[targ.targetID]
+                            covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                            innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                            innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                            times = [time for time in time_vec.value if time in estHist]
 
-                    # MEASUREMENT PLOTS
-                    for i in range(6):
-                        axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
-                        axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
+                        # ERROR PLOTS
+                        for i in range(6):
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', label='Central')
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')
 
-                    # ERROR PLOTS
-                    for i in range(6):
-                        axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
-                        axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
-                        axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
+                    # COLLECT LEGENDS REMOVING DUPLICATES
+                    handles, labels = [], []
+                    for ax in axes:
+                        for handle, label in zip(*ax.get_legend_handles_labels()):
+                            if label not in labels:  # Avoid duplicates in the legend
+                                handles.append(handle)
+                                labels.append(label)
 
-        # COLLECT LEGENDS REMOVING DUPLICATES
-            handles, labels = [], []
-            for ax in axes:
-                for handle, label in zip(*ax.get_legend_handles_labels()):
-                    if label not in labels:  # Avoid duplicates in the legend
-                        handles.append(handle)
-                        labels.append(label)
+                    # AND SATELLITE COLORS
+                    # for sat in self.sats:
+                    #     if targ.targetID in sat.targetIDs:
+                            # EXTRACT ALL DATA
+                    satColor = sat.color
+                    # Create a Patch object for the satellite
+                    satPatch = Patch(color=satColor, label=sat.name)
+                    # Add the Patch object to the handles and labels
+                    handles.append(satPatch)
+                    labels.append(sat.name)
 
                     # ALSO ADD CENTRAL IF FLAG IS SET
                     if central:
@@ -340,23 +343,173 @@ class environment:
                         handles.append(centralPatch)
                         labels.append('Central Estimator')
                         
-                    if sat.ddfEstimator:
-                        # CREATE A DDF PATCH
-                        ddfPatch = Patch(color='r', label='DDF Estimator')
-                        handles.append(ddfPatch)
-                        labels.append('DDF Estimator')
+                    # CREATE A DDF PATCH
+                    ddfPatch = Patch(color='r', label='DDF Estimator')
+                    handles.append(ddfPatch)
+                    labels.append('DDF Estimator')
 
-        # ADD LEGEND
-            fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
-            plt.tight_layout()
-            if savePlot:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                os.makedirs(plotPath, exist_ok=True)
-                if saveName is None:
-                    plt.savefig(os.path.join(plotPath, f"{targ.name}_results.png"), dpi=300)
-                    return
-                plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_results.png"), dpi=300)
+                    # ADD LEGEND
+                    fig.legend(handles, labels, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
+                    plt.tight_layout()
+                        
+                    # SAVE PLOT
+                    if savePlot:
+                        filePath = os.path.dirname(os.path.realpath(__file__))
+                        plotPath = os.path.join(filePath, 'plotsNew')
+                        os.makedirs(plotPath, exist_ok=True)
+                        if saveName is None:
+                            plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_results.png"), dpi=300)
+                            return
+                        plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_results.png"), dpi=300)
+                    
+                    plt.close()
+                    
+# # Plots all of the results to the user.
+# # Using bearings only measurement now
+#     def plotResults(self, time_vec, savePlot, saveName, central = False):
+#         # Close the sim plot so that sizing of plots is good
+#         plt.close('all')
+#         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+#         meas_labels = ['In Track [deg]', 'Cross Track [deg]']
+
+#     # FOR EACH TARGET MAKE A PLOT
+#         for targ in self.targs:
+#             # Create a figure
+#             fig = plt.figure(figsize=(15, 8))
+#             # Subtitle with the name of the target
+#             fig.suptitle(f"{targ.name} State, Error, and Innovation Plots", fontsize=14)
+
+#             # Create a GridSpec object with 3 rows and 6 columns
+#             gs = gridspec.GridSpec(3, 6)
+
+#             # Collect axes in a list of lists for easy access
+#             axes = []
+
+#             # Create subplots in the first two rows (6 columns each)
+#             for i in range(12):  # 2 rows * 6 columns = 12
+#                 ax = fig.add_subplot(gs[i // 6, i % 6])
+#                 axes.append(ax)
+
+#             # Create subplots in the third row (3 columns spanning the width)
+#             for i in range(2):  # 1 row * 2 columns = 2
+#                 ax = fig.add_subplot(gs[2, 3*i:3*i+3])
+#                 axes.append(ax)
+
+#             # Set the labels for the subplots
+#             for i in range(6):
+#                 axes[i].set_xlabel("Time [min]")
+#                 axes[i].set_ylabel(f"{state_labels[i]} measurements")
+
+#             # Do the error vs covariance plots on the second row:
+#             for i in range(6):
+#                 axes[6 + i].set_xlabel("Time [min]")
+#                 axes[6 + i].set_ylabel(f"Error in {state_labels[i]}")
+
+#             # Do the innovation vs innovation covariance plots on the third row:
+#             for i in range(2):  # Note: only 2 plots in the third row
+#                 axes[12 + i].set_xlabel("Time [min]")
+#                 axes[12 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+#     # FOR EACH SATELLITE, ADD DATA
+#             for sat in self.sats:
+#                 if targ.targetID in sat.targetIDs:
+#                     # EXTRACT ALL DATA
+#                     satColor = sat.color
+#                     trueHist = targ.hist
+#                     estHist = sat.indeptEstimator.estHist[targ.targetID]
+#                     covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+#                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+#                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+                    
+#                     if sat.ddfEstimator:
+                        
+#                         ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+#                         ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+#                         ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+#                         ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+#                         ddf_times = [time for time in time_vec.value if time in ddf_estHist]
+#                         ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
+                        
+#                     times = [time for time in time_vec.value if time in estHist]
+
+#                     # ERROR PLOTS
+#                     for i in range(6):
+#                         axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, linestyle='dashed', label='Error')
+#                         axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted', label='2 Sigma Bounds')
+#                         axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+                        
+#                         if sat.ddfEstimator:
+#                             axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+#                             axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+#                             axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                            
+#                     # INNOVATION PLOTS
+#                     for i in range(2):  # Note: only 3 plots in the third row
+#                         axes[6 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor)#, label='Local Estimate')
+#                         axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
+#                         axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+                        
+#                         if sat.ddfEstimator:
+#                             axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
+#                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
+#                             axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                            
+
+#         # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
+#         # USE COLOR PINK FOR CENTRAL ESTIMATOR
+#             if central:
+#                 if targ.targetID in self.centralEstimator.estHist:
+#                     trueHist = targ.hist
+#                     estHist = self.centralEstimator.estHist[targ.targetID]
+#                     covHist = self.centralEstimator.covarianceHist[targ.targetID]
+#                     innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+#                     innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+#                     times = [time for time in time_vec.value if time in estHist]
+
+#                     # MEASUREMENT PLOTS
+#                     for i in range(6):
+#                         axes[i].scatter(times, [trueHist[time][i] for time in times], color='k', label='Truth', marker='o', s=15)
+#                         axes[i].plot(times, [estHist[time][i] for time in times], color='purple', label='Central Estimate')
+
+#                     # ERROR PLOTS
+#                     for i in range(6):
+#                         axes[6 + i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', linestyle='dashed', label='Error')
+#                         axes[6 + i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted', label='2 Sigma Bounds')
+#                         axes[6 + i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dotted')
+
+#         # COLLECT LEGENDS REMOVING DUPLICATES
+#             handles, labels = [], []
+#             for ax in axes:
+#                 for handle, label in zip(*ax.get_legend_handles_labels()):
+#                     if label not in labels:  # Avoid duplicates in the legend
+#                         handles.append(handle)
+#                         labels.append(label)
+
+#                     # ALSO ADD CENTRAL IF FLAG IS SET
+#                     if central:
+#                         # Create a Patch object for the central estimator
+#                         centralPatch = Patch(color='purple', label='Central Estimator')
+#                         # Add the Patch object to the handles and labels
+#                         handles.append(centralPatch)
+#                         labels.append('Central Estimator')
+                        
+#                     if sat.ddfEstimator:
+#                         # CREATE A DDF PATCH
+#                         ddfPatch = Patch(color='r', label='DDF Estimator')
+#                         handles.append(ddfPatch)
+#                         labels.append('DDF Estimator')
+
+#         # ADD LEGEND
+#             fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
+#             plt.tight_layout()
+#             if savePlot:
+#                 filePath = os.path.dirname(os.path.realpath(__file__))
+#                 plotPath = os.path.join(filePath, 'plots')
+#                 os.makedirs(plotPath, exist_ok=True)
+#                 if saveName is None:
+#                     plt.savefig(os.path.join(plotPath, f"{targ.name}_results.png"), dpi=300)
+#                     return
+#                 plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_results.png"), dpi=300)
 
 # Returns the NEES and NIS data for the simulation
     def collectData(self):

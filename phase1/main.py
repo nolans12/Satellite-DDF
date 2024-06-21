@@ -211,7 +211,7 @@ if __name__ == "__main__":
     #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
     # Save the gif:
-    # env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+    env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
 
 # ### CLUSTER SIM BELOW:
 
