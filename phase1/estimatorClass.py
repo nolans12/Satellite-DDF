@@ -380,7 +380,7 @@ class ddfEstimator:
     #   - envTime: environment time
     def CI(self, commNode, targetID):
         # Check if there is any information in the queue:
-        if len(commNode['queued_data']) == 0:
+        if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data']:
             return
         
         # Start with inital conditions
