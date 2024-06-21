@@ -30,14 +30,14 @@ def create_environment():
     
     # Define the satellites:
     sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 85, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 60, nu = 0, color='r')
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 60, nu = 0, color='c')
     sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 30, nu = 0, color='y')
 
     sats = [sat1, sat2, sat3]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([60,-45,200]), heading=90, speed=10, climbrate = 1, color = 'r')
+    
     targs = [targ1]
 
     # Define the communication network:
@@ -193,21 +193,21 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 61) * u.minute
+    time_vec = np.linspace(0, 10, 11) * u.minute
 
     # Number of simulations:
-    # numSims = 1
-    # simData = defaultdict(dict)
-    # for i in range(numSims):
-    #     print(f'Simulation {i + 1} out of {numSims}')
-    #     # Create a new environment instance for each simulation run:
-    #     env = create_environment()
-    #     # Simulate the satellites through the vector of time:
-    #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = True)
+    numSims = 1
+    simData = defaultdict(dict)
+    for i in range(numSims):
+        print(f'Simulation {i + 1} out of {numSims}')
+        # Create a new environment instance for each simulation run:
+        env = create_environment()
+        # Simulate the satellites through the vector of time:
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
     
-    env = testCase_environment()
-    env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = True)
+    #env = testCase_environment()
+    #env.simulate(time_vec, savePlot = True, saveName = str(1), showSim = True)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
