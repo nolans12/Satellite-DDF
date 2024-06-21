@@ -403,8 +403,8 @@ class ddfEstimator:
             omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covCur, cov), bounds=[(0, 1)]).x
 
             # Now compute the fused covariance
-            covCur = np.linalg.inv(omegaOpt * np.linalg.inv(covCur) + (1 - omegaOpt) * np.linalg.inv(cov))
-            estCur = covCur @ (omegaOpt * np.linalg.inv(covCur) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov) @ est)
+            covFused = np.linalg.inv(omegaOpt * np.linalg.inv(covCur) + (1 - omegaOpt) * np.linalg.inv(cov))
+            estCur = covFused @ (omegaOpt * np.linalg.inv(covCur) @ estCur + (1 - omegaOpt) * np.linalg.inv(cov) @ est)
 
         # Save the fused estimate and covariance
         self.estHist[targetID][maxTime] = estCur

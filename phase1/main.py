@@ -14,7 +14,7 @@ from commClass import comms
 #####################
 def create_environment():
     # Define a sensor model:
-    sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
+    sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.5, 0.05]))
    
     # Define targets for the satellites to track:
     targetIDs = [1]
@@ -134,7 +134,7 @@ def testCase_environment():
     
     
     # Define 5 sensor models with constant FOV and different bearings error matrixes:
-    bearings_Error_matrix = np.array([ [0.1,0.1], [0.15, 0.15], [0.2, 0.2], [0.5, 0.5], [1, 1] ])
+    bearings_Error_matrix = np.array([ [0.1, 0.1], [0.15, 0.15], [0.2, 0.2], [0.25, 0.25], [0.3, 0.3] ])
     
     sensorA = sensor(name = 'Sensor A', fov = 115, bearingsError = bearings_Error_matrix[0])
     sensorB = sensor(name = 'Sensor B', fov = 115, bearingsError = bearings_Error_matrix[1])
@@ -157,30 +157,40 @@ def testCase_environment():
     # Define the satellites:
     # Constellation 1: Polar Orbit at 0 degrees right ascension of ascending node
     sat1 = satellite(name = 'Sat1', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 5, color='b')
-    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 10, color='b')
-    sat4 = satellite(name = 'Sat4', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 15, color='b')
-    sat5 = satellite(name = 'Sat5', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 20, color='b')
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 15, color='b')
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 30, color='b')
+    sat4 = satellite(name = 'Sat4', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 45, color='b')
+    sat5 = satellite(name = 'Sat5', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = 60, color='b')
     
     # Constellation 2: Polar Orbit at 30 degrees right ascension of ascending node
     sat6 = satellite(name = 'Sat6', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 0, color='y')
-    sat7 = satellite(name = 'Sat7', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 5, color='y')
-    sat8 = satellite(name = 'Sat8', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 10, color='y')
-    sat9 = satellite(name = 'Sat9', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 15, color='y')
-    sat10 = satellite(name = 'Sat10', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 20, color='y')
+    sat7 = satellite(name = 'Sat7', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 15, color='y')
+    sat8 = satellite(name = 'Sat8', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 30, color='y')
+    sat9 = satellite(name = 'Sat9', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 45, color='y')
+    sat10 = satellite(name = 'Sat10', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 30, argp = 0, nu = 60, color='y')
     
     # Constellation 3: Polar Orbit at 60 degrees right ascension of ascending node
+    # sat11 = satellite(name = 'Sat11', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = 0, color='r')
+    # sat12 = satellite(name = 'Sat12', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = 5, color='r')
+    # sat13 = satellite(name = 'Sat13', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = 10, color='r')
+    # sat14 = satellite(name = 'Sat14', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = 15, color='r')
+    # sat15 = satellite(name = 'Sat15', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 60, argp = 0, nu = 20, color='r')
    
-    # Constellation 4: Polar Orbit at 90 degrees right ascension of ascending node
+    # # Constellation 4: Polar Orbit at 90 degrees right ascension of ascending node
+    # sat16 = satellite(name = 'Sat16', sensor = deepcopy(sensorA), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 0, color='g')
+    # sat17 = satellite(name = 'Sat17', sensor = deepcopy(sensorB), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 5, color='g')
+    # sat18 = satellite(name = 'Sat18', sensor = deepcopy(sensorC), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 10, color='g')
+    # sat19 = satellite(name = 'Sat19', sensor = deepcopy(sensorD), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 15, color='g')
+    # sat20 = satellite(name = 'Sat20', sensor = deepcopy(sensorE), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = 90, argp = 0, nu = 20, color='g')
     
-    sats = [sat1, sat2, sat3, sat4, sat5, sat6, sat7, sat8, sat9, sat10]
+    sats = [sat1, sat2, sat3, sat4, sat5, sat6, sat7, sat8, sat9, sat10]#, sat11, sat12, sat13, sat14, sat15, sat16, sat17, sat18, sat19, sat20]
     
     # Define the target objects:
-    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,30,200]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,30,100]), heading=90, speed=5, climbrate = 0, color = 'k')
-    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,30,50]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, cords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = '#DC143C')
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([45,30,200]), heading=0, speed=5, climbrate = 0, color = '#FF8C00')
+    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,0,100]), heading=90, speed=5, climbrate = 0, color = '#FFD700')
+    targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,-150,50]), heading=0, speed=5, climbrate = 0, color = '#228B22')
+    targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,0,0]), heading=0, speed=5, climbrate = 0, color = '#4B0082')
     
     
     targs = [targ1, targ2, targ3, targ4, targ5]
@@ -193,7 +203,7 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 30, 31) * u.minute
+    time_vec = np.linspace(0, 240, 241) * u.minute
 
     # Number of simulations:
     # numSims = 1
