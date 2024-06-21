@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, ddfEstimator, name, color):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None):
     
     # Sensor to use
         self.sensor = sensor
@@ -15,7 +15,10 @@ class satellite:
         self.indeptEstimator = indeptEstimator
     
     # DDF estimator to test
-        self.ddfEstimator = ddfEstimator
+        if ddfEstimator:
+            self.ddfEstimator = ddfEstimator
+        else:
+            self.ddfEstimator = None
 
     # Other parameters
         self.name = name
@@ -69,4 +72,5 @@ class satellite:
     def update_local_filters(self, measurement, target, time):
         # Update the local filters
         self.indeptEstimator.EKF(self, measurement, target, time)
-        self.ddfEstimator.local_EKF(self, measurement, target, time)
+        if self.ddfEstimator:
+            self.ddfEstimator.local_EKF(self, measurement, target, time)

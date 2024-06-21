@@ -7,7 +7,7 @@ class comms:
     # Create a graph instance with the satellites as nodes
         self.G = nx.Graph()
         
-        # Add nodes with a list for queued data (list of arrays)
+        # Add nodes with a dict for queued data (list of arrays)
         for sat in sats:
             self.G.add_node(sat, queued_data={})
 
@@ -37,11 +37,12 @@ class comms:
         
         # Initialize the time key in the targetID's queued data if not present
         if time not in self.G.nodes[receiver]['queued_data'][targetID]:
-            self.G.nodes[receiver]['queued_data'][targetID][time] = {'est': [], 'cov': []}
+            self.G.nodes[receiver]['queued_data'][targetID][time] = {'est': [], 'cov': [], 'sender': []}
 
         # Add the measurement to the receiver's queued data at the specified targetID and time
         self.G.nodes[receiver]['queued_data'][targetID][time]['est'].append(est_meas)
         self.G.nodes[receiver]['queued_data'][targetID][time]['cov'].append(cov_meas)
+        self.G.nodes[receiver]['queued_data'][targetID][time]['sender'].append(sender.name)
 
         # Also activate the edge between the two satellites
         self.G.edges[sender, receiver]['active'] = True
