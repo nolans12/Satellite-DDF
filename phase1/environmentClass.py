@@ -212,6 +212,7 @@ class environment:
                 else:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
         
+
 # Plots all of the results to the user.
 # Using bearings only measurement now
     def plotResults(self, time_vec, savePlot, saveName, central = False):
@@ -268,17 +269,15 @@ class environment:
                     covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
-                    
-                    if sat.ddfEstimator:
                         
-                        ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
-                        ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
-                        ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
-                        ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
-                        ddf_times = [time for time in time_vec.value if time in ddf_estHist]
-                        ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
+                    ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+                    ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+                    ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+                    ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                         
                     times = [time for time in time_vec.value if time in estHist]
+                    ddf_times = [time for time in time_vec.value if time in ddf_estHist]
+                    ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
 
                     # ERROR PLOTS
                     for i in range(6):
@@ -286,10 +285,9 @@ class environment:
                         axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                         axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
                         
-                        if sat.ddfEstimator:
-                            axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
-                            axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
-                            axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
                             
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
@@ -297,11 +295,10 @@ class environment:
                         axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
                         axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
                         
-                        if sat.ddfEstimator:
-                            axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
-                            axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
-                            axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
-                            
+                        axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
+                        axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
+                        axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                        
 
                     # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
                     # USE COLOR PINK FOR CENTRAL ESTIMATOR
@@ -328,6 +325,17 @@ class environment:
                                 handles.append(handle)
                                 labels.append(label)
 
+                    # AND SATELLITE COLORS
+                    # for sat in self.sats:
+                    #     if targ.targetID in sat.targetIDs:
+                            # EXTRACT ALL DATA
+                    satColor = sat.color
+                    # Create a Patch object for the satellite
+                    satPatch = Patch(color=satColor, label=sat.name)
+                    # Add the Patch object to the handles and labels
+                    handles.append(satPatch)
+                    labels.append(sat.name)
+
                     # ALSO ADD CENTRAL IF FLAG IS SET
                     if central:
                         # Create a Patch object for the central estimator
@@ -336,27 +344,22 @@ class environment:
                         handles.append(centralPatch)
                         labels.append('Central Estimator')
                         
-                    if sat.ddfEstimator:
-                        # CREATE A DDF PATCH
-                        ddfPatch = Patch(color='r', label='DDF Estimator')
-                        handles.append(ddfPatch)
-                        labels.append('DDF Estimator')
+                    # CREATE A DDF PATCH
+                    ddfPatch = Patch(color='r', label='DDF Estimator')
+                    handles.append(ddfPatch)
+                    labels.append('DDF Estimator')
 
-                    # ADD LEGEND
-                    fig.legend(handles, labels, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
-                    plt.tight_layout()
-                        
-                    # SAVE PLOT
-                    if savePlot:
-                        filePath = os.path.dirname(os.path.realpath(__file__))
-                        plotPath = os.path.join(filePath, 'plotsNew')
-                        os.makedirs(plotPath, exist_ok=True)
-                        if saveName is None:
-                            plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_results.png"), dpi=300)
-                            return
-                        plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_results.png"), dpi=300)
-                    
-                    plt.close()
+        # ADD LEGEND
+            fig.legend(handles, labels, loc='lower center', ncol=10, bbox_to_anchor=(0.5, 0.01))
+            plt.tight_layout()
+            if savePlot:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                if saveName is None:
+                    plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_results.png"), dpi=300)
+                    return
+                plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_results.png"), dpi=300)
 
 # Returns the NEES and NIS data for the simulation
     def collectData(self):
