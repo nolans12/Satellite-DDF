@@ -6,6 +6,7 @@ from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
 from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
+from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
 from sensorClass import sensor
 from commClass import comms
 
@@ -14,13 +15,20 @@ from commClass import comms
 #####################
 def create_environment():
     # Define a sensor model:
-    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.25, 0.005]))
+    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.05, 0.05]))
     #sens1 = sensor(name = 'Sensor 1', fov = 20, bearingsError = np.array([0.15, 0.05]))
     #sens2 = sensor(name = 'Sensor 2', fov = 20, bearingsError = np.array([0.15, 0.05]))
    
     # Define targets for the satellites to track:
     targetIDs = [1]#,2]
 
+    # Define local estimators:
+    local = indeptEstimator(targetIDs = targetIDs)
+
+    # Define the Data Fusion Algorithm, use the covariance intersection estimator:
+    ddf = ddfEstimator(targetIDs = targetIDs)
+
+    # Define the centralized estimator
     # Define local estimators:
     local = indeptEstimator(targetIDs = targetIDs)
 
@@ -210,10 +218,10 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(50, 80, 61) * u.minute
+    time_vec = np.linspace(50, 60, 11) * u.minute
     
     env = create_environment()
-    env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = False)
+    env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = True)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)

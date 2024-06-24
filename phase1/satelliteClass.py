@@ -73,4 +73,4 @@ class satellite:
         # Update the local filters
         self.indeptEstimator.EKF(self, measurement, target, time)
         if self.ddfEstimator:
-            self.ddfEstimator.local_EKF(self, measurement, target, time)
+            self.ddfEstimator.EKF(self, measurement, target, time)

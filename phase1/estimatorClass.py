@@ -1,13 +1,13 @@
-from import_libraries import *
-## Creates the estimator class
 
-class centralEstimator:
-    def __init__(self, targetIDs): # Takes in both the satellite objects and the targetID
-    
-    # Define the targets to track
+
+from import_libraries import *
+
+class BaseEstimator:
+    def __init__(self, targetIDs):
+        # Define the targets to track
         self.targs = targetIDs
 
-    # Define history vectors for each extended kalman filter
+        # Define history vectors for each extended kalman filter
         self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
         self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
 
@@ -17,52 +17,38 @@ class centralEstimator:
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
-    # Input: All satellites and a single target
-    # Output: A dictionary containing the satelite object and the measurement associated with that satellite
-    def collectAllMeasurements(self, sats, targetID, envTime):
-        satMeasurements = defaultdict(dict)
-        for sat in sats: # check if a satellite viewed a target at this time
-            if (hasattr(sat, 'measurementHist') and 
-                targetID in sat.measurementHist and envTime in sat.measurementHist[targetID]):                
-                    
-                    # Add the satellite and the measurement to the dictionary
-                    satMeasurements[sat] = sat.measurementHist[targetID][envTime]
-            
-        return satMeasurements
-
-# CENTRALIZED EXTENDED KALMAN FILTER
-    # Inputs: All satellite objects, targetID to estimate, and the environment time
+    # LOCAL EXTENDED KALMAN FILTER
+    # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
-    def EKF(self, sats, target, envTime):
-    
-    # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-    # Measurment: [in_track, cross_track] bearings measurement
+    def local_EKF(self, sat, measurement, target, envTime):
+         
+        # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
+        # Measurment: Z = [in_track, cross_track] bearings measurement
 
-        # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
-        satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
-        
-# GET THE PRIOR DATA
+
+        # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-    # If no prior estimates, use the first measurement and assume no velocity
+        # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
-            est_prior = np.array([target.pos[0], 10, target.pos[1], 10, target.pos[2], 10]) + np.random.normal(0, 2, 6) 
-            # start with some covariance, about +- 5 km and +- 20 km/min, then plus some noise 
+            est_prior = np.array([target.pos[0], 25, target.pos[1], 25, target.pos[2], 25])# + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
+                                [0, 0, 0, 0, 0, 100]])# + np.random.normal(0, 1, (6,6))*np.eye(6)
+            
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
-
+        
         else:
-    # Else, get prior estimate, need to get the last time, which will be the max
+        # Else, get prior estimate, need to get the last time, which will be the max
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
@@ -70,92 +56,57 @@ class centralEstimator:
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
 
-# CALCULATE MATRICES:
-    # Define the state transition matrix, F.
-    # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
+        # CALCULATE MATRICES:
+        # Define the state transition matrix, F. 
         # How does our state: [x, vx, y, vy, z, vz] change over time?
+        # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+        #               [0, 1, 0, 0, 0, 0],
+        #               [0, 0, 1, dt, 0, 0],
+        #               [0, 0, 0, 1, 0, 0],
+        #               [0, 0, 0, 0, 1, dt],
+        #               [0, 0, 0, 0, 0, 1]])
         
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
-
-    # Define the process noise matrix, Q.
-    # Is a 6x6 matrix representing the covariance of the process noise
+        # Define the process noise matrix, Q.
         # Estimate the randomness of the acceleration
+        # Use Van Loan's method to tune Q
         Q = self.calculate_Q(dt)
 
-    # Define the sensor nonise matrix, R.
-    # Needs to be stacked for each satellite
-        for i, sat in enumerate(satMeasurements):
-            R_curr = np.eye(2) * sat.sensor.bearingsError**2
-            if i == 0:
-                R_stack = R_curr
-            else:
-                R_stack = block_diag(R_stack, R_curr)
+        # Define the sensor noise matrix, R.
+        # This is the covariance estimate of the sensor error
+        # just use the bearing error for now?
+        R = np.eye(2)*sat.sensor.bearingsError**2
 
-# EXTRACT THE MEASUREMENTS
-        z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
+        # EXTRACT THE MEASUREMENTS
+        z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
 
-# PREDICTION:
-    # Predict the state and covariance
-        est_pred = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
+        # PREDICTION:
+        # Predict the state and covariance
+        #est_pred = np.dot(F, est_prior) # ECI coordinates
+        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
+        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
         
-        #est_pred2 = np.dot(F, est_prior)
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-        
-        
-        # print(f"At time: {envTime:.2f}")
 
-        # predicted_state = est_pred  # Alias for clarity
-        # actual_state = [
-        #     target.pos[0], target.vel[0],
-        #     target.pos[1], target.vel[1],
-        #     target.pos[2], target.vel[2]
-        # ]
+        # Use the predicted state to calculate H
+        # Define the obversation matrix, H.
+        # How does our state relate to our measurement?
+        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
 
-        # # Format each element of the predicted state and actual state to 2 decimal places
-        # formatted_predicted_state = [f"{value:.2f}" for value in predicted_state]
-        # formatted_actual_state = [f"{value:.2f}" for value in actual_state]
+        # UPDATE:
+        # Calculate innovation terms:
+        # y = z - h(x)
+        innovation = z - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
+        # then use big H
+        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
 
-        # print(f"Predicted state: {formatted_predicted_state}")
-        
-# Use the predicted state to calculate H
-    # Need this to be stacked for each satellite
-    # Each H will be a 2x6 matrix
-        H = np.zeros((2*len(satMeasurements), 6))
-        for i, sat in enumerate(satMeasurements):
-            H[2*i:2*i+2][0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-
-# UPDATE:
-    # Calculate innovation terms:
-        # We need to calculate the innovation for each satellite
-        for i, sat in enumerate(satMeasurements):
-            innovation_curr = satMeasurements[sat] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
-            if i == 0:
-                innovation = innovation_curr
-            else:
-                innovation = np.append(innovation, innovation_curr)
-
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R_stack
-
-    # Solve for the Kalman gain
+        # Solve for the Kalman gain
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
 
-    # Correct prediction
+        # Correct prediction
         est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
-        
-        # formatted_corrected_state = [f"{value:.2f}" for value in est]
-        # print(f"Corrected state: {formatted_corrected_state}")
-        # print(f"Actual state: {formatted_actual_state}")
 
-        #print(*["-"*10]*6, sep="\n")
-
-    # CALCUATE NEES AND NIS
+        # CALCUATE NEES AND NIS
         # For nees, we need to get the error compared to the truth data:
         # Get the true position
         true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
@@ -165,16 +116,16 @@ class centralEstimator:
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
 
-# SAVE THE DATA
+        # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-
-
-    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
+    
+    # VAN LOANS METHOD FOR Q
+    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -260,54 +211,46 @@ class centralEstimator:
         jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
         
         return jacobian
-    
-class indeptEstimator:
-    def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
 
-    # Define the targets to track
-        self.targs = targetIDs
+class centralEstimator(BaseEstimator):
+    def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+        # Add any additional initialization specific to centralEstimator here
 
-    # Define history vectors for each extended kalman filter
-        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
-        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
-
-        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-
-        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-
-# LOCAL EXTENDED KALMAN FILTER
-    # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
+    # CENTRALIZED EXTENDED KALMAN FILTER
+    # Inputs: All satellite objects, targetID to estimate, and the environment time
     # Output: New estimate in ECI
-    def EKF(self, sat, measurement, target, envTime):
-         
-# Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-    # Measurment: Z = [in_track, cross_track] bearings measurement
+    def EKF(self, sats, target, envTime):
+    
+        # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
+        # Measurment: [in_track, cross_track] bearings measurement
 
+        # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
-
-# GET THE PRIOR DATA
+        satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
+        
+        # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-    # If no prior estimates, use the first measurement and assume no velocity
-            # start with true position plus some noise
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
-            # start with some covariance, about +- 5 km and +- 100 km/min, then plus some noise 
+        # If no prior estimates, use the first measurement and assume no velocity
+        
+            est_prior = np.array([target.pos[0], 25, target.pos[1], 25, target.pos[2], 25])# + np.random.normal(0, 2, 6) 
+            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
-        # Store these and return for first iteration
+                                [0, 0, 0, 0, 0, 100]])# + np.random.normal(0, 1, (6,6))*np.eye(6)
+            
+            # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
-        
+
         else:
-    # Else, get prior estimate, need to get the last time, which will be the max
+        # Else, get prior estimate, need to get the last time, which will be the max
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
@@ -315,58 +258,76 @@ class indeptEstimator:
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
 
-# CALCULATE MATRICES:
-    # Define the state transition matrix, F. 
+        # CALCULATE MATRICES:
+        # Define the state transition matrix, F.
+        # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
         # How does our state: [x, vx, y, vy, z, vz] change over time?
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
         
-    # Define the process noise matrix, Q.
+        # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+        #               [0, 1, 0, 0, 0, 0],
+        #               [0, 0, 1, dt, 0, 0],
+        #               [0, 0, 0, 1, 0, 0],
+        #               [0, 0, 0, 0, 1, dt],
+        #               [0, 0, 0, 0, 0, 1]])
+
+        # Define the process noise matrix, Q.
+        # Is a 6x6 matrix representing the covariance of the process noise
         # Estimate the randomness of the acceleration
-        # Use Van Loan's method to tune Q
         Q = self.calculate_Q(dt)
 
-    # Define the sensor noise matrix, R.
-        # This is the covariance estimate of the sensor error
-        # just use the bearing error for now?
-        R = np.eye(2)*sat.sensor.bearingsError**2
-        # TODO: could start with tuning this
+        # Define the sensor nonise matrix, R.
+        # Needs to be stacked for each satellite
+        for i, sat in enumerate(satMeasurements):
+            R_curr = np.eye(2) * sat.sensor.bearingsError**2
+            if i == 0:
+                R_stack = R_curr
+            else:
+                R_stack = block_diag(R_stack, R_curr)
 
-# EXTRACT THE MEASUREMENTS
-        z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
+        # EXTRACT THE MEASUREMENTS
+        z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
 
-# PREDICTION:
-    # Predict the state and covariance
-        #est_pred = np.dot(F, est_prior) # ECI coordinates
-        est_pred = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
+        # PREDICTION:
+            # Predict the state and covariance
+        #est_pred = np.dot(F, est_prior)
+        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
+        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
         
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
-# Use the predicted state to calculate H
-    # Define the obversation matrix, H.
-        # How does our state relate to our measurement?
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
+        # Use the predicted state to calculate H
+        # Need this to be stacked for each satellite
+        # Each H will be a 2x6 matrix
+        H = np.zeros((2*len(satMeasurements), 6))
+        for i, sat in enumerate(satMeasurements):
+            H[2*i:2*i+2][0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
 
-# UPDATE:
-    # Calculate innovation terms:
-        # y = z - h(x)
-        innovation = z - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
-        # then use big H
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+        # UPDATE:
+        # Calculate innovation terms:
+        # We need to calculate the innovation for each satellite
+        for i, sat in enumerate(satMeasurements):
+            innovation_curr = satMeasurements[sat] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
+            if i == 0:
+                innovation = innovation_curr
+            else:
+                innovation = np.append(innovation, innovation_curr)
 
-    # Solve for the Kalman gain
+        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R_stack
+
+        # Solve for the Kalman gain
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
 
-    # Correct prediction
+        # Correct prediction
         est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
+        
+        # formatted_corrected_state = [f"{value:.2f}" for value in est]
+        # print(f"Corrected state: {formatted_corrected_state}")
+        # print(f"Actual state: {formatted_actual_state}")
 
-    # CALCUATE NEES AND NIS
+        #print(*["-"*10]*6, sep="\n")
+
+        # CALCUATE NEES AND NIS
         # For nees, we need to get the error compared to the truth data:
         # Get the true position
         true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
@@ -376,117 +337,42 @@ class indeptEstimator:
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
 
-# SAVE THE DATA
+        # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
         self.innovationHist[targetID][envTime] = innovation
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-                               
 
-    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
-        # Use Van Loan's method to tune Q using the matrix exponential
-        
-        # Define the state transition matrix, A.
-        A = np.array([[0, 1, 0, 0, 0, 0], 
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 1],
-                      [0, 0, 0, 0, 0, 0]])
-        
-        # Assume there could be noise impacting the cartesian acceleration
-        Gamma = np.array([[0, 0, 0],
-                          [1, 0, 0],
-                          [0, 0, 0],
-                          [0, 1, 0],
-                          [0, 0, 0],
-                          [0, 0, 1]])
-        
-        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        
-        rangeNoise, elevationNoise, azimuthNoise = intensity
-        x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
-        y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
-        z = rangeNoise * np.sin(elevationNoise)
-        
-        W = np.array([[x, 0, 0],
-                      [0, y, 0],
-                      [0, 0, z]])
-    
-        # Form Block Matrix Z
-        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
-        
-        # Compute Matrix Exponential
-        vanLoan = expm(Z)
-
-        # Extract Q = F.T * VanLoan[0:6, 6:12]
-        F = vanLoan[6:12, 0:6].T
-
-        Q = F @ vanLoan[0:6, 6:12]
-        
-        return Q
-    
-    def state_transition(self, estPrior, dt):
-            # Takes in previous ECI State and returns the next state after dt
-            x = estPrior[0]
-            vx = estPrior[1]
-            y = estPrior[2]
-            vy = estPrior[3]
-            z = estPrior[4]
-            vz = estPrior[5]
+    # Input: All satellites and a single target
+    # Output: A dictionary containing the satelite object and the measurement associated with that satellite
+    def collectAllMeasurements(self, sats, targetID, envTime):
+        satMeasurements = defaultdict(dict)
+        for sat in sats: # check if a satellite viewed a target at this time
+            if (hasattr(sat, 'measurementHist') and 
+                targetID in sat.measurementHist and envTime in sat.measurementHist[targetID]):                
+                    
+                    # Add the satellite and the measurement to the dictionary
+                    satMeasurements[sat] = sat.measurementHist[targetID][envTime]
             
-            # Turn into Spherical Coordinates
-            range_ = jnp.sqrt(x**2 + y**2 + z**2)
-            elevation = jnp.arcsin(z / range_)
-            azimuth = jnp.arctan2(y, x)
-            
-            rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+        return satMeasurements
 
-            # Calculate elevation rate
-            elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
-
-            # Calculate azimuth rate
-            azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
-
-            # Print intermediate values (comment out if not needed in production)
-            # jax.debug.print(
-            #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-            #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-            
-            # Propagate the State
-            range_ = range_ + rangeRate * dt
-            elevation = elevation + elevationRate * dt
-            azimuth = azimuth + azimuthRate * dt
-            
-            # Convert back to Cartesian
-            x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
-            y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
-            z = range_ * jnp.sin(elevation)
-            
-            return jnp.array([x, vx, y, vy, z, vz])
-        
-    def state_transition_jacobian(self, estPrior, dt):
-        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
-        
-        return jacobian
-class ddfEstimator:
+class indeptEstimator(BaseEstimator):
     def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+        # Add any additional initialization specific to indeptEstimator here
 
-    # Define the targets to track
-        self.targs = targetIDs
+    def EKF(self, sat, measurement, target, envTime):
+        return self.local_EKF(sat, measurement, target, envTime)
 
-    # Define history vectors for each extended kalman filter
-        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Will be in ECI coordinates. the kalman estimate
-        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs} 
+class ddfEstimator(BaseEstimator):
+    def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+        # Add any additional initialization specific to ddfEstimator here
 
-        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-
-        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
-
+    def EKF(self, sat, measurement, target, envTime):
+        return self.local_EKF(sat, measurement, target, envTime)
 
     # Perform covariance intersection with all estimates and covariances sent from satellites
     # Inputs:
@@ -501,7 +387,7 @@ class ddfEstimator:
             return
 
 
-    ### There is information in the queue
+        ### There is information in the queue
 
         # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
         for sentTime in commNode['queued_data'][targetID].keys():
@@ -522,18 +408,15 @@ class ddfEstimator:
             # Propegate the estPrior to the new time?
             dt = sentTime - priorTime
             # How does our state: [x, vx, y, vy, z, vz] change over time?
-            # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-            #             [0, 1, 0, 0, 0, 0],
-            #             [0, 0, 1, dt, 0, 0],
-            #             [0, 0, 0, 1, 0, 0],
-            #             [0, 0, 0, 0, 1, dt],
-            #             [0, 0, 0, 0, 0, 1]])
+            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+                        [0, 1, 0, 0, 0, 0],
+                        [0, 0, 1, dt, 0, 0],
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 0, 0, 1, dt],
+                        [0, 0, 0, 0, 0, 1]])
             
-            
-            #estPrior_prop = np.dot(F, estPrior)
-            estPrior_prop = self.state_transition(estPrior, dt)
-            
-            #print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
+            estPrior_prop = np.dot(F, estPrior)
+            # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
 
         # Check, should we THROW OUT the prior? or do CI with it?
             # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
@@ -558,9 +441,6 @@ class ddfEstimator:
                 covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
                 estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
-                # Print information that was just fused
-                #print(str(sat.name) + " fused new estimate and covariance from " + str(commNode['queued_data'][targetID][sentTime]['sender']) + " at " + str(sentTime) + " with omega = " + str(omegaOpt))
-                
         # Finally, save the fused estimate and covariance
             self.estHist[targetID][sentTime] = estPrior_prop
             self.covarianceHist[targetID][sentTime] = covPrior
@@ -568,157 +448,6 @@ class ddfEstimator:
         # Clear the queued data
         commNode['queued_data'][targetID] = {}
 
-
-    # LOCAL EXTENDED KALMAN FILTER
-    # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
-    # Output: New estimate in ECI
-    def local_EKF(self, sat, measurement, target, envTime):
-         
-# Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-    # Measurment: Z = [in_track, cross_track] bearings measurement
-
-        targetID = target.targetID
-
-# GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-    # If no prior estimates, use the first measurement and assume no velocity
-            # start with true position plus some noise
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
-            # start with some covariance, about +- 5 km and +- 100 km/min, then plus some noise 
-            P_prior = np.array([[50, 0, 0, 0, 0, 0],
-                                [0, 100, 0, 0, 0, 0],
-                                [0, 0, 50, 0, 0, 0],
-                                [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
-            
-        # Store these and return for first iteration
-            self.estHist[targetID][envTime] = est_prior
-            self.covarianceHist[targetID][envTime] = P_prior
-            self.innovationHist[targetID][envTime] = np.zeros(3)
-            self.innovationCovHist[targetID][envTime] = np.eye(3)
-            return est_prior
-        
-        else:
-    # Else, get prior estimate, need to get the last time, which will be the max
-            time_prior = max(self.estHist[targetID].keys())
-            est_prior = self.estHist[targetID][time_prior]
-            P_prior = self.covarianceHist[targetID][time_prior]
-
-        # Now to get dt, use time since last measurement
-        dt = envTime - time_prior
-
-# CALCULATE MATRICES:
-    # Define the state transition matrix, F. 
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
-        
-    # Define the process noise matrix, Q.
-        # Estimate the randomness of the acceleration
-        # Use Van Loan's method to tune Q
-        Q = self.calculate_Q(dt)
-
-    # Define the sensor noise matrix, R.
-        # This is the covariance estimate of the sensor error
-        # just use the bearing error for now?
-        R = np.eye(2)*sat.sensor.bearingsError**2
-
-# EXTRACT THE MEASUREMENTS
-        z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
-
-# PREDICTION:
-    # Predict the state and covariance
-        est_pred = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
-        
-        #est_pred = np.dot(F, est_prior) # ECI coordinates
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-
-# Use the predicted state to calculate H
-    # Define the obversation matrix, H.
-        # How does our state relate to our measurement?
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-
-# UPDATE:
-    # Calculate innovation terms:
-        # y = z - h(x)
-        innovation = z - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
-        # then use big H
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
-
-    # Solve for the Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
-
-    # Correct prediction
-        est = est_pred + np.dot(K, innovation)
-        P = P_pred - np.dot(K, np.dot(H, P_pred))
-
-    # CALCUATE NEES AND NIS
-        # For nees, we need to get the error compared to the truth data:
-        # Get the true position
-        true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
-        # Get the error
-        error = est - true
-        # Get the covariance of the error
-        nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
-        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
-
-# SAVE THE DATA
-        self.estHist[targetID][envTime] = est
-        self.covarianceHist[targetID][envTime] = P
-        self.innovationHist[targetID][envTime] = innovation
-        self.innovationCovHist[targetID][envTime] = innovationCov
-        self.neesHist[targetID][envTime] = nees
-        self.nisHist[targetID][envTime] = nis
-                               
-    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
-        # Use Van Loan's method to tune Q using the matrix exponential
-        
-        # Define the state transition matrix, A.
-        A = np.array([[0, 1, 0, 0, 0, 0], 
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 1],
-                      [0, 0, 0, 0, 0, 0]])
-        
-        # Assume there could be noise impacting the cartesian acceleration
-        Gamma = np.array([[0, 0, 0],
-                          [1, 0, 0],
-                          [0, 0, 0],
-                          [0, 1, 0],
-                          [0, 0, 0],
-                          [0, 0, 1]])
-        
-        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        
-        rangeNoise, elevationNoise, azimuthNoise = intensity
-        x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
-        y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
-        z = rangeNoise * np.sin(elevationNoise)
-        
-        W = np.array([[x, 0, 0],
-                      [0, y, 0],
-                      [0, 0, z]])
-    
-        # Form Block Matrix Z
-        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
-        
-        # Compute Matrix Exponential
-        vanLoan = expm(Z)
-
-        # Extract Q = F.T * VanLoan[0:6, 6:12]
-        F = vanLoan[6:12, 0:6].T
-
-        Q = F @ vanLoan[0:6, 6:12]
-        
-        return Q
-    
     def det_of_fused_covariance(self, omega, cov1, cov2):
         # Calculate the determinant of the fused covariance matrix
         # omega is the weight of the first covariance matrix
@@ -726,47 +455,3 @@ class ddfEstimator:
         omega = omega[0]
         P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
         return np.linalg.det(P)
-    
-    def state_transition(self, estPrior, dt):
-            # Takes in previous ECI State and returns the next state after dt
-            x = estPrior[0]
-            vx = estPrior[1]
-            y = estPrior[2]
-            vy = estPrior[3]
-            z = estPrior[4]
-            vz = estPrior[5]
-            
-            # Turn into Spherical Coordinates
-            range_ = jnp.sqrt(x**2 + y**2 + z**2)
-            elevation = jnp.arcsin(z / range_)
-            azimuth = jnp.arctan2(y, x)
-            
-            rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
-
-            # Calculate elevation rate
-            elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
-
-            # Calculate azimuth rate
-            azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
-
-            # Print intermediate values (comment out if not needed in production)
-            # jax.debug.print(
-            #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-            #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-            
-            # Propagate the State
-            range_ = range_ + rangeRate * dt
-            elevation = elevation + elevationRate * dt
-            azimuth = azimuth + azimuthRate * dt
-            
-            # Convert back to Cartesian
-            x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
-            y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
-            z = range_ * jnp.sin(elevation)
-            
-            return jnp.array([x, vx, y, vy, z, vz])
-        
-    def state_transition_jacobian(self, estPrior, dt):
-        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
-        
-        return jacobian

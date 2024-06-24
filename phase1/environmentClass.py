@@ -62,9 +62,13 @@ class environment:
         # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion(t_d)
 
+        # Collect individual data measurements for satellites and then do data fusion
+            self.data_fusion(t_d)
+
             if savePlot:
             # Update the plot environment
                 self.plot()
+                self.convert_imgs()
                 self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
@@ -87,9 +91,6 @@ class environment:
                 # This will collect the bearing measurement, if avaliable, and also perform local estimation on the target
                 # If a measurement is collected, the flag will be set to true
                 collectedFlag[targ][sat] = sat.collect_measurements_and_filter(targ)
-                
-                # if collectedFlag[targ][sat]:
-                #     print(f"Satellite {sat.name} collected a measurement on target {targ.name} at time {self.time:.2f}")
 
         # Now perform data fusion on the collected measurements
         # First check, did any new satellites get measurements?
@@ -105,15 +106,14 @@ class environment:
                 if sat.ddfEstimator:
                     for neighbor in self.comms.G.neighbors(sat):
                     # Check if the most recent estimate time is newer than the neighbor
-                    
-                        # Check for if this sat has any estimates yet
+                        # Check for if sat has any estimates yet
                         if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
                             continue # If sat doesnt have estimates yet, nothing to send
 
                         # Most recent measurement time by satellite
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
 
-                        # Check if this neighbor has any estimates yet
+                        # Check if the neighbor has any estimates yet
                         # TODO: IMPLCIT REQUIREMENT FOR TIMINGS TO BE KNOWN FOR NEIGHBOR
                         if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
                             # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
@@ -121,13 +121,12 @@ class environment:
                             continue
 
                         # Most recent measurement time by neighbor
-                        # TODO: Find most recent and best quality measutrment to send
                         neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
-                        # If this neighbor has an old estimate, lets send our most recent estimate
-                        if satTime >= neighborTime:
+                        # If the neighbor has an older estimate, send the most recent estimate
+                        if satTime > neighborTime:
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
-                    
+
                     # Now, each satellite will perform covariance intersection on the measurements sent to it
                     for sat in self.sats:
                         # For each satellite, perform CI on the measurements it received
@@ -167,6 +166,7 @@ class environment:
 
         # Update the communication network for the new sat position:
             self.comms.make_edges(self.sats)
+
         
 
 # Plot the current state of the environment
@@ -220,6 +220,11 @@ class environment:
                 sat2 = edge[1]
                 x1, y1, z1 = sat1.orbit.r.value
                 x2, y2, z2 = sat2.orbit.r.value
+                if self.comms.G.edges[edge]['active']:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color=(0.3, 1.0, 0.3), linestyle='dashed', linewidth=2)
+                else:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
+        
                 if self.comms.G.edges[edge]['active']:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color=(0.3, 1.0, 0.3), linestyle='dashed', linewidth=2)
                 else:
@@ -285,11 +290,29 @@ class environment:
                     ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
                     ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                         
+                    estHist = sat.indeptEstimator.estHist[targ.targetID]
+                    covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+                    innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+                    innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+                        
+                    ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+                    ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+                    ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+                    ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+                        
                     times = [time for time in time_vec.value if time in estHist]
                     ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                     ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
                     # ERROR PLOTS
                     for i in range(6):
+                        axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
+                        axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                        axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
+                        
+                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                            
                         axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
                         axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                         axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
@@ -383,9 +406,12 @@ class environment:
                 if targ.targetID in sat.targetIDs:
                     # Extract the data
                     data[targ.targetID][sat.name] = {'NEES': sat.indeptEstimator.neesHist[targ.targetID], 'NIS': sat.indeptEstimator.nisHist[targ.targetID]}
+                    data[targ.targetID][sat.name] = {'NEES': sat.indeptEstimator.neesHist[targ.targetID], 'NIS': sat.indeptEstimator.nisHist[targ.targetID]}
 
             # If central estimator is used, also add that data
             if self.centralEstimator:
+                if targ.targetID in self.centralEstimator.neesHist:
+                    data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
                 if targ.targetID in self.centralEstimator.neesHist:
                     data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
 
