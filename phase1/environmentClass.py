@@ -82,7 +82,7 @@ class environment:
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
 
-        print("Running data fusion at time: ", self.time.to_value())
+        # print("Running data fusion at time: ", self.time.to_value())
 
         # Collect measurements on any avaliable targets
         # Create a dictionary of flags for each satellite. 

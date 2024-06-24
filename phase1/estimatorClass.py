@@ -382,14 +382,14 @@ class ddfEstimator(BaseEstimator):
 
         # Check if there is any information in the queue:
         if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
-            print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
+            # print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
             return
 
-        print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
-        # print out the time for hte information:
-        for sentTime in commNode['queued_data'][targetID].keys():
-            print("Sent time: " + str(sentTime))
-        ### There is information in the queue
+        # print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
+        # # print out the time for hte information:
+        # for sentTime in commNode['queued_data'][targetID].keys():
+        #     print("Sent time: " + str(sentTime))
+        # ### There is information in the queue
 
         # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
         for sentTime in commNode['queued_data'][targetID].keys():
