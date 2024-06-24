@@ -72,6 +72,8 @@ class target:
         azimuth = self.X[4]
         azimuthRate = self.X[5]
         
+        # print("Target: Range: ", range, "Range Rate: ", rangeRate, "Elevation: ", elevation, "Elevation Rate: ", elevationRate, "Azimuth: ", azimuth, "Azimuth Rate: ", azimuthRate)
+        
         # Convert Spherical to Cartesian
         x = range * np.cos(elevation) * np.cos(azimuth)
         y = range * np.cos(elevation) * np.sin(azimuth)
@@ -91,5 +93,7 @@ class target:
         
         self.pos = np.array([x, y, z])  
         self.vel = np.array([vx, vy, vz])
+
+        # print("Norm of velocity: ", np.linalg.norm(self.vel))
         
         

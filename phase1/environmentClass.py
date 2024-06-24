@@ -64,9 +64,13 @@ class environment:
         # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion(t_d)
 
+        # Collect individual data measurements for satellites and then do data fusion
+            self.data_fusion(t_d)
+
             if savePlot:
             # Update the plot environment
                 self.plot()
+                self.convert_imgs()
                 self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
@@ -121,8 +125,13 @@ class environment:
                         # Most recent measurement time by neighbor
                         neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
+<<<<<<< Updated upstream
                         # If the neighbor has an older estimate, send the most recent estimate
+                        if satTime >= neighborTime:
+=======
+                        # If this neighbor has an old estimate, lets send our most recent estimate
                         if satTime > neighborTime:
+>>>>>>> Stashed changes
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
                     # Now, each satellite will perform covariance intersection on the measurements sent to it
@@ -165,6 +174,8 @@ class environment:
         # Update the communication network for the new sat position:
             self.comms.make_edges(self.sats)
 
+        
+
 # Plot the current state of the environment
     def plot(self):
         # Reset plot
@@ -190,6 +201,7 @@ class environment:
         # Plot the visible projection of the satellite sensor
             points = sat.sensor.projBox
             self.ax.scatter(points[:, 0], points[:, 1], points[:, 2], color = sat.color, marker = 'x')
+            
             box = np.array([points[0], points[3], points[1], points[2], points[0]])
             self.ax.add_collection3d(Poly3DCollection([box], facecolors=sat.color, linewidths=1, edgecolors=sat.color, alpha=.1))
 
@@ -200,6 +212,13 @@ class environment:
             self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
             
         self.ax.legend()
+        
+    # Set the axis limits
+        self.ax.set_xlim([-15000, 15000])
+        self.ax.set_ylim([-15000, 15000])
+        self.ax.set_zlim([-15000, 15000])
+        
+        self.ax.view_init(elev=30, azim=-10)
 
     # PLOT COMMUNICATION STRUCTURE
         if self.comms.displayStruct:
@@ -213,9 +232,13 @@ class environment:
                 else:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
         
+                if self.comms.G.edges[edge]['active']:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color=(0.3, 1.0, 0.3), linestyle='dashed', linewidth=2)
+                else:
+                    self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
+        
 
 # Plots all of the results to the user.
-# Using bearings only measurement now
     def plotResults(self, time_vec, savePlot, saveName, central = False):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
@@ -232,37 +255,35 @@ class environment:
                     
                     # Subtitle with the name of the target
                     fig.suptitle(f"{targ.name}, {sat.name} Estimation Error and Innovation Plots", fontsize=14)
-
                     # Create a GridSpec object with 3 rows and 6 columns (3 col x y z, 3 col vx vy vz , 2 col alpha beta)
                     gs = gridspec.GridSpec(3, 6)
-
+                    
                     # Collect axes in a list of lists for easy access
                     axes = []
-
                     # Create subplots in the first two rows (3 2-columns spanning the width)
                     for i in range(3):  # 2 rows * 6 columns = 3
                         ax = fig.add_subplot(gs[0, 2*i:2*i + 2])
+                        ax.grid(True)
                         axes.append(ax)
                         
                         ax = fig.add_subplot(gs[1, 2*i:2*i + 2])
+                        ax.grid(True)
                         axes.append(ax)
-
+                        
                     # Create subplots in the third row (3 columns spanning the width)
                     for i in range(2):  # 1 row * 2 columns = 2
                         ax = fig.add_subplot(gs[2, 3*i:3*i+3])
+                        ax.grid(True)
                         axes.append(ax)
-
                     # Set the labels for the subplots
                     # Do the error vs covariance plots on the first row:
                     for i in range(6):
                         axes[i].set_xlabel("Time [min]")
                         axes[i].set_ylabel(f"Error in {state_labels[i]}")
-
                     # Do the innovation vs innovation covariance plots on the third row:
                     for i in range(2):  # Note: only 2 plots in the third row
                         axes[6 + i].set_xlabel("Time [min]")
                         axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
-
             # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
                     satColor = sat.color
                     trueHist = targ.hist
@@ -276,12 +297,29 @@ class environment:
                     ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
                     ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                         
+                    estHist = sat.indeptEstimator.estHist[targ.targetID]
+                    covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+                    innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+                    innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+                        
+                    ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
+                    ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+                    ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+                    ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+                        
                     times = [time for time in time_vec.value if time in estHist]
                     ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                     ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
-
                     # ERROR PLOTS
                     for i in range(6):
+                        axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
+                        axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                        axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
+                        
+                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                            
                         axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
                         axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                         axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
@@ -300,7 +338,6 @@ class environment:
                         axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
                         axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
                         
-
                     # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
                     # USE COLOR PINK FOR CENTRAL ESTIMATOR
                     if central:
@@ -311,13 +348,12 @@ class environment:
                             innovationHist = self.centralEstimator.innovationHist[targ.targetID]
                             innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
                             times = [time for time in time_vec.value if time in estHist]
-
                         # ERROR PLOTS
                         for i in range(6):
                             axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', label='Central')
                             axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')#, label='2 Sigma Bounds')
                             axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')
-
+                    
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
                     for ax in axes:
@@ -325,22 +361,22 @@ class environment:
                             if label not in labels:  # Avoid duplicates in the legend
                                 handles.append(handle)
                                 labels.append(label)
-
-                    # AND SATELLITE COLORS
-                    # for sat in self.sats:
-                    #     if targ.targetID in sat.targetIDs:
-                            # EXTRACT ALL DATA
+                    
+                    # SATELLITE COLORS
                     satColor = sat.color
+                    
                     # Create a Patch object for the satellite
                     satPatch = Patch(color=satColor, label=sat.name)
+                    
                     # Add the Patch object to the handles and labels
                     handles.append(satPatch)
                     labels.append(sat.name)
-
+                    
                     # ALSO ADD CENTRAL IF FLAG IS SET
                     if central:
                         # Create a Patch object for the central estimator
                         centralPatch = Patch(color='purple', label='Central Estimator')
+                        
                         # Add the Patch object to the handles and labels
                         handles.append(centralPatch)
                         labels.append('Central Estimator')
@@ -349,7 +385,7 @@ class environment:
                     ddfPatch = Patch(color='r', label='DDF Estimator')
                     handles.append(ddfPatch)
                     labels.append('DDF Estimator')
-
+                    
                     # ADD LEGEND
                     fig.legend(handles, labels, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
                     plt.tight_layout()
@@ -363,9 +399,9 @@ class environment:
                             plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_results.png"), dpi=300)
                             return
                         plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_results.png"), dpi=300)
-                    
+
                     plt.close()
-       
+
 # Returns the NEES and NIS data for the simulation
     def collectData(self):
         # We want to return the NEES and NIS data for the simulation in an easy to read format
@@ -377,9 +413,12 @@ class environment:
                 if targ.targetID in sat.targetIDs:
                     # Extract the data
                     data[targ.targetID][sat.name] = {'NEES': sat.indeptEstimator.neesHist[targ.targetID], 'NIS': sat.indeptEstimator.nisHist[targ.targetID]}
+                    data[targ.targetID][sat.name] = {'NEES': sat.indeptEstimator.neesHist[targ.targetID], 'NIS': sat.indeptEstimator.nisHist[targ.targetID]}
 
             # If central estimator is used, also add that data
             if self.centralEstimator:
+                if targ.targetID in self.centralEstimator.neesHist:
+                    data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
                 if targ.targetID in self.centralEstimator.neesHist:
                     data[targ.targetID]['Central'] = {'NEES': self.centralEstimator.neesHist[targ.targetID], 'NIS': self.centralEstimator.nisHist[targ.targetID]}
 
