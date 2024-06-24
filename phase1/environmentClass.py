@@ -124,7 +124,7 @@ class environment:
                         neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
                         # If the neighbor has an older estimate, send the most recent estimate
-                        if satTime > neighborTime:
+                        if satTime >= neighborTime:
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
                     # Now, each satellite will perform covariance intersection on the measurements sent to it

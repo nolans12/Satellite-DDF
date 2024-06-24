@@ -31,7 +31,7 @@ class BaseEstimator:
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
         # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
-            est_prior = np.array([target.pos[0], 25, target.pos[1], 25, target.pos[2], 25])# + np.random.normal(0, 2, 6) 
+            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) + np.random.normal(0, 1, 6) 
             # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
@@ -233,7 +233,7 @@ class centralEstimator(BaseEstimator):
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
         # If no prior estimates, use the first measurement and assume no velocity
         
-            est_prior = np.array([target.pos[0], 25, target.pos[1], 25, target.pos[2], 25])# + np.random.normal(0, 2, 6) 
+            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
             # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
