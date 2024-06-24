@@ -48,12 +48,12 @@ class centralEstimator:
             # start with true position plus some noise
             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
             # start with some covariance, about +- 5 km and +- 20 km/min, then plus some noise 
-            P_prior = np.array([[5, 0, 0, 0, 0, 0],
-                                [0, 20, 0, 0, 0, 0],
-                                [0, 0, 5, 0, 0, 0],
-                                [0, 0, 0, 20, 0, 0],
-                                [0, 0, 0, 0, 5, 0],
-                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
+            P_prior = np.array([[50, 0, 0, 0, 0, 0],
+                                [0, 100, 0, 0, 0, 0],
+                                [0, 0, 50, 0, 0, 0],
+                                [0, 0, 0, 100, 0, 0],
+                                [0, 0, 0, 0, 50, 0],
+                                [0, 0, 0, 0, 0, 100]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -148,7 +148,7 @@ class centralEstimator:
         self.nisHist[targetID][envTime] = nis
 
 
-    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
+    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -222,13 +222,13 @@ class indeptEstimator:
     # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
-            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
-            P_prior = np.array([[5, 0, 0, 0, 0, 0],
-                                [0, 20, 0, 0, 0, 0],
-                                [0, 0, 5, 0, 0, 0],
-                                [0, 0, 0, 20, 0, 0],
-                                [0, 0, 0, 0, 5, 0],
-                                [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
+            # start with some covariance, about +- 5 km and +- 100 km/min, then plus some noise 
+            P_prior = np.array([[50, 0, 0, 0, 0, 0],
+                                [0, 100, 0, 0, 0, 0],
+                                [0, 0, 50, 0, 0, 0],
+                                [0, 0, 0, 100, 0, 0],
+                                [0, 0, 0, 0, 50, 0],
+                                [0, 0, 0, 0, 0, 100]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -312,7 +312,7 @@ class indeptEstimator:
         self.nisHist[targetID][envTime] = nis
                                
 
-    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
+    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -439,6 +439,9 @@ class ddfEstimator:
                 covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
                 estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
+                # Print information that was just fused
+                #print(str(sat.name) + " fused new estimate and covariance from " + str(commNode['queued_data'][targetID][sentTime]['sender']) + " at " + str(sentTime) + " with omega = " + str(omegaOpt))
+                
         # Finally, save the fused estimate and covariance
             self.estHist[targetID][sentTime] = estPrior_prop
             self.covarianceHist[targetID][sentTime] = covPrior
@@ -462,12 +465,12 @@ class ddfEstimator:
     # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
             est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
-            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
-            P_prior = np.array([[5, 0, 0, 0, 0, 0],
-                                [0, 20, 0, 0, 0, 0],
-                                [0, 0, 5, 0, 0, 0],
-                                [0, 0, 0, 20, 0, 0],
-                                [0, 0, 0, 0, 5, 0],
+            # start with some covariance, about +- 5 km and +- 100 km/min, then plus some noise 
+            P_prior = np.array([[50, 0, 0, 0, 0, 0],
+                                [0, 100, 0, 0, 0, 0],
+                                [0, 0, 50, 0, 0, 0],
+                                [0, 0, 0, 100, 0, 0],
+                                [0, 0, 0, 0, 50, 0],
                                 [0, 0, 0, 0, 0, 20]]) + np.random.normal(0, 1, (6,6))*np.eye(6)
             
         # Store these and return for first iteration
@@ -551,7 +554,7 @@ class ddfEstimator:
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
                                
-    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
+    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
