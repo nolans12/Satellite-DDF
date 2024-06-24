@@ -62,9 +62,6 @@ class environment:
         # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion(t_d)
 
-        # Collect individual data measurements for satellites and then do data fusion
-            self.data_fusion(t_d)
-
             if savePlot:
             # Update the plot environment
                 self.plot()
@@ -127,10 +124,11 @@ class environment:
                         if satTime >= neighborTime:
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
-                    # Now, each satellite will perform covariance intersection on the measurements sent to it
-                    for sat in self.sats:
-                        # For each satellite, perform CI on the measurements it received
-                        sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+            
+            # Now, each satellite will perform covariance intersection on the measurements sent to it for this target
+            for sat in self.sats:
+            # For each satellite, perform CI on the measurements it received
+                sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -154,9 +152,6 @@ class environment:
             # Update the history of the target, time and xyz position and velocity [x xdot y ydot z zdot]
             targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
 
-
-        collectedFlag = np.zeros(np.size(self.sats))
-        satNum = 0
         # Propagate the satellites
         for sat in self.sats:
             

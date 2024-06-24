@@ -127,10 +127,10 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(40, 80, 41) * u.minute
+    time_vec = np.linspace(63, 73,  11) * u.minute
     
     env = create_environment()
-    env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = False)
+    env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = True)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
