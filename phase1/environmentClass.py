@@ -64,9 +64,6 @@ class environment:
         # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion(t_d)
 
-        # Collect individual data measurements for satellites and then do data fusion
-            self.data_fusion(t_d)
-
             if savePlot:
             # Update the plot environment
                 self.plot()
@@ -84,6 +81,9 @@ class environment:
         
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
+
+        print("Running data fusion at time: ", self.time.to_value())
+
         # Collect measurements on any avaliable targets
         # Create a dictionary of flags for each satellite. 
         # Dictionary contains true or false on if the given sat/targ combo collected a measurement
@@ -125,19 +125,14 @@ class environment:
                         # Most recent measurement time by neighbor
                         neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
-<<<<<<< Updated upstream
                         # If the neighbor has an older estimate, send the most recent estimate
                         if satTime >= neighborTime:
-=======
-                        # If this neighbor has an old estimate, lets send our most recent estimate
-                        if satTime > neighborTime:
->>>>>>> Stashed changes
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
-                    # Now, each satellite will perform covariance intersection on the measurements sent to it
-                    for sat in self.sats:
-                        # For each satellite, perform CI on the measurements it received
-                        sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+            # Now, each satellite will perform covariance intersection on the measurements sent to it
+            for sat in self.sats:
+                # For each satellite, perform CI on the measurements it received
+                sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
