@@ -355,7 +355,6 @@ class indeptEstimator:
         
         return Q
 
-
 class ddfEstimator:
     def __init__(self, targetIDs):
 
@@ -415,7 +414,7 @@ class ddfEstimator:
                         [0, 0, 0, 0, 0, 1]])
             
             estPrior_prop = np.dot(F, estPrior)
-            print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
+            # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
 
         # Check, should we THROW OUT the prior? or do CI with it?
             # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
