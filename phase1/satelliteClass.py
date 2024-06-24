@@ -66,7 +66,7 @@ class satellite:
 
                 # Update the local filters
                 self.update_local_filters(measurement, target, self.time)
-                print('Satellite:', self.name, 'has collected a measurement for target:', target.name, 'at time:', self.time)
+                #print('Satellite:', self.name, 'has collected a measurement for target:', target.name, 'at time:', self.time)
                                                             
         return collectedFlag
 

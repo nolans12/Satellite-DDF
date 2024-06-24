@@ -1,5 +1,3 @@
-
-
 from import_libraries import *
 
 class BaseEstimator:
@@ -28,17 +26,19 @@ class BaseEstimator:
         targetID = target.targetID
 
         # GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-        # If no prior estimates, use the first measurement and assume no velocity
-            # start with true position plus some noise
-            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) + np.random.normal(0, 1, 6) 
-            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
+        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
+            # start with true position and velocity plus some noise
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 5, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 15, 3)
+            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+                                 
+            # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]])# + np.random.normal(0, 1, (6,6))*np.eye(6)
+                                [0, 0, 0, 0, 0, 100]])
             
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
@@ -56,20 +56,36 @@ class BaseEstimator:
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
 
-        # CALCULATE MATRICES:
-        # Define the state transition matrix, F. 
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
-        # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-        #               [0, 1, 0, 0, 0, 0],
-        #               [0, 0, 1, dt, 0, 0],
-        #               [0, 0, 0, 1, 0, 0],
-        #               [0, 0, 0, 0, 1, dt],
-        #               [0, 0, 0, 0, 0, 1]])
+        # Predict the next state
+        est_pred = self.state_transition(est_prior, dt)
         
-        # Define the process noise matrix, Q.
-        # Estimate the randomness of the acceleration
-        # Use Van Loan's method to tune Q
-        Q = self.calculate_Q(dt)
+        # Evaluate the Jacobian of the state transition
+        F = self.state_transition_jacobian(est_prior, dt)
+        
+        # Predict the prcoess noise
+        Q = np.zeros([6,6]) 
+                
+        # Predict the covariance
+        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+        
+
+        # # CALCULATE MATRICES:
+        # # Define the state transition matrix, F. 
+        # # How does our state: [x, vx, y, vy, z, vz] change over time?
+        # # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+        # #               [0, 1, 0, 0, 0, 0],
+        # #               [0, 0, 1, dt, 0, 0],
+        # #               [0, 0, 0, 1, 0, 0],
+        # #               [0, 0, 0, 0, 1, dt],
+        # #               [0, 0, 0, 0, 0, 1]])
+        
+        # # Define the process noise matrix, Q.
+        # # Estimate the randomness of the acceleration
+        # # Use Van Loan's method to tune Q
+        # Q = self.calculate_Q(dt)
+        
+        # # Non-linear state transition function
+        # est_pred = self.state_transition(est_prior, dt)
 
         # Define the sensor noise matrix, R.
         # This is the covariance estimate of the sensor error
@@ -78,14 +94,6 @@ class BaseEstimator:
 
         # EXTRACT THE MEASUREMENTS
         z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
-
-        # PREDICTION:
-        # Predict the state and covariance
-        #est_pred = np.dot(F, est_prior) # ECI coordinates
-        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
-        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
-        
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
         # Use the predicted state to calculate H
         # Define the obversation matrix, H.
@@ -123,6 +131,14 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
+    
+    def approximate_Q(self, targetID, dt):
+        # Use the most recent estimates to approximate Q
+        time_prior = max(self.estHist[targetID].keys())
+        est_prior = self.estHist[targetID][time_prior]
+        P_prior = self.covarianceHist[targetID][time_prior]
+        
+        # Maybe try to see if you do 100 spherica coordinates, then convert to cartesian, then take the difference, then take the covariance of that
     
     # VAN LOANS METHOD FOR Q
     def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
@@ -178,11 +194,11 @@ class BaseEstimator:
         vz = estPrior[5]
         
         # Turn into Spherical Coordinates
-        range_ = jnp.sqrt(x**2 + y**2 + z**2)
-        elevation = jnp.arcsin(z / range_)
+        range = jnp.sqrt(x**2 + y**2 + z**2)
+        elevation = jnp.arcsin(z / range)
         azimuth = jnp.arctan2(y, x)
         
-        rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+        rangeRate = (x * vx + y * vy + z * vz) / (range)
 
         # Calculate elevation rate
         elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
@@ -192,22 +208,35 @@ class BaseEstimator:
 
         # Print intermediate values (comment out if not needed in production)
         # jax.debug.print(
-        #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-        #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+        #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+        #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
         
         # Propagate the State
-        range_ = range_ + rangeRate * dt
+        range = range + rangeRate * dt
         elevation = elevation + elevationRate * dt
         azimuth = azimuth + azimuthRate * dt
         
         # Convert back to Cartesian
-        x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
-        y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
-        z = range_ * jnp.sin(elevation)
+        x = range * jnp.cos(elevation) * jnp.cos(azimuth)
+        y = range * jnp.cos(elevation) * jnp.sin(azimuth)
+        z = range * jnp.sin(elevation)
+        
+        # Approximate velocities conversion (simplified version)
+        vx = rangeRate * jnp.cos(elevation) * jnp.cos(azimuth) - \
+            range * elevationRate * jnp.sin(elevation) * jnp.cos(azimuth) - \
+            range * azimuthRate * jnp.cos(elevation) * jnp.sin(azimuth)
+
+        vy = rangeRate * jnp.cos(elevation) * jnp.sin(azimuth) - \
+            range * elevationRate * jnp.sin(elevation) * jnp.sin(azimuth) + \
+            range * azimuthRate * jnp.cos(elevation) * jnp.cos(azimuth)
+
+        vz = rangeRate * jnp.sin(elevation) + \
+            range * elevationRate * jnp.cos(elevation)
         
         return jnp.array([x, vx, y, vy, z, vz])
 
     def state_transition_jacobian(self, estPrior, dt):
+        
         jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
         
         return jacobian
@@ -230,18 +259,20 @@ class centralEstimator(BaseEstimator):
         satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
         
         # GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-        # If no prior estimates, use the first measurement and assume no velocity
-        
-            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
-            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
+        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
+            # start with true position and velocity plus some noise
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 5, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 15, 3)
+            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+                                 
+            # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]])# + np.random.normal(0, 1, (6,6))*np.eye(6)
-            
+                                [0, 0, 0, 0, 0, 100]])
+                
             # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -258,10 +289,17 @@ class centralEstimator(BaseEstimator):
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
 
-        # CALCULATE MATRICES:
-        # Define the state transition matrix, F.
-        # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
+        # Predict the next state
+        est_pred = self.state_transition(est_prior, dt)
+        
+        # Evaluate the Jacobian of the state transition
+        F = self.state_transition_jacobian(est_prior, dt)
+        
+        # Predict the prcoess noise
+        Q = np.zeros([6,6]) 
+                
+        # Predict the covariance
+        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
         
         # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
         #               [0, 1, 0, 0, 0, 0],
@@ -273,7 +311,7 @@ class centralEstimator(BaseEstimator):
         # Define the process noise matrix, Q.
         # Is a 6x6 matrix representing the covariance of the process noise
         # Estimate the randomness of the acceleration
-        Q = self.calculate_Q(dt)
+        # Q = self.calculate_Q(dt)
 
         # Define the sensor nonise matrix, R.
         # Needs to be stacked for each satellite
@@ -287,13 +325,7 @@ class centralEstimator(BaseEstimator):
         # EXTRACT THE MEASUREMENTS
         z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
 
-        # PREDICTION:
-            # Predict the state and covariance
-        #est_pred = np.dot(F, est_prior)
-        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
-        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
         
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
         # Use the predicted state to calculate H
         # Need this to be stacked for each satellite
@@ -384,9 +416,13 @@ class ddfEstimator(BaseEstimator):
 
         # Check if there is any information in the queue:
         if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
+            #print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
             return
 
-
+        # print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
+        # print out the time for hte information:
+        #for sentTime in commNode['queued_data'][targetID].keys():
+        #    print("Sent time: " + str(sentTime))
         ### There is information in the queue
 
         # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
@@ -407,6 +443,7 @@ class ddfEstimator(BaseEstimator):
 
             # Propegate the estPrior to the new time?
             dt = sentTime - priorTime
+
             # How does our state: [x, vx, y, vy, z, vz] change over time?
             F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
                         [0, 1, 0, 0, 0, 0],

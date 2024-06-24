@@ -93,5 +93,7 @@ class target:
         
         self.pos = np.array([x, y, z])  
         self.vel = np.array([vx, vy, vz])
+
+        # print("Norm of velocity: ", np.linalg.norm(self.vel))
         
         

@@ -4,37 +4,39 @@ from import_libraries import *
 class environment: 
     def __init__(self, sats, targs, comms, centralEstimator = None):
 
-    # If a central estimator is passed, use it
+        # If a central estimator is passed, use it
         if centralEstimator:
             self.centralEstimator = centralEstimator
         else:
             self.centralEstimator = None
 
-    # Define the satellites
+        # Define the satellites
         self.sats = sats
 
-    # Define the targets
+        # Define the targets
         self.targs = targs
 
-    # Define the communication network
+        # Define the communication network
         self.comms = comms
 
-    # Time parameter, initalize to 0
+        # Time parameter, initalize to 0
         self.time = 0
 
-    # Plotting parameters
+        # Plotting parameters
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
-        self.ax.set_xlim([-8000, 8000])
-        self.ax.set_ylim([-8000, 8000])
-        self.ax.set_zlim([-8000, 8000])
+        # Set the axis limits
+        self.ax.set_xlim([-15000, 15000])
+        self.ax.set_ylim([-15000, 15000])
+        self.ax.set_zlim([-15000, 15000])
+        self.ax.view_init(elev=30, azim=-10)
         self.ax.set_box_aspect([1,1,1])
         self.ax.set_xlabel('X (km)')
         self.ax.set_ylabel('Y (km)')
         self.ax.set_zlabel('Z (km)')
         self.ax.set_title('Satellite Orbit Visualization')
         
-    # All earth parameters for plotting
+        # All earth parameters for plotting
         u = np.linspace(0, 2 * np.pi, 100)
         v = np.linspace(0, np.pi, 100)
         self.earth_r = 6378.0
@@ -42,7 +44,7 @@ class environment:
         self.y_earth = self.earth_r * np.outer(np.sin(u), np.sin(v))
         self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
 
-    # Empty images list to later make a gif of the simulation
+        # Empty images list to later make a gif of the simulation
         self.imgs = []
 
 # Simulate the environment over a time range
@@ -66,7 +68,6 @@ class environment:
             # Update the plot environment
                 self.plot()
                 self.convert_imgs()
-                self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
                     plt.draw()
@@ -79,6 +80,9 @@ class environment:
         
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
+
+        #print("Running data fusion at time: ", self.time.to_value())
+
         # Collect measurements on any avaliable targets
         # Create a dictionary of flags for each satellite. 
         # Dictionary contains true or false on if the given sat/targ combo collected a measurement
@@ -124,10 +128,9 @@ class environment:
                         if satTime >= neighborTime:
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
-            
-            # Now, each satellite will perform covariance intersection on the measurements sent to it for this target
+            # Now, each satellite will perform covariance intersection on the measurements sent to it
             for sat in self.sats:
-            # For each satellite, perform CI on the measurements it received
+                # For each satellite, perform CI on the measurements it received
                 sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
