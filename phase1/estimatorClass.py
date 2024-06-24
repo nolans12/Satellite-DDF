@@ -15,11 +15,15 @@ class BaseEstimator:
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}
 
+        self.gottenEstimate = False
+
     # LOCAL EXTENDED KALMAN FILTER
     # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
     # Output: New estimate in ECI
     def local_EKF(self, sat, measurement, target, envTime):
          
+        self.gottenEstimate = True
+
         # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
         # Measurment: Z = [in_track, cross_track] bearings measurement
 
@@ -55,14 +59,6 @@ class BaseEstimator:
         dt = envTime - time_prior
 
         # CALCULATE MATRICES:
-        # Define the state transition matrix, F. 
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
         
         # Define the process noise matrix, Q.
         # Estimate the randomness of the acceleration
@@ -79,9 +75,9 @@ class BaseEstimator:
 
         # PREDICTION:
         # Predict the state and covariance
-        est_pred = np.dot(F, est_prior) # ECI coordinates
-        # est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
-        # F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
+        # est_pred = np.dot(F, est_prior) # ECI coordinates
+        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
+        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
         
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
@@ -167,6 +163,54 @@ class BaseEstimator:
         return Q
     
     def state_transition(self, estPrior, dt):
+        # # Takes in previous ECI State and returns the next state after dt
+        # x = estPrior[0]
+        # vx = estPrior[1]
+        # y = estPrior[2]
+        # vy = estPrior[3]
+        # z = estPrior[4]
+        # vz = estPrior[5]
+        
+        # # Turn into Spherical Coordinates
+        # range_ = jnp.sqrt(x**2 + y**2 + z**2)
+        # azimuth = jnp.arctan2(y, x)
+        # elevation = jnp.arcsin(z / range_)
+        
+        # # rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+        # rangeRate = (x * vx + y * vy + z * vz) / range_
+
+        # # Calculate azimuth rate
+        # # azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
+        # azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
+
+        # # Calculate elevation rate
+        # # elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+        # elevationRate = (z * (vx * x + vy * y) - vz * (x**2 + y**2)) / (range_ * jnp.sqrt(x**2 + y**2))
+
+        # # Print intermediate values (comment out if not needed in production)
+        # # jax.debug.print(
+        # #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+        # #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+        
+        # # Propagate the State
+        # range_ = range_ + rangeRate * dt
+        # azimuth = azimuth + azimuthRate * dt
+        # elevation = elevation + elevationRate * dt
+       
+        # # Convert back to Cartesian
+        # x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
+        # y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
+        # z = range_ * jnp.sin(elevation)
+
+        # # Approximate velocities conversion (simplified version)
+        # # vx = rangeRate * jnp.cos(elevation) * jnp.cos(azimuth) + range_ * jnp.cos(elevation) * jnp.sin(azimuth * azimuthRate) + range_ * jnp.sin(elevation) * jnp.cos(azimuth) * elevationRate
+
+        # vx = x/range_ * rangeRate + y * azimuthRate + z * jnp.cos(azimuth) * elevationRate
+        # vy = y/range_ * rangeRate - x * azimuthRate + z * jnp.sin(azimuth) * elevationRate
+        # vz = z/range_ * rangeRate - range_ * jnp.cos(elevation) * elevationRate
+        
+        # return jnp.array([x, vx, y, vy, z, vz])
+
         # Takes in previous ECI State and returns the next state after dt
         x = estPrior[0]
         vx = estPrior[1]
@@ -176,11 +220,11 @@ class BaseEstimator:
         vz = estPrior[5]
         
         # Turn into Spherical Coordinates
-        range_ = jnp.sqrt(x**2 + y**2 + z**2)
-        elevation = jnp.arcsin(z / range_)
+        range = jnp.sqrt(x**2 + y**2 + z**2)
+        elevation = jnp.arcsin(z / range)
         azimuth = jnp.arctan2(y, x)
         
-        rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+        rangeRate = (x * vx + y * vy + z * vz) / (range)
 
         # Calculate elevation rate
         elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
@@ -190,18 +234,30 @@ class BaseEstimator:
 
         # Print intermediate values (comment out if not needed in production)
         # jax.debug.print(
-        #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-        #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+        #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+        #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
         
         # Propagate the State
-        range_ = range_ + rangeRate * dt
+        range = range + rangeRate * dt
         elevation = elevation + elevationRate * dt
         azimuth = azimuth + azimuthRate * dt
         
         # Convert back to Cartesian
-        x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
-        y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
-        z = range_ * jnp.sin(elevation)
+        x = range * jnp.cos(elevation) * jnp.cos(azimuth)
+        y = range * jnp.cos(elevation) * jnp.sin(azimuth)
+        z = range * jnp.sin(elevation)
+        
+        # Approximate velocities conversion (simplified version)
+        vx = rangeRate * jnp.cos(elevation) * jnp.cos(azimuth) - \
+            range * elevationRate * jnp.sin(elevation) * jnp.cos(azimuth) - \
+            range * azimuthRate * jnp.cos(elevation) * jnp.sin(azimuth)
+
+        vy = rangeRate * jnp.cos(elevation) * jnp.sin(azimuth) - \
+            range * elevationRate * jnp.sin(elevation) * jnp.sin(azimuth) + \
+            range * azimuthRate * jnp.cos(elevation) * jnp.cos(azimuth)
+
+        vz = rangeRate * jnp.sin(elevation) + \
+            range * elevationRate * jnp.cos(elevation)
         
         return jnp.array([x, vx, y, vy, z, vz])
 
@@ -209,6 +265,110 @@ class BaseEstimator:
         jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
         
         return jacobian
+
+class indeptEstimator(BaseEstimator):
+    def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+        # Add any additional initialization specific to indeptEstimator here
+
+    def EKF(self, sat, measurement, target, envTime):
+        return self.local_EKF(sat, measurement, target, envTime)
+
+class ddfEstimator(BaseEstimator):
+    def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+        # Add any additional initialization specific to ddfEstimator here
+
+    def EKF(self, sat, measurement, target, envTime):
+        return self.local_EKF(sat, measurement, target, envTime)
+
+    # Perform covariance intersection with all estimates and covariances sent from satellites
+    # Inputs:
+    #   - sat: satellite object
+    #   - commNode: communication node object, containing potentially queued information
+    #   - targetID: target ID
+    #   - envTime: environment time
+    def CI(self, sat, commNode, targetID):
+
+        # Check if there is any information in the queue:
+        if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
+            # print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
+            return
+
+        print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
+        # # print out the time for hte information:
+        for sentTime in commNode['queued_data'][targetID].keys():
+            print("Sent time: " + str(sentTime))
+        ### There is information in the queue
+
+        # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
+        for sentTime in commNode['queued_data'][targetID].keys():
+
+        # First check, do we have any prior estimate and covariance?
+            # Should only ever happen once on first run through
+            # If we dont, use the sent estimate and covariance to initalize
+            if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
+                self.estHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['est'][0]
+                self.covarianceHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['cov'][0]
+
+        # Now, we have a prior estimate and covariance, so we need to perform covariance intersection?
+
+            priorTime = max(self.estHist[targetID].keys())
+            estPrior = self.estHist[targetID][priorTime]
+            covPrior = self.covarianceHist[targetID][priorTime]
+
+            # Propegate the estPrior to the new time?
+            dt = sentTime - priorTime
+
+            # How does our state: [x, vx, y, vy, z, vz] change over time?
+            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+                        [0, 1, 0, 0, 0, 0],
+                        [0, 0, 1, dt, 0, 0],
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 0, 0, 1, dt],
+                        [0, 0, 0, 0, 0, 1]])
+            
+            estPrior_prop = np.dot(F, estPrior)
+            # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
+
+        # Check, should we THROW OUT the prior? or do CI with it?
+            # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
+            if dt > 5 or self.gottenEstimate == False: 
+                # print(str(sat.name) + " is throwing out prior estimate and covariance from " + str(priorTime) + " for " + str(commNode['queued_data'][targetID][sentTime]['sender']) + "s new update at " + str(sentTime))
+                estPrior_prop = commNode['queued_data'][targetID][sentTime]['est'][0]
+                covPrior = commNode['queued_data'][targetID][sentTime]['cov'][0]
+            # If the time b/w prior and new estimate is less than 5 mins, keep the prior the same, then do CI
+
+        # Now do CI on all new estimates and covariances taken at that time step
+            for i in range(len(commNode['queued_data'][targetID][sentTime]['est'])):
+
+                estSent = commNode['queued_data'][targetID][sentTime]['est'][i]
+                covSent = commNode['queued_data'][targetID][sentTime]['cov'][i]
+
+                # Minimize the covariance determinant
+                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior, covSent), bounds=[(0, 1)]).x
+
+                # Now compute the fused covariance
+                cov1 = covPrior
+                cov2 = covSent
+                covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+                estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
+
+        # Finally, save the fused estimate and covariance
+            self.estHist[targetID][sentTime] = estPrior_prop
+            self.covarianceHist[targetID][sentTime] = covPrior
+
+        # Clear the queued data
+        commNode['queued_data'][targetID] = {}
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        # Calculate the determinant of the fused covariance matrix
+        # omega is the weight of the first covariance matrix
+        # cov1 and cov2 are the covariance matrices of the two estimates
+        omega = omega[0]
+        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        return np.linalg.det(P)
+
 
 class centralEstimator(BaseEstimator):
     def __init__(self, targetIDs):
@@ -261,12 +421,12 @@ class centralEstimator(BaseEstimator):
         # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
         # How does our state: [x, vx, y, vy, z, vz] change over time?
         
-        F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                      [0, 1, 0, 0, 0, 0],
-                      [0, 0, 1, dt, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 1, dt],
-                      [0, 0, 0, 0, 0, 1]])
+        # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+        #               [0, 1, 0, 0, 0, 0],
+        #               [0, 0, 1, dt, 0, 0],
+        #               [0, 0, 0, 1, 0, 0],
+        #               [0, 0, 0, 0, 1, dt],
+        #               [0, 0, 0, 0, 0, 1]])
 
         # Define the process noise matrix, Q.
         # Is a 6x6 matrix representing the covariance of the process noise
@@ -287,9 +447,9 @@ class centralEstimator(BaseEstimator):
 
         # PREDICTION:
             # Predict the state and covariance
-        est_pred = np.dot(F, est_prior)
-        # est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
-        # F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
+        # est_pred = np.dot(F, est_prior)
+        est_pred = self.state_transition(est_prior, dt) # Spherical coordinates
+        F = self.state_transition_jacobian(est_prior, dt) # Jacobian of the state transition
         
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
@@ -355,106 +515,3 @@ class centralEstimator(BaseEstimator):
                     satMeasurements[sat] = sat.measurementHist[targetID][envTime]
             
         return satMeasurements
-
-class indeptEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
-        super().__init__(targetIDs)
-        # Add any additional initialization specific to indeptEstimator here
-
-    def EKF(self, sat, measurement, target, envTime):
-        return self.local_EKF(sat, measurement, target, envTime)
-
-class ddfEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
-        super().__init__(targetIDs)
-        # Add any additional initialization specific to ddfEstimator here
-
-    def EKF(self, sat, measurement, target, envTime):
-        return self.local_EKF(sat, measurement, target, envTime)
-
-    # Perform covariance intersection with all estimates and covariances sent from satellites
-    # Inputs:
-    #   - sat: satellite object
-    #   - commNode: communication node object, containing potentially queued information
-    #   - targetID: target ID
-    #   - envTime: environment time
-    def CI(self, sat, commNode, targetID):
-
-        # Check if there is any information in the queue:
-        if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
-            # print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
-            return
-
-        # print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
-        # # print out the time for hte information:
-        # for sentTime in commNode['queued_data'][targetID].keys():
-        #     print("Sent time: " + str(sentTime))
-        # ### There is information in the queue
-
-        # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
-        for sentTime in commNode['queued_data'][targetID].keys():
-
-        # First check, do we have any prior estimate and covariance?
-            # Should only ever happen once on first run through
-            # If we dont, use the sent estimate and covariance to initalize
-            if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
-                self.estHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['est'][0]
-                self.covarianceHist[targetID][sentTime] = commNode['queued_data'][targetID][sentTime]['cov'][0]
-
-        # Now, we have a prior estimate and covariance, so we need to perform covariance intersection?
-
-            priorTime = max(self.estHist[targetID].keys())
-            estPrior = self.estHist[targetID][priorTime]
-            covPrior = self.covarianceHist[targetID][priorTime]
-
-            # Propegate the estPrior to the new time?
-            dt = sentTime - priorTime
-
-            # How does our state: [x, vx, y, vy, z, vz] change over time?
-            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                        [0, 1, 0, 0, 0, 0],
-                        [0, 0, 1, dt, 0, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 1, dt],
-                        [0, 0, 0, 0, 0, 1]])
-            
-            estPrior_prop = np.dot(F, estPrior)
-            # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
-
-        # Check, should we THROW OUT the prior? or do CI with it?
-            # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
-            if dt > 5: 
-                print(str(sat.name) + " is throwing out prior estimate and covariance from " + str(priorTime) + " for " + str(commNode['queued_data'][targetID][sentTime]['sender']) + "s new update at " + str(sentTime))
-                estPrior_prop = commNode['queued_data'][targetID][sentTime]['est'][0]
-                covPrior = commNode['queued_data'][targetID][sentTime]['cov'][0]
-            # If the time b/w prior and new estimate is less than 5 mins, keep the prior the same, then do CI
-
-        # Now do CI on all new estimates and covariances taken at that time step
-            for i in range(len(commNode['queued_data'][targetID][sentTime]['est'])):
-
-                estSent = commNode['queued_data'][targetID][sentTime]['est'][i]
-                covSent = commNode['queued_data'][targetID][sentTime]['cov'][i]
-
-                # Minimize the covariance determinant
-                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior, covSent), bounds=[(0, 1)]).x
-
-                # Now compute the fused covariance
-                cov1 = covPrior
-                cov2 = covSent
-                covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
-                estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
-
-        # Finally, save the fused estimate and covariance
-            self.estHist[targetID][sentTime] = estPrior_prop
-            self.covarianceHist[targetID][sentTime] = covPrior
-
-        # Clear the queued data
-        commNode['queued_data'][targetID] = {}
-
-    def det_of_fused_covariance(self, omega, cov1, cov2):
-        # Calculate the determinant of the fused covariance matrix
-        # omega is the weight of the first covariance matrix
-        # cov1 and cov2 are the covariance matrices of the two estimates
-        omega = omega[0]
-        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
-        return np.linalg.det(P)

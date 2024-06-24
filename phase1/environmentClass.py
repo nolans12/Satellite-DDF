@@ -68,7 +68,6 @@ class environment:
             # Update the plot environment
                 self.plot()
                 self.convert_imgs()
-                self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
                     plt.draw()
@@ -116,9 +115,9 @@ class environment:
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
 
                         # Check if the neighbor has any estimates yet
-                        # TODO: IMPLCIT REQUIREMENT FOR TIMINGS TO BE KNOWN FOR NEIGHBOR
                         if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
                             # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
+                            # TODO: should this be commented or not? Should we initalize other sats with our estimate?
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
                             continue
 

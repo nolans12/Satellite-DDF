@@ -6,7 +6,6 @@ from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
 from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
-from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
 from sensorClass import sensor
 from commClass import comms
 
@@ -15,7 +14,7 @@ from commClass import comms
 #####################
 def create_environment():
     # Define a sensor model:
-    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.05, 0.05]))
+    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([1.5, 1.5]))
     #sens1 = sensor(name = 'Sensor 1', fov = 20, bearingsError = np.array([0.15, 0.05]))
     #sens2 = sensor(name = 'Sensor 2', fov = 20, bearingsError = np.array([0.15, 0.05]))
    
@@ -46,7 +45,7 @@ def create_environment():
     # sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -60, nu = 0, color='g')
     # sat6 = satellite(name = 'Sat6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -90, nu = 0, color='m')
 
-    sats = [sat2]#, sat3, sat4]#, sat3, sat4, sat5, sat6]
+    sats = [sat1, sat2] # , sat3, sat4]#, sat3, sat4, sat5, sat6]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([0,-90,0]), heading=90, speed=95, climbrate = 0, color = 'k')
@@ -165,7 +164,7 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(30, 80, 51) * u.minute
+    time_vec = np.linspace(30, 80, 50*2 + 1) * u.minute
     
     env = create_environment()
     env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = True)
