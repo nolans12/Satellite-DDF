@@ -63,7 +63,8 @@ class BaseEstimator:
         F = self.state_transition_jacobian(est_prior, dt)
         
         # Predict the prcoess noise
-        Q = np.zeros([6,6]) 
+        Q = np.zeros([6,6])
+        Q[2,2] = 10 
                 
         # Predict the covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
@@ -132,14 +133,43 @@ class BaseEstimator:
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
     
-    def approximate_Q(self, targetID, dt):
-        # Use the most recent estimates to approximate Q
-        time_prior = max(self.estHist[targetID].keys())
-        est_prior = self.estHist[targetID][time_prior]
-        P_prior = self.covarianceHist[targetID][time_prior]
-        
+    def approximate_Q(self, dt):
         # Maybe try to see if you do 100 spherica coordinates, then convert to cartesian, then take the difference, then take the covariance of that
-    
+        numSamples = 100
+        dt = 0.5
+        samples = np.zeros([numSamples, 6])
+        for i in range(numSamples):
+            # Sample a random spherical cordinate
+            range = np.random.uniform(0, 10000)
+            elevation = np.random.uniform(-np.pi/2, np.pi/2)
+            azimuth = np.random.uniform(-np.pi, np.pi)
+            rangeRate = np.random.uniform(-100, 100)
+            elevationRate = np.random.uniform(-np.pi/2, np.pi/2)
+            azimuthRate = np.random.uniform(-np.pi, np.pi)
+            
+            # Convert to Cartesian
+            x = range * np.cos(elevation) * np.cos(azimuth)
+            y = range * np.cos(elevation) * np.sin(azimuth)
+            z = range * np.sin(elevation)
+
+            # Approximate velocities conversion (simplified version)
+            vx = rangeRate * np.cos(elevation) * np.cos(azimuth) - \
+                range * elevationRate * np.sin(elevation) * np.cos(azimuth) - \
+                range * azimuthRate * np.cos(elevation) * np.sin(azimuth)
+
+            vy = rangeRate * np.cos(elevation) * np.sin(azimuth) - \
+                range * elevationRate * np.sin(elevation) * np.sin(azimuth) + \
+                range * azimuthRate * np.cos(elevation) * np.cos(azimuth)
+
+            vz = rangeRate * np.sin(elevation) + \
+                range * elevationRate * np.cos(elevation)
+                
+            
+            samples[i] = np.array([x, vx, y, vy, z, vz])
+            
+            # Propagate One timestep forward
+            samples[i] = self.state_transition(samples[i], dt)
+            error  = samples[i] - samples.mean(axis=0)
     # VAN LOANS METHOD FOR Q
     def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
         # Use Van Loan's method to tune Q using the matrix exponential
