@@ -182,7 +182,7 @@ def testCase_environment():
     targ4 = target(name = 'Targ4', targetID=4, cords = np.array([-45,30,50]), heading=0, speed=5, climbrate = 0, color = 'k')
     targ5 = target(name = 'Targ5', targetID=5, cords = np.array([-90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
     
-    targs = [targ1, targ2, targ3, targ4, targ5]
+    targs = [targ1]#, targ2, targ3, targ4, targ5]
 
     # Define the communication network:
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 5000*u.km, minRange = 500*u.km, displayStruct = True)
