@@ -14,7 +14,7 @@ from commClass import comms
 #####################
 def create_environment():
     # Define a sensor model:
-    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.15, 0.05]))
+    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.25, 0.005]))
     #sens1 = sensor(name = 'Sensor 1', fov = 20, bearingsError = np.array([0.15, 0.05]))
     #sens2 = sensor(name = 'Sensor 2', fov = 20, bearingsError = np.array([0.15, 0.05]))
    
@@ -31,14 +31,14 @@ def create_environment():
     central = centralEstimator(targetIDs = targetIDs) 
 
     # Define the satellites:
-    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = -35, argp = -55, nu = 0, color='b')
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -35, argp = -55, nu = 0, color='c')
+    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -35, argp = -55, nu = 0, color='c')
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = -35, argp = -55, nu = 0, color='b')
     sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -90, nu = 0, color='y')
     sat4 = satellite(name = 'Sat4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 35, argp = -125, nu = 0, color='r')
     # sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -60, nu = 0, color='g')
     # sat6 = satellite(name = 'Sat6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -90, nu = 0, color='m')
 
-    sats = [sat1, sat2, sat3, sat4]#, sat3, sat4, sat5, sat6]
+    sats = [sat1, sat2]#, sat3, sat4]#, sat3, sat4, sat5, sat6]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([0,-90,0]), heading=90, speed=95, climbrate = 0, color = 'k')
@@ -47,7 +47,7 @@ def create_environment():
     targs = [targ1]#, targ2]
 
     # Define the communication network:
-    comms_network = comms(sats, maxNeighbors = 3, maxRange = 50000*u.km, minRange = 1*u.km, displayStruct = True)
+    comms_network = comms(sats, maxNeighbors = 3, maxRange = 15000*u.km, minRange = 1*u.km, displayStruct = True)
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
@@ -210,10 +210,10 @@ def testCase_environment():
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(50, 180, 130*4 + 1) * u.minute
+    time_vec = np.linspace(50, 80, 61) * u.minute
     
     env = create_environment()
-    env.simulate(time_vec, savePlot = True, saveName = "new", showSim = False)
+    env.simulate(time_vec, savePlot = True, saveName = "PDR_DDF", showSim = False)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
@@ -229,4 +229,4 @@ if __name__ == "__main__":
     #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
     # Save the gif:
-    env.render_gif(fileName = 'satellite_simulation.gif', fps = 15)
+    env.render_gif(fileName = 'satellite_simulation.gif', fps = 10)

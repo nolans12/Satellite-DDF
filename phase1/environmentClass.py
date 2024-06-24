@@ -211,7 +211,7 @@ class environment:
         self.ax.set_ylim([-15000, 15000])
         self.ax.set_zlim([-15000, 15000])
         
-        self.ax.view_init(elev=30, azim=65)
+        self.ax.view_init(elev=30, azim=-10)
 
     # PLOT COMMUNICATION STRUCTURE
         if self.comms.displayStruct:

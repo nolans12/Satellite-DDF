@@ -46,7 +46,7 @@ class centralEstimator:
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
     # If no prior estimates, use the first measurement and assume no velocity
             # start with true position plus some noise
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0]) + np.random.normal(0, 2, 6) 
+            est_prior = np.array([target.pos[0], 10, target.pos[1], 10, target.pos[2], 10]) + np.random.normal(0, 2, 6) 
             # start with some covariance, about +- 5 km and +- 20 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
@@ -74,6 +74,7 @@ class centralEstimator:
     # Define the state transition matrix, F.
     # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
         # How does our state: [x, vx, y, vy, z, vz] change over time?
+        
         F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
                       [0, 1, 0, 0, 0, 0],
                       [0, 0, 1, dt, 0, 0],
@@ -100,9 +101,28 @@ class centralEstimator:
 
 # PREDICTION:
     # Predict the state and covariance
-        est_pred = np.dot(F, est_prior)
+        est_pred = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        
+        #est_pred2 = np.dot(F, est_prior)
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+        
+        
+        # print(f"At time: {envTime:.2f}")
 
+        # predicted_state = est_pred  # Alias for clarity
+        # actual_state = [
+        #     target.pos[0], target.vel[0],
+        #     target.pos[1], target.vel[1],
+        #     target.pos[2], target.vel[2]
+        # ]
+
+        # # Format each element of the predicted state and actual state to 2 decimal places
+        # formatted_predicted_state = [f"{value:.2f}" for value in predicted_state]
+        # formatted_actual_state = [f"{value:.2f}" for value in actual_state]
+
+        # print(f"Predicted state: {formatted_predicted_state}")
+        
 # Use the predicted state to calculate H
     # Need this to be stacked for each satellite
     # Each H will be a 2x6 matrix
@@ -128,6 +148,12 @@ class centralEstimator:
     # Correct prediction
         est = est_pred + np.dot(K, innovation)
         P = P_pred - np.dot(K, np.dot(H, P_pred))
+        
+        # formatted_corrected_state = [f"{value:.2f}" for value in est]
+        # print(f"Corrected state: {formatted_corrected_state}")
+        # print(f"Actual state: {formatted_actual_state}")
+
+        #print(*["-"*10]*6, sep="\n")
 
     # CALCUATE NEES AND NIS
         # For nees, we need to get the error compared to the truth data:
@@ -148,7 +174,7 @@ class centralEstimator:
         self.nisHist[targetID][envTime] = nis
 
 
-    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
+    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -190,6 +216,50 @@ class centralEstimator:
         Q = F @ vanLoan[0:6, 6:12]
         
         return Q
+    
+    def state_transition(self, estPrior, dt):
+        # Takes in previous ECI State and returns the next state after dt
+        x = estPrior[0]
+        vx = estPrior[1]
+        y = estPrior[2]
+        vy = estPrior[3]
+        z = estPrior[4]
+        vz = estPrior[5]
+        
+        # Turn into Spherical Coordinates
+        range_ = jnp.sqrt(x**2 + y**2 + z**2)
+        elevation = jnp.arcsin(z / range_)
+        azimuth = jnp.arctan2(y, x)
+        
+        rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+
+        # Calculate elevation rate
+        elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+
+        # Calculate azimuth rate
+        azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
+
+        # Print intermediate values (comment out if not needed in production)
+        # jax.debug.print(
+        #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+        #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+        
+        # Propagate the State
+        range_ = range_ + rangeRate * dt
+        elevation = elevation + elevationRate * dt
+        azimuth = azimuth + azimuthRate * dt
+        
+        # Convert back to Cartesian
+        x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
+        y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
+        z = range_ * jnp.sin(elevation)
+        
+        return jnp.array([x, vx, y, vy, z, vz])
+
+    def state_transition_jacobian(self, estPrior, dt):
+        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
+        
+        return jacobian
     
 class indeptEstimator:
     def __init__(self, targetIDs): # Takes in both the satellite objects and the targets
@@ -271,7 +341,10 @@ class indeptEstimator:
 
 # PREDICTION:
     # Predict the state and covariance
-        est_pred = np.dot(F, est_prior) # ECI coordinates
+        #est_pred = np.dot(F, est_prior) # ECI coordinates
+        est_pred = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
 # Use the predicted state to calculate H
@@ -312,7 +385,7 @@ class indeptEstimator:
         self.nisHist[targetID][envTime] = nis
                                
 
-    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
+    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -354,7 +427,50 @@ class indeptEstimator:
         Q = F @ vanLoan[0:6, 6:12]
         
         return Q
+    
+    def state_transition(self, estPrior, dt):
+            # Takes in previous ECI State and returns the next state after dt
+            x = estPrior[0]
+            vx = estPrior[1]
+            y = estPrior[2]
+            vy = estPrior[3]
+            z = estPrior[4]
+            vz = estPrior[5]
+            
+            # Turn into Spherical Coordinates
+            range_ = jnp.sqrt(x**2 + y**2 + z**2)
+            elevation = jnp.arcsin(z / range_)
+            azimuth = jnp.arctan2(y, x)
+            
+            rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
 
+            # Calculate elevation rate
+            elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+
+            # Calculate azimuth rate
+            azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
+
+            # Print intermediate values (comment out if not needed in production)
+            # jax.debug.print(
+            #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+            #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+            
+            # Propagate the State
+            range_ = range_ + rangeRate * dt
+            elevation = elevation + elevationRate * dt
+            azimuth = azimuth + azimuthRate * dt
+            
+            # Convert back to Cartesian
+            x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
+            y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
+            z = range_ * jnp.sin(elevation)
+            
+            return jnp.array([x, vx, y, vy, z, vz])
+        
+    def state_transition_jacobian(self, estPrior, dt):
+        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
+        
+        return jacobian
 class ddfEstimator:
     def __init__(self, targetIDs):
 
@@ -406,14 +522,17 @@ class ddfEstimator:
             # Propegate the estPrior to the new time?
             dt = sentTime - priorTime
             # How does our state: [x, vx, y, vy, z, vz] change over time?
-            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                        [0, 1, 0, 0, 0, 0],
-                        [0, 0, 1, dt, 0, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 1, dt],
-                        [0, 0, 0, 0, 0, 1]])
+            # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
+            #             [0, 1, 0, 0, 0, 0],
+            #             [0, 0, 1, dt, 0, 0],
+            #             [0, 0, 0, 1, 0, 0],
+            #             [0, 0, 0, 0, 1, dt],
+            #             [0, 0, 0, 0, 0, 1]])
             
-            estPrior_prop = np.dot(F, estPrior)
+            
+            #estPrior_prop = np.dot(F, estPrior)
+            estPrior_prop = self.state_transition(estPrior, dt)
+            
             #print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
 
         # Check, should we THROW OUT the prior? or do CI with it?
@@ -514,7 +633,10 @@ class ddfEstimator:
 
 # PREDICTION:
     # Predict the state and covariance
-        est_pred = np.dot(F, est_prior) # ECI coordinates
+        est_pred = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        
+        #est_pred = np.dot(F, est_prior) # ECI coordinates
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
 # Use the predicted state to calculate H
@@ -554,7 +676,7 @@ class ddfEstimator:
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
                                
-    def calculate_Q(self, dt, intensity=np.array([0.001, 50, 5])):
+    def calculate_Q(self, dt, intensity=np.array([5, np.deg2rad(5), np.deg2rad(5)])):
         # Use Van Loan's method to tune Q using the matrix exponential
         
         # Define the state transition matrix, A.
@@ -604,3 +726,47 @@ class ddfEstimator:
         omega = omega[0]
         P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
         return np.linalg.det(P)
+    
+    def state_transition(self, estPrior, dt):
+            # Takes in previous ECI State and returns the next state after dt
+            x = estPrior[0]
+            vx = estPrior[1]
+            y = estPrior[2]
+            vy = estPrior[3]
+            z = estPrior[4]
+            vz = estPrior[5]
+            
+            # Turn into Spherical Coordinates
+            range_ = jnp.sqrt(x**2 + y**2 + z**2)
+            elevation = jnp.arcsin(z / range_)
+            azimuth = jnp.arctan2(y, x)
+            
+            rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
+
+            # Calculate elevation rate
+            elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+
+            # Calculate azimuth rate
+            azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
+
+            # Print intermediate values (comment out if not needed in production)
+            # jax.debug.print(
+            #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
+            #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
+            
+            # Propagate the State
+            range_ = range_ + rangeRate * dt
+            elevation = elevation + elevationRate * dt
+            azimuth = azimuth + azimuthRate * dt
+            
+            # Convert back to Cartesian
+            x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
+            y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
+            z = range_ * jnp.sin(elevation)
+            
+            return jnp.array([x, vx, y, vy, z, vz])
+        
+    def state_transition_jacobian(self, estPrior, dt):
+        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
+        
+        return jacobian
