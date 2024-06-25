@@ -19,7 +19,7 @@ def create_environment():
     #sens2 = sensor(name = 'Sensor 2', fov = 20, bearingsError = np.array([0.15, 0.05]))
    
     # Define targets for the satellites to track:
-    targetIDs = [1,2]
+    targetIDs = [1,2,3]
 
     # Define local estimators:
     local = indeptEstimator(targetIDs = targetIDs)
@@ -37,24 +37,25 @@ def create_environment():
     # Define the centralized estimator
     central = centralEstimator(targetIDs = targetIDs) 
 
-    # Colors
-    hex_colors = ['#40E0D0', '#33FF57', '#3357FF', '#00CED1', '#FFDB33', '#8A2BE2', '#00CED1']
-
+    # Colors: Purple, Pink, Light Purple, Light Pink, orange || Blue, dark cyan, 
+    hex_colors = ['#9467BD','#E377C2', '#D7BDE2', '#F8BBD0', '#FF7F0E', '#1F77B4', '#008B8B', '#1B4F72']
     # Define the satellites:
     sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -35, argp = -55, nu = 0, color=hex_colors[0])
     sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = -35, argp = -55, nu = 0, color=hex_colors[1])
     sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = -90, nu = 0, color=hex_colors[2])
     sat4 = satellite(name = 'Sat4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 35, argp = -125, nu = 0, color=hex_colors[3])
-    # sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -60, nu = 0, color='g')
+    sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 12000 * u.km, ecc = 0, inc = 45, raan = -35, argp = -55, nu = 0, color=hex_colors[4])
     # sat6 = satellite(name = 'Sat6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -90, nu = 0, color='m')
 
-    sats = [sat1, sat2, sat3, sat4] # , sat3, sat4]#, sat3, sat4, sat5, sat6]
+    sats = [sat1, sat2, sat3, sat4, sat5] # , sat3, sat4]#, sat3, sat4, sat5, sat6]
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([0,-90,0]), heading=90, speed=95, climbrate = 0, color = hex_colors[5])
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,0]), heading=90, speed=0, climbrate = 0, color = hex_colors[6])
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([0,0,0]), heading=0, speed=0, climbrate = 0, color = hex_colors[6])
+    targ3 = target(name = 'Targ3', targetID=3, cords = np.array([0,-25,0]), heading=0, speed=35, climbrate = 0, color = hex_colors[7])
     
-    targs = [targ1, targ2]
+    
+    targs = [targ1, targ2, targ3]
 
     # Define the communication network:
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 15000*u.km, minRange = 1*u.km, displayStruct = True)
@@ -131,10 +132,11 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 150, 150*12 + 1) * u.minute
+    time_vec = np.linspace(0, 250, 250*6 + 1) * u.minute
     
     env = create_environment()
-    env.simulate(time_vec, savePlot = True, saveName = "dt_5s_", showSim = False)
+    savePlotName = 'dt_10s_'
+    env.simulate(time_vec, savePlot = True, saveName = savePlotName, showSim = False)
         
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
@@ -150,4 +152,4 @@ if __name__ == "__main__":
     #     simData[i] = env.simulate(time_vec, savePlot = True, saveName = "CI", showSim = False)
 
     # Save the gif:
-    env.render_gif(fileName = 'satellite_simulation.gif', fps = 30)
+    env.render_gif(fileName = savePlotName + 'satellite_simulation.gif', fps = 30)

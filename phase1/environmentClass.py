@@ -341,9 +341,9 @@ class environment:
                             times = [time for time in time_vec.value if time in estHist]
                         # ERROR PLOTS
                         for i in range(6):
-                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', label='Central')
-                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green', label='Central')
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
                     
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
@@ -366,7 +366,7 @@ class environment:
                     # ALSO ADD CENTRAL IF FLAG IS SET
                     if central:
                         # Create a Patch object for the central estimator
-                        centralPatch = Patch(color='purple', label='Central Estimator')
+                        centralPatch = Patch(color='green', label='Central Estimator')
                         
                         # Add the Patch object to the handles and labels
                         handles.append(centralPatch)
