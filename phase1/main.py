@@ -1,4 +1,5 @@
 # Import pre-defined libraries
+# Import pre-defined libraries
 from import_libraries import *
 
 # Import classes
@@ -133,7 +134,7 @@ def plot_NEES_NIS(simData):
 
 if __name__ == "__main__":
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 100, 100*4 + 1) * u.minute
+    time_vec = np.linspace(0, 30, 30 + 1) * u.minute
     
     env = create_environment()
     savePlotName = 'test_'

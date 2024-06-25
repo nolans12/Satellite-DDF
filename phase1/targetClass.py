@@ -1,6 +1,9 @@
 from import_libraries import *
 
 
+
+# Target class that moves linearly around the earth with constant velocity
+# Inputs: Name, TargetID, Initial Position, Heading, Speed, Color
 # Target class that moves linearly around the earth with constant velocity
 # Inputs: Name, TargetID, Initial Position, Heading, Speed, Color
 class target:
@@ -36,7 +39,7 @@ class target:
         self.pos = np.array([0, 0, 0])
         self.vel = np.array([0, 0, 0])
         self.hist = defaultdict(dict) # contains time and xyz and velocity history in ECI [x xdot y ydot z zdot]
-        
+                
     def propagate(self, time_step, time):
         # Linearly Propagate Target State in Spherical Cords then transform back to ECI
         # x = [r, r', e, e', a, a'] = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate
