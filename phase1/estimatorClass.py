@@ -32,8 +32,8 @@ class BaseEstimator:
         # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
             # start with true position and velocity plus some noise
-            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 5, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 15, 3)
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 1, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
                                  
             # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
@@ -68,7 +68,7 @@ class BaseEstimator:
         
         # Predict the prcoess noise
         Q = np.zeros([6,6])
-        Q[2,2] = 10 
+        #Q[2,2] = 10 
                 
         # Predict the covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
@@ -116,87 +116,14 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-    
-    def approximate_Q(self, dt):
-        # Maybe try to see if you do 100 spherica coordinates, then convert to cartesian, then take the difference, then take the covariance of that
-        numSamples = 100
-        dt = 0.5
-        samples = np.zeros([numSamples, 6])
-        for i in range(numSamples):
-            # Sample a random spherical cordinate
-            range = np.random.uniform(0, 10000)
-            elevation = np.random.uniform(-np.pi/2, np.pi/2)
-            azimuth = np.random.uniform(-np.pi, np.pi)
-            rangeRate = np.random.uniform(-100, 100)
-            elevationRate = np.random.uniform(-np.pi/2, np.pi/2)
-            azimuthRate = np.random.uniform(-np.pi, np.pi)
-            
-            # Convert to Cartesian
-            x = range * np.cos(elevation) * np.cos(azimuth)
-            y = range * np.cos(elevation) * np.sin(azimuth)
-            z = range * np.sin(elevation)
-
-            # Approximate velocities conversion (simplified version)
-            vx = rangeRate * np.cos(elevation) * np.cos(azimuth) - \
-                range * elevationRate * np.sin(elevation) * np.cos(azimuth) - \
-                range * azimuthRate * np.cos(elevation) * np.sin(azimuth)
-
-            vy = rangeRate * np.cos(elevation) * np.sin(azimuth) - \
-                range * elevationRate * np.sin(elevation) * np.sin(azimuth) + \
-                range * azimuthRate * np.cos(elevation) * np.cos(azimuth)
-
-            vz = rangeRate * np.sin(elevation) + \
-                range * elevationRate * np.cos(elevation)
-                
-            
-            samples[i] = np.array([x, vx, y, vy, z, vz])
-            
-            # Propagate One timestep forward
-            samples[i] = self.state_transition(samples[i], dt)
-            error  = samples[i] - samples.mean(axis=0)
-    # VAN LOANS METHOD FOR Q
-    def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
-        # Use Van Loan's method to tune Q using the matrix exponential
         
-        # Define the state transition matrix, A.
-        A = np.array([[0, 1, 0, 0, 0, 0], 
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 1],
-                      [0, 0, 0, 0, 0, 0]])
+        # print("Estimated Z: ", est[4])
+        # print("Actual Z: ", target.pos[2])
         
-        # Assume there could be noise impacting the cartesian acceleration
-        Gamma = np.array([[0, 0, 0],
-                          [1, 0, 0],
-                          [0, 0, 0],
-                          [0, 1, 0],
-                          [0, 0, 0],
-                          [0, 0, 1]])
+        # print("Estimated Vz: ", est[5])
+        # print("Actual Vz: ", target.vel[2])
+        # print('*'*50)
         
-        # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        
-        rangeNoise, elevationNoise, azimuthNoise = intensity
-        x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
-        y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
-        z = rangeNoise * np.sin(elevationNoise)
-        
-        W = np.array([[x, 0, 0],
-                      [0, y, 0],
-                      [0, 0, z]])
-    
-        # Form Block Matrix Z
-        Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
-        
-        # Compute Matrix Exponential
-        vanLoan = expm(Z)
-
-        # Extract Q = F.T * VanLoan[0:6, 6:12]
-        F = vanLoan[6:12, 0:6].T
-
-        Q = F @ vanLoan[0:6, 6:12]
-        
-        return Q
     
     def state_transition(self, estPrior, dt):
         # Takes in previous ECI State and returns the next state after dt
@@ -215,7 +142,7 @@ class BaseEstimator:
         rangeRate = (x * vx + y * vy + z * vz) / (range)
 
         # Calculate elevation rate
-        elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+        elevationRate = -(z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
 
         # Calculate azimuth rate
         azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
@@ -224,9 +151,7 @@ class BaseEstimator:
         # jax.debug.print(
         #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
         #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-        #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-        #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-        
+        # print('*'*50)
         # Propagate the State
         range = range + rangeRate * dt
         elevation = elevation + elevationRate * dt
@@ -417,7 +342,7 @@ class centralEstimator(BaseEstimator):
         
         # Predict the prcoess noise
         Q = np.zeros([6,6]) 
-        Q[2,2] = 10 # Assume some acceleration noise in the z direction
+        #Q[2,2] = 10 # Assume some acceleration noise in the z direction
                 
         # Predict the covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
@@ -491,3 +416,47 @@ class centralEstimator(BaseEstimator):
                     satMeasurements[sat] = sat.measurementHist[targetID][envTime]
             
         return satMeasurements
+
+# VAN LOANS METHOD FOR Q
+    # def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
+    #     # Use Van Loan's method to tune Q using the matrix exponential
+        
+    #     # Define the state transition matrix, A.
+    #     A = np.array([[0, 1, 0, 0, 0, 0], 
+    #                   [0, 0, 0, 0, 0, 0],
+    #                   [0, 0, 0, 1, 0, 0],
+    #                   [0, 0, 0, 0, 0, 0],
+    #                   [0, 0, 0, 0, 0, 1],
+    #                   [0, 0, 0, 0, 0, 0]])
+        
+    #     # Assume there could be noise impacting the cartesian acceleration
+    #     Gamma = np.array([[0, 0, 0],
+    #                       [1, 0, 0],
+    #                       [0, 0, 0],
+    #                       [0, 1, 0],
+    #                       [0, 0, 0],
+    #                       [0, 0, 1]])
+        
+    #     # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
+        
+    #     rangeNoise, elevationNoise, azimuthNoise = intensity
+    #     x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
+    #     y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
+    #     z = rangeNoise * np.sin(elevationNoise)
+        
+    #     W = np.array([[x, 0, 0],
+    #                   [0, y, 0],
+    #                   [0, 0, z]])
+    
+    #     # Form Block Matrix Z
+    #     Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
+        
+    #     # Compute Matrix Exponential
+    #     vanLoan = expm(Z)
+
+    #     # Extract Q = F.T * VanLoan[0:6, 6:12]
+    #     F = vanLoan[6:12, 0:6].T
+
+    #     Q = F @ vanLoan[0:6, 6:12]
+        
+    #     return Q
