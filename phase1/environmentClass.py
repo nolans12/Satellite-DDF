@@ -29,7 +29,7 @@ class environment:
         self.ax.set_xlim([-15000, 15000])
         self.ax.set_ylim([-15000, 15000])
         self.ax.set_zlim([-15000, 15000])
-        self.ax.view_init(elev=30, azim=-10)
+        self.ax.view_init(elev=30, azim=30)
         self.ax.set_box_aspect([1,1,1])
         self.ax.set_xlabel('X (km)')
         self.ax.set_ylabel('Y (km)')
@@ -203,7 +203,13 @@ class environment:
         for targ in self.targs:
         # Plot the current xyz location of the target
             x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            vx, vy, vz = targ.vel
+            # self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            mag = np.linalg.norm([vx, vy, vz])
+            if mag > 0:
+                vx, vy, vz = vx / mag, vy / mag, vz / mag
+
+            self.ax.quiver(x, y, z, vx*1000, vy*1000, vz*1000, color = targ.color, arrow_length_ratio=0.75, label=targ.name)
             
         self.ax.legend()
     
