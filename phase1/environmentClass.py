@@ -277,6 +277,24 @@ class environment:
                     for i in range(2):  # Note: only 2 plots in the third row
                         axes[6 + i].set_xlabel("Time [min]")
                         axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+            # FIRST, PLOT CENTRAL   
+                    # USE COLOR GREEN FOR CENTRAL ESTIMATOR
+                    if self.centralEstimator:
+                        if targ.targetID in self.centralEstimator.estHist:
+                            trueHistCent = targ.hist
+                            estHistCent = self.centralEstimator.estHist[targ.targetID]
+                            covHistCent = self.centralEstimator.covarianceHist[targ.targetID]
+                            innovationHistCent = self.centralEstimator.innovationHist[targ.targetID]
+                            innovationCovHistCent = self.centralEstimator.innovationCovHist[targ.targetID]
+                            timesCent = [time for time in time_vec.value if time in estHistCent]
+                        # ERROR PLOTS
+                        for i in range(6):
+                            axes[i].plot(timesCent, [estHistCent[time][i] - trueHistCent[time][i] for time in timesCent], color='green', label='Central')
+                            axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')
+                    
+
             # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
                     satColor = sat.color
                     trueHist = targ.hist
@@ -338,22 +356,7 @@ class environment:
                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
                             axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
                     
-                    # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
-                    # USE COLOR PINK FOR CENTRAL ESTIMATOR
-                    if self.centralEstimator:
-                        if targ.targetID in self.centralEstimator.estHist:
-                            trueHist = targ.hist
-                            estHist = self.centralEstimator.estHist[targ.targetID]
-                            covHist = self.centralEstimator.covarianceHist[targ.targetID]
-                            innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-                            innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                            times = [time for time in time_vec.value if time in estHist]
-                        # ERROR PLOTS
-                        for i in range(6):
-                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green', label='Central')
-                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
-                    
+                   
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
                     for ax in axes:
