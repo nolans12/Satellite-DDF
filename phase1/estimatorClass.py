@@ -227,7 +227,7 @@ class BaseEstimator:
         rangeRate = (x * vx + y * vy + z * vz) / (range)
 
         # Calculate elevation rate
-        elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
+        elevationRate = -(z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
 
         # Calculate azimuth rate
         azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
@@ -258,6 +258,24 @@ class BaseEstimator:
 
         vz = rangeRate * jnp.sin(elevation) + \
             range * elevationRate * jnp.cos(elevation)
+
+        # vx = jnp.cos(elevation) * jnp.cos(azimuth) * rangeRate + range * jnp.cos(elevation) * jnp.sin(azimuth) * azimuthRate + range * jnp.sin(elevation) * jnp.cos(azimuth) * elevationRate
+        # vy = jnp.cos(elevation) * jnp.sin(azimuth) * rangeRate - range * jnp.cos(elevation) * jnp.cos(azimuth) * azimuthRate + range * jnp.sin(elevation) * jnp.sin(azimuth) * elevationRate
+        # vz = jnp.sin(elevation) * rangeRate - range * jnp.cos(elevation) * elevationRate
+
+        # # calculate more accurate velocities
+        # vx_lin = estPrior[1] * dt
+        # vy_lin = estPrior[3] * dt
+        # vz_lin = estPrior[5] * dt
+
+        # # mean them
+        # vx = (vx + vx_lin) / 2
+        # vy = (vy + vy_lin) / 2
+        # vz = (vz + vz_lin) / 2
+
+        # TODO: DEBUG THIS SOMEHOW IS WRONG
+
+        print("Estimate: Range: ", range, "Range Rate: ", rangeRate, "Elevation: ", elevation, "Elevation Rate: ", elevationRate, "Azimuth: ", azimuth, "Azimuth Rate: ", azimuthRate)
         
         return jnp.array([x, vx, y, vy, z, vz])
 
@@ -295,10 +313,10 @@ class ddfEstimator(BaseEstimator):
             # print("No information in the queue for " + str(sat.name) + " for target " + str(targetID))
             return
 
-        print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
+        # print("Information in the queue for " + str(sat.name) + " for target " + str(targetID))
         # # print out the time for hte information:
-        for sentTime in commNode['queued_data'][targetID].keys():
-            print("Sent time: " + str(sentTime))
+        # for sentTime in commNode['queued_data'][targetID].keys():
+            # print("Sent time: " + str(sentTime))
         ### There is information in the queue
 
         # If there is new information in the queue, we want to perform covariance intersection on all new time estimates and covariances:
@@ -320,17 +338,9 @@ class ddfEstimator(BaseEstimator):
             # Propegate the estPrior to the new time?
             dt = sentTime - priorTime
 
-            # How does our state: [x, vx, y, vy, z, vz] change over time?
-            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                        [0, 1, 0, 0, 0, 0],
-                        [0, 0, 1, dt, 0, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 1, dt],
-                        [0, 0, 0, 0, 0, 1]])
-            
-            estPrior_prop = np.dot(F, estPrior)
-            # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
-
+            estPrior_prop = self.state_transition(estPrior, dt)
+            F = self.state_transition_jacobian(estPrior, dt)
+        
         # Check, should we THROW OUT the prior? or do CI with it?
             # If the time b/w prior and new estimate is greater than 5 mins, we should throw out the prior
             if dt > 5 or self.gottenEstimate == False: 
