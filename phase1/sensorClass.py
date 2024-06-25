@@ -252,80 +252,26 @@ class sensor:
                 return intersection_point1
             else:
                 return intersection_point2
-            
+        
+        
     # Input: Target, Satellite
     # Output: True or False if the target is within the sensor's field of view
-    # Will use 4 3D triangle, line intersection algorithms and 1 3D plane intersection
+    # Will just use norm distance stuff?
     def inFOV(self, sat, targ):
+
+        # Want to use this method:
+        # Delaunay(poly).find_simplex(point) >= 0  # True if point lies within poly, False otherwise
 
         # Get the target point
         l0 = targ.pos
-        # Now choose another random point
-        # So, because I am choosing 100* targPos dont need to worry about the backside of the FOV shape,
-        # aka dont need to do a 3d plane - point intersection because 100 * targ.pos will always point away from origin.
-        # May want to investigate this later, but for now works great
-        l1 = targ.pos * 100
 
-        # Count how many times the line intersects the 3d shape:
-        count = 0
+        # Create the polygon object between the 4 point fov box and the satellite
+        poly = np.array([sat.orbit.r.value, self.projBox[0], self.projBox[1], self.projBox[2], self.projBox[3]])
 
-        # Get the projection box
-        box = self.projBox
-        # Do 4 triangle line intersections
-        for i in range(4):
-            # Get the triangle points
-            p0 = sat.orbit.r.value
-            p1 = box[i]
-            p2 = box[(i+1)%4]
-
-            # Count how many times the line intersects the triangle
-            if self.triangle_line_intersection(p0, p1, p2, l0, l1):
-                count += 1
-
-        # If the count is odd, the target is in the FOV
-        if count % 2 == 1:
+        # Check if the target is within the polygon
+        if Delaunay(poly).find_simplex(l0) >= 0:
+            # print("Detected")
             return True
         else:
-            return False
-        
-    def triangle_line_intersection(self, p0, p1, p2, l0, l1):
-        # Define the triangle vertices
-        v0 = np.array(p0)
-        v1 = np.array(p1)
-        v2 = np.array(p2)
-
-        # Define the line segment endpoints
-        o = np.array(l0)
-        d = np.array(l1) - np.array(l0)
-
-        # Calculate edges and normal
-        edge1 = v1 - v0
-        edge2 = v2 - v0
-        h = np.cross(d, edge2)
-        a = np.dot(edge1, h)
-
-        # If a is close to 0, then the line is parallel to the triangle
-        if abs(a) < 1e-8:
-            return False
-
-        f = 1.0 / a
-        s = o - v0
-        u = f * np.dot(s, h)
-
-        # Check if intersection is within the triangle
-        if u < 0.0 or u > 1.0:
-            return False
-
-        q = np.cross(s, edge1)
-        v = f * np.dot(d, q)
-
-        if v < 0.0 or u + v > 1.0:
-            return False
-
-        # Calculate t to find out where the intersection point is on the line
-        t = f * np.dot(edge2, q)
-
-        if t >= 0.0 and t <= 1.0:
-            return True
-        else:
+            # print("Not Detected")
             return False

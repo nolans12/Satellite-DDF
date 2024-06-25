@@ -64,13 +64,9 @@ class environment:
         # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion(t_d)
 
-        # Collect individual data measurements for satellites and then do data fusion
-            self.data_fusion(t_d)
-
             if savePlot:
             # Update the plot environment
                 self.plot()
-                self.convert_imgs()
                 self.convert_imgs()
                 if showSim:
                     plt.pause(pause_step)
@@ -78,12 +74,15 @@ class environment:
         
         if savePlot:
             # Plot the results of the simulation.        
-            self.plotResults(time_vec, central = True, savePlot = savePlot, saveName = saveName)
+            self.plotResults(time_vec, savePlot = savePlot, saveName = saveName)
 
         return self.collectData()
         
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
+
+        # print("Running data fusion at time: ", self.time.to_value())
+
         # Collect measurements on any avaliable targets
         # Create a dictionary of flags for each satellite. 
         # Dictionary contains true or false on if the given sat/targ combo collected a measurement
@@ -101,7 +100,7 @@ class environment:
         for targ in self.targs:
             # Check, did any of the satellies collect a measurement on this target?
             # If so, we should perform centralized fusion
-            if any(collectedFlag[targ].values()):
+            if any(collectedFlag[targ].values()) and self.centralEstimator:
                 self.centralEstimator.EKF(self.sats, targ, self.time.to_value())
 
             for sat in self.sats:
@@ -116,28 +115,23 @@ class environment:
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
 
                         # Check if the neighbor has any estimates yet
-                        # TODO: IMPLCIT REQUIREMENT FOR TIMINGS TO BE KNOWN FOR NEIGHBOR
                         if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
                             # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
+                            # TODO: should this be commented or not? Should we initalize other sats with our estimate?
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
                             continue
 
                         # Most recent measurement time by neighbor
                         neighborTime = max(neighbor.ddfEstimator.estHist[targ.targetID].keys())
 
-<<<<<<< Updated upstream
-                        # If the neighbor has an older estimate, send the most recent estimate
-                        if satTime >= neighborTime:
-=======
-                        # If this neighbor has an old estimate, lets send our most recent estimate
-                        if satTime > neighborTime:
->>>>>>> Stashed changes
+                        # If the satellite took a new measurement or the neighbor has an older estimate, send the measurement to update them
+                        if satTime == self.time.to_value() or satTime > neighborTime:
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
 
-                    # Now, each satellite will perform covariance intersection on the measurements sent to it
-                    for sat in self.sats:
-                        # For each satellite, perform CI on the measurements it received
-                        sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+            # Now, each satellite will perform covariance intersection on the measurements sent to it
+            for sat in self.sats:
+                # For each satellite, perform CI on the measurements it received
+                sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -212,14 +206,7 @@ class environment:
             self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
             
         self.ax.legend()
-        
-    # Set the axis limits
-        self.ax.set_xlim([-15000, 15000])
-        self.ax.set_ylim([-15000, 15000])
-        self.ax.set_zlim([-15000, 15000])
-        
-        self.ax.view_init(elev=30, azim=-10)
-
+    
     # PLOT COMMUNICATION STRUCTURE
         if self.comms.displayStruct:
             for edge in self.comms.G.edges:
@@ -239,7 +226,7 @@ class environment:
         
 
 # Plots all of the results to the user.
-    def plotResults(self, time_vec, savePlot, saveName, central = False):
+    def plotResults(self, time_vec, savePlot, saveName):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
@@ -310,37 +297,44 @@ class environment:
                     times = [time for time in time_vec.value if time in estHist]
                     ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                     ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
+  
                     # ERROR PLOTS
                     for i in range(6):
-                        axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
-                        axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
-                        axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
+                        if times:
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
                         
-                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
-                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
-                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
-                            
-                        axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
-                        axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
-                        axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
+                        if ddf_times:
+                            axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                            axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                            axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                                
+                        if times:
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
                         
-                        axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
-                        axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
-                        axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
+                        if ddf_times:
+                            axes[i].plot(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r', label='DDF') # Error')
+                            axes[i].plot(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')# label='DDF 2 Sigma Bounds')
+                            axes[i].plot(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', linestyle='dashed')
                             
                     # INNOVATION PLOTS
                     for i in range(2):  # Note: only 3 plots in the third row
-                        axes[6 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor)#, label='Local Estimate')
-                        axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
-                        axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
+                        if times:
+                            axes[6 + i].plot(times, [innovationHist[time][i] for time in times], color=satColor)#, label='Local Estimate')
+                            axes[6 + i].plot(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')#, label='2 Sigma Bounds')
+                            axes[6 + i].plot(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], color=satColor, linestyle='dotted')
                         
-                        axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
-                        axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
-                        axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
-                        
+                        if ddf_innovation_times:
+                            axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
+                            axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
+                            axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                    
                     # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
                     # USE COLOR PINK FOR CENTRAL ESTIMATOR
-                    if central:
+                    if self.centralEstimator:
                         if targ.targetID in self.centralEstimator.estHist:
                             trueHist = targ.hist
                             estHist = self.centralEstimator.estHist[targ.targetID]
@@ -350,9 +344,9 @@ class environment:
                             times = [time for time in time_vec.value if time in estHist]
                         # ERROR PLOTS
                         for i in range(6):
-                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='purple', label='Central')
-                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='purple', linestyle='dashed')
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green', label='Central')
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
                     
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
@@ -362,6 +356,13 @@ class environment:
                                 handles.append(handle)
                                 labels.append(label)
                     
+                    
+                    min_time = min(targ.hist.keys())
+                    max_time = max(targ.hist.keys())
+
+                    for ax in axes:
+                        ax.set_xlim(min_time, max_time)
+
                     # SATELLITE COLORS
                     satColor = sat.color
                     
@@ -373,9 +374,9 @@ class environment:
                     labels.append(sat.name)
                     
                     # ALSO ADD CENTRAL IF FLAG IS SET
-                    if central:
+                    if self.centralEstimator:
                         # Create a Patch object for the central estimator
-                        centralPatch = Patch(color='purple', label='Central Estimator')
+                        centralPatch = Patch(color='green', label='Central Estimator')
                         
                         # Add the Patch object to the handles and labels
                         handles.append(centralPatch)

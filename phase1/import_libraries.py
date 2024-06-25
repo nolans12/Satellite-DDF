@@ -21,6 +21,7 @@ import sympy as sp
 from sympy import Matrix, symbols, lambdify, Subs, Derivative, Function
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Patch
+from scipy.spatial import Delaunay
 import matplotlib.cm as cm  # Import colormap module
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
