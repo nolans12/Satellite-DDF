@@ -81,7 +81,7 @@ class environment:
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
 
-        #print("Running data fusion at time: ", self.time.to_value())
+        # print("Running data fusion at time: ", self.time.to_value())
 
         # Collect measurements on any avaliable targets
         # Create a dictionary of flags for each satellite. 
@@ -115,9 +115,9 @@ class environment:
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
 
                         # Check if the neighbor has any estimates yet
-                        # TODO: IMPLCIT REQUIREMENT FOR TIMINGS TO BE KNOWN FOR NEIGHBOR
                         if len(neighbor.ddfEstimator.estHist[targ.targetID].keys()) == 0:
                             # If neighbor doesnt have estimates yet, should send the most recent estimate, initalizing the neighbors filter
+                            # TODO: should this be commented or not? Should we initalize other sats with our estimate?
                             self.comms.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targ.targetID][satTime], sat.ddfEstimator.covarianceHist[targ.targetID][satTime], targ.targetID, satTime)
                             continue
 
