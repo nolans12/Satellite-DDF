@@ -36,30 +36,31 @@ def create_environment():
 
     purple_shades = ['#9467BD']
     blue_shades = ['#87CEEB', '#6495ED', '#0000FF']
-    yellow_shades = ['#FDDA0D', '#FFBF00', '#E49B0F']
-    red_shades = ['#EE4B2B', '#DE3163', '#800020']
+    yellow_shades = ['#FFBF00', '#E49B0F', '#FDDA0D']
+    red_shades = ['#EE4B2B', '#800020', '#DE3163']
 
     # MONO TRACK SATELLITE
     sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color=purple_shades[0])
 
     # POLAR ORBIT SATELLITES
-    sat2_1 = satellite(name = 'Sat2.1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 180, argp = 0, nu = 150, color=blue_shades[0])
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 180, argp = 0, nu = 150, color=blue_shades[0])
     sat2_2 = satellite(name = 'Sat2.2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 180, argp = 0, nu = 150 - 60, color=blue_shades[1])
     sat2_3 = satellite(name = 'Sat2.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 180, argp = 0, nu = 150 - 60*2, color=blue_shades[2])
    
     # INCLINATION 50 SATELLITES
-    sat3_1 = satellite(name = 'Sat3.1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90 + 60*2 - 180, color=yellow_shades[0])
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90, color=yellow_shades[0])
     sat3_2 = satellite(name = 'Sat3.2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90 + 60, color=yellow_shades[1])
-    sat3_3 = satellite(name = 'Sat3.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90, color=yellow_shades[2])
+    sat3_1 = satellite(name = 'Sat3.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90 + 60*2 - 180, color=yellow_shades[2])
 
-    sats = [sat1, sat2_1, sat2_2, sat2_3, sat3_1, sat3_2, sat3_3]
+    # sats = [sat1, sat2_1, sat2_2, sat2_3, sat3_1, sat3_2, sat3_3]
+    sats = [sat1, sat2, sat3]
     # sats = []
 
     # Define the target objects:
     # At M = 4.7, hypersonic
     targ1 = target(name = 'Targ1', targetID=1, cords = np.array([0,-45,0]), heading=90, speed= 1.61538*60, climbrate = 0, color = red_shades[0])
     # At M = 0.7, transonic speed
-    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([75,-5,0]), heading=180, speed= 0.2401*60, climbrate = 0, color = red_shades[1])
+    targ2 = target(name = 'Targ2', targetID=2, cords = np.array([90,-5,0]), heading=180, speed= 0.2401*60, climbrate = 0, color = red_shades[1])
     # At 50 mph 
     targ3 = target(name = 'Targ3', targetID=3, cords = np.array([45,0,0]), heading=180 + 45, speed= 0.022352*60, climbrate = 0, color = red_shades[2])
     
