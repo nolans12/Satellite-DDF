@@ -235,16 +235,10 @@ class ddfEstimator(BaseEstimator):
 
             # Propegate the estPrior to the new time?
             dt = sentTime - priorTime
-
-            # How does our state: [x, vx, y, vy, z, vz] change over time?
-            F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-                        [0, 1, 0, 0, 0, 0],
-                        [0, 0, 1, dt, 0, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 1, dt],
-                        [0, 0, 0, 0, 0, 1]])
             
-            estPrior_prop = np.dot(F, estPrior)
+            estPrior_prop = self.state_transition(estPrior, dt)
+            F = self.state_transition_jacobian(estPrior, dt)
+            
             # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
 
         # Check, should we THROW OUT the prior? or do CI with it?
