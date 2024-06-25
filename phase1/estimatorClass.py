@@ -163,54 +163,7 @@ class BaseEstimator:
         return Q
     
     def state_transition(self, estPrior, dt):
-        # # Takes in previous ECI State and returns the next state after dt
-        # x = estPrior[0]
-        # vx = estPrior[1]
-        # y = estPrior[2]
-        # vy = estPrior[3]
-        # z = estPrior[4]
-        # vz = estPrior[5]
-        
-        # # Turn into Spherical Coordinates
-        # range_ = jnp.sqrt(x**2 + y**2 + z**2)
-        # azimuth = jnp.arctan2(y, x)
-        # elevation = jnp.arcsin(z / range_)
-        
-        # # rangeRate = (x * vx + y * vy + z * vz) / (range_ * jnp.linalg.norm(jnp.array([vx, vy, vz])))
-        # rangeRate = (x * vx + y * vy + z * vz) / range_
-
-        # # Calculate azimuth rate
-        # # azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
-        # azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
-
-        # # Calculate elevation rate
-        # # elevationRate = (z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
-        # elevationRate = (z * (vx * x + vy * y) - vz * (x**2 + y**2)) / (range_ * jnp.sqrt(x**2 + y**2))
-
-        # # Print intermediate values (comment out if not needed in production)
-        # # jax.debug.print(
-        # #     "Predic: Range: {range_}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-        # #     range_=range_, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-        
-        # # Propagate the State
-        # range_ = range_ + rangeRate * dt
-        # azimuth = azimuth + azimuthRate * dt
-        # elevation = elevation + elevationRate * dt
-       
-        # # Convert back to Cartesian
-        # x = range_ * jnp.cos(elevation) * jnp.cos(azimuth)
-        # y = range_ * jnp.cos(elevation) * jnp.sin(azimuth)
-        # z = range_ * jnp.sin(elevation)
-
-        # # Approximate velocities conversion (simplified version)
-        # # vx = rangeRate * jnp.cos(elevation) * jnp.cos(azimuth) + range_ * jnp.cos(elevation) * jnp.sin(azimuth * azimuthRate) + range_ * jnp.sin(elevation) * jnp.cos(azimuth) * elevationRate
-
-        # vx = x/range_ * rangeRate + y * azimuthRate + z * jnp.cos(azimuth) * elevationRate
-        # vy = y/range_ * rangeRate - x * azimuthRate + z * jnp.sin(azimuth) * elevationRate
-        # vz = z/range_ * rangeRate - range_ * jnp.cos(elevation) * elevationRate
-        
-        # return jnp.array([x, vx, y, vy, z, vz])
-
+    
         # Takes in previous ECI State and returns the next state after dt
         x = estPrior[0]
         vx = estPrior[1]
@@ -259,24 +212,6 @@ class BaseEstimator:
         vz = rangeRate * jnp.sin(elevation) + \
             range * elevationRate * jnp.cos(elevation)
 
-        # vx = jnp.cos(elevation) * jnp.cos(azimuth) * rangeRate + range * jnp.cos(elevation) * jnp.sin(azimuth) * azimuthRate + range * jnp.sin(elevation) * jnp.cos(azimuth) * elevationRate
-        # vy = jnp.cos(elevation) * jnp.sin(azimuth) * rangeRate - range * jnp.cos(elevation) * jnp.cos(azimuth) * azimuthRate + range * jnp.sin(elevation) * jnp.sin(azimuth) * elevationRate
-        # vz = jnp.sin(elevation) * rangeRate - range * jnp.cos(elevation) * elevationRate
-
-        # # calculate more accurate velocities
-        # vx_lin = estPrior[1] * dt
-        # vy_lin = estPrior[3] * dt
-        # vz_lin = estPrior[5] * dt
-
-        # # mean them
-        # vx = (vx + vx_lin) / 2
-        # vy = (vy + vy_lin) / 2
-        # vz = (vz + vz_lin) / 2
-
-        # TODO: DEBUG THIS SOMEHOW IS WRONG
-
-        print("Estimate: Range: ", range, "Range Rate: ", rangeRate, "Elevation: ", elevation, "Elevation Rate: ", elevationRate, "Azimuth: ", azimuth, "Azimuth Rate: ", azimuthRate)
-        
         return jnp.array([x, vx, y, vy, z, vz])
 
     def state_transition_jacobian(self, estPrior, dt):

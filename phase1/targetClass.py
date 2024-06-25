@@ -71,20 +71,11 @@ class target:
         elevationRate = self.X[3]
         azimuth = self.X[4]
         azimuthRate = self.X[5]
-        
-        print("Time: ", time)
-        print("Target: Range: ", range, "Range Rate: ", rangeRate, "Elevation: ", elevation, "Elevation Rate: ", elevationRate, "Azimuth: ", azimuth, "Azimuth Rate: ", azimuthRate)
-        
+ 
         # Convert Spherical to Cartesian
         x = range * np.cos(elevation) * np.cos(azimuth)
         y = range * np.cos(elevation) * np.sin(azimuth)
         z = range * np.sin(elevation)
-
-        # TODO: DO NOT APPROIMATE VELOCITY CONVERSIONS
-        # vx = np.cos(elevation) * np.cos(azimuth) * rangeRate + range * np.cos(elevation) * np.sin(azimuth) * azimuthRate + range * np.sin(elevation) * np.cos(azimuth) * elevationRate
-        # vy = np.cos(elevation) * np.sin(azimuth) * rangeRate - range * np.cos(elevation) * np.cos(azimuth) * azimuthRate + range * np.sin(elevation) * np.sin(azimuth) * elevationRate
-        # vz = np.sin(elevation) * rangeRate - range * np.cos(elevation) * elevationRate
-
 
         # Approximate velocities conversion (simplified version)
         vx = rangeRate * np.cos(elevation) * np.cos(azimuth) - \
@@ -98,24 +89,6 @@ class target:
         vz = rangeRate * np.sin(elevation) + \
             range * elevationRate * np.cos(elevation)
 
-        # print("Time: ", time)
-        # print("Z position: ", z)
-        # print("Z velocity: ", vz)
-
-        # # if the z or vz is close to zero, set it to 0
-        # if abs(z) < 1e-5:
-        #     z = 0
-        # if abs(vz) < 1e-5:
-        #     vz = 0
-        
-        # TODO: WHEN HAVE A RANGE RATE, VELOCITY IS NOT CONSTANT!
-        # print(np.linalg.norm(np.array([vx, vy, vz])))
         self.pos = np.array([x, y, z])  
         self.vel = np.array([vx, vy, vz])
-
-        print("Target: X: ", self.pos[0], "Y: ", self.pos[1], "Z: ", self.pos[2])
-        print("Target: VX: ", self.vel[0], "VY: ", self.vel[1], "VZ: ", self.vel[2])
-
-        # print("Norm of velocity: ", np.linalg.norm(self.vel))
-        
         
