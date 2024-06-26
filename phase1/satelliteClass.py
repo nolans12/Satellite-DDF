@@ -71,6 +71,6 @@ class satellite:
 
     def update_local_filters(self, measurement, target, time):
         # Update the local filters
-        self.indeptEstimator.EKF(self, measurement, target, time)
+        self.indeptEstimator.EKF([self], [measurement], target, time)
         if self.ddfEstimator:
-            self.ddfEstimator.EKF(self, measurement, target, time)
+            self.ddfEstimator.EKF([self], [measurement], target, time)

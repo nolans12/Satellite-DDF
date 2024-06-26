@@ -29,7 +29,7 @@ class environment:
         self.ax.set_xlim([-15000, 15000])
         self.ax.set_ylim([-15000, 15000])
         self.ax.set_zlim([-15000, 15000])
-        self.ax.view_init(elev=30, azim=-10)
+        self.ax.view_init(elev=30, azim=30)
         self.ax.set_box_aspect([1,1,1])
         self.ax.set_xlabel('X (km)')
         self.ax.set_ylabel('Y (km)')
@@ -77,7 +77,6 @@ class environment:
             self.plotResults(time_vec, savePlot = savePlot, saveName = saveName)
 
         return self.collectData()
-        
 # Collect measurements from all satellites and do data fusion
     def data_fusion(self, time_step):
 
@@ -87,12 +86,16 @@ class environment:
         # Create a dictionary of flags for each satellite. 
         # Dictionary contains true or false on if the given sat/targ combo collected a measurement
         collectedFlag = defaultdict(lambda: defaultdict(dict))
+        measurements = defaultdict(lambda: defaultdict(dict))
         for targ in self.targs:
             for sat in self.sats:
                 # This will collect the bearing measurement, if avaliable, and also perform local estimation on the target
                 # If a measurement is collected, the flag will be set to true
                 collectedFlag[targ][sat] = sat.collect_measurements_and_filter(targ)
-
+                
+                if collectedFlag[targ][sat]:
+                    measurements[targ][sat] = sat.measurementHist[targ.targetID][self.time.to_value()]
+                
         # Now perform data fusion on the collected measurements
         # First check, did any new satellites get measurements?
         
@@ -101,7 +104,13 @@ class environment:
             # Check, did any of the satellies collect a measurement on this target?
             # If so, we should perform centralized fusion
             if any(collectedFlag[targ].values()) and self.centralEstimator:
-                self.centralEstimator.EKF(self.sats, targ, self.time.to_value())
+                                
+                # Extract Satellites that took a measurement
+                satsWithMeasurements = [sat for sat in self.sats if collectedFlag[targ][sat]]
+                newMeasurements = [measurements[targ][sat] for sat in satsWithMeasurements]
+                
+                # Run EKF with all satellites that took a measurement on the target
+                self.centralEstimator.EKF(satsWithMeasurements, newMeasurements, targ, self.time.to_value())
 
             for sat in self.sats:
                 if sat.ddfEstimator:
@@ -132,6 +141,8 @@ class environment:
             for sat in self.sats:
                 # For each satellite, perform CI on the measurements it received
                 sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+
+
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
@@ -203,7 +214,13 @@ class environment:
         for targ in self.targs:
         # Plot the current xyz location of the target
             x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            vx, vy, vz = targ.vel
+            # self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            mag = np.linalg.norm([vx, vy, vz])
+            if mag > 0:
+                vx, vy, vz = vx / mag, vy / mag, vz / mag
+
+            self.ax.quiver(x, y, z, vx*1000, vy*1000, vz*1000, color = targ.color, arrow_length_ratio=0.75, label=targ.name)
             
         self.ax.legend()
     
@@ -271,6 +288,24 @@ class environment:
                     for i in range(2):  # Note: only 2 plots in the third row
                         axes[6 + i].set_xlabel("Time [min]")
                         axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+            # FIRST, PLOT CENTRAL   
+                    # USE COLOR GREEN FOR CENTRAL ESTIMATOR
+                    if self.centralEstimator:
+                        if targ.targetID in self.centralEstimator.estHist:
+                            trueHistCent = targ.hist
+                            estHistCent = self.centralEstimator.estHist[targ.targetID]
+                            covHistCent = self.centralEstimator.covarianceHist[targ.targetID]
+                            innovationHistCent = self.centralEstimator.innovationHist[targ.targetID]
+                            innovationCovHistCent = self.centralEstimator.innovationCovHist[targ.targetID]
+                            timesCent = [time for time in time_vec.value if time in estHistCent]
+                        # ERROR PLOTS
+                        for i in range(6):
+                            axes[i].plot(timesCent, [estHistCent[time][i] - trueHistCent[time][i] for time in timesCent], color='green', label='Central')
+                            axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')
+                    
+
             # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
                     satColor = sat.color
                     trueHist = targ.hist
@@ -332,22 +367,7 @@ class environment:
                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
                             axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
                     
-                    # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
-                    # USE COLOR PINK FOR CENTRAL ESTIMATOR
-                    if self.centralEstimator:
-                        if targ.targetID in self.centralEstimator.estHist:
-                            trueHist = targ.hist
-                            estHist = self.centralEstimator.estHist[targ.targetID]
-                            covHist = self.centralEstimator.covarianceHist[targ.targetID]
-                            innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-                            innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                            times = [time for time in time_vec.value if time in estHist]
-                        # ERROR PLOTS
-                        for i in range(6):
-                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green', label='Central')
-                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
-                    
+                   
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
                     for ax in axes:

@@ -17,23 +17,23 @@ class BaseEstimator:
 
         self.gottenEstimate = False
 
-    # LOCAL EXTENDED KALMAN FILTER
-    # Inputs: Satellite with a new bearings measurement, targetID, dt since last measurement, and environment time (to time stamp the measurement)
-    # Output: New estimate in ECI
-    def local_EKF(self, sat, measurement, target, envTime):
-         
+    # Extended Kalman Filter for both local and central estimation
+    def EKF(self, sats, measurements, target, envTime):
+        # This Estimator can handle both the central and local estimation
+        # Sats is a list of all satellites but it can also be a single sat for local estimation
+        # Measurements is a list of all measurements but it can also be a single measurement for local estimation
+        
         self.gottenEstimate = True
-
-        # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-        # Measurment: Z = [in_track, cross_track] bearings measurement
-
+        numMeasurements = len(measurements)
+        
+        # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
-
-        # GET THE PRIOR DATA
+        
+        # For this target: Get the prior Data
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
             # start with true position and velocity plus some noise
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 1, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
                                  
             # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
@@ -43,71 +43,70 @@ class BaseEstimator:
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
                                 [0, 0, 0, 0, 0, 100]])
-            
-        # Store these and return for first iteration
+                
+            # Store these and return for first iteration to intialize the filter consistently
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
-        
         else:
-        # Else, get prior estimate, need to get the last time, which will be the max
+        # Else, get most recent estimate and covariance
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
 
-        # Now to get dt, use time since last measurement
+        # Now to get dt, use time since last estimate for prediction step
         dt = envTime - time_prior
 
-        # Predict the next state
+        # Predict the next state using state transition function
         est_pred = self.state_transition(est_prior, dt)
         
-        # Evaluate the Jacobian of the state transition
+        # Evaluate the Jacobian of the state transition function
         F = self.state_transition_jacobian(est_prior, dt)
         
-        # Predict the prcoess noise
-        Q = np.zeros([6,6])
-        #Q[2,2] = 10 
-                
+        # Predict the prcoess noise assosiated with the state transition
+        Q = np.zeros((6,6)) 
+        
         # Predict the covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-
-        # Define the sensor noise matrix, R.
-        # This is the covariance estimate of the sensor error
-        R = np.eye(2)*sat.sensor.bearingsError**2
-
-        # EXTRACT THE MEASUREMENTS
-        z = measurement # WILL BE BEARINGS ONLY MEASUREMENT
-
-        # Use the predicted state to calculate H
-        # Define the obversation matrix, H.
-        # How does our state relate to our measurement?
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-
-        # UPDATE:
-        # Calculate innovation terms:
-        # y = z - h(x)
-        innovation = z - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
-        # then use big H
+        
+        ### Extract Measurements and Calcualate Jacobian, Sensor Noise, and Innovation        
+        z = np.zeros((numMeasurements, 2))
+        H = np.zeros((2*numMeasurements, 6))
+        R = np.zeros((2*numMeasurements, 2*numMeasurements))
+        innovation = np.zeros((2*numMeasurements))
+        
+        i = 0
+        for sat in sats: # for each satellite, get the measurement and update the H, R, and innovation
+            z[i] = measurements[i] # get 1x2 measurement vector
+            H[2*i:2*i+2,0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred) # Jacobian of the sensor model
+            R[2*i:2*i+2,2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 # Sensor noise matrix
+            innovation[2*i:2*i+2] = (z[i] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))).flatten() # 1 x 2N vector of innovations
+            
+            i += 1
+                        
+        # Calculate the innovation covariance
         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
-
+        
         # Solve for the Kalman gain
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
-
-        # Correct prediction
-        est = est_pred + np.dot(K, innovation)
+        
+        # Correct the prediction
+        est = est_pred + np.dot(K, innovation.T).T # Note that est pred is a 1x6 array, so we need to transpose the innovation to make it a 1x6 array
+        # Correct the Covariance
         P = P_pred - np.dot(K, np.dot(H, P_pred))
-
+        
         # CALCUATE NEES AND NIS
-        # For nees, we need to get the error compared to the truth data:
         # Get the true position
         true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
+        
         # Get the error
         error = est - true
-        # Get the covariance of the error
+        
+        # Get the covariance of the error and innovation
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
-        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
+        nis = np.dot(innovation, np.dot(np.linalg.inv(innovationCov), innovation.T))
 
         # SAVE THE DATA
         self.estHist[targetID][envTime] = est
@@ -116,14 +115,8 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-        
-        # print("Estimated Z: ", est[4])
-        # print("Actual Z: ", target.pos[2])
-        
-        # print("Estimated Vz: ", est[5])
-        # print("Actual Vz: ", target.vel[2])
-        # print('*'*50)
-        
+
+        # Use the sensor noise assosiated with each measurement
     
     def state_transition(self, estPrior, dt):
         # Takes in previous ECI State and returns the next state after dt
@@ -187,23 +180,17 @@ class indeptEstimator(BaseEstimator):
         super().__init__(targetIDs)
         # Add any additional initialization specific to indeptEstimator here
 
-    def EKF(self, sat, measurement, target, envTime):
-        return self.local_EKF(sat, measurement, target, envTime)
+    def EKF(self, sats, measurements, target, envTime):
+        return super().EKF(sats, measurements, target, envTime)
 
 class ddfEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         super().__init__(targetIDs)
         # Add any additional initialization specific to ddfEstimator here
 
-    def EKF(self, sat, measurement, target, envTime):
-        return self.local_EKF(sat, measurement, target, envTime)
+    def EKF(self, sats, measurements, target, envTime):
+        return super().EKF(sats, measurements, target, envTime)
 
-    # Perform covariance intersection with all estimates and covariances sent from satellites
-    # Inputs:
-    #   - sat: satellite object
-    #   - commNode: communication node object, containing potentially queued information
-    #   - targetID: target ID
-    #   - envTime: environment time
     def CI(self, sat, commNode, targetID):
 
         # Check if there is any information in the queue:
@@ -285,172 +272,5 @@ class centralEstimator(BaseEstimator):
         super().__init__(targetIDs)
         # Add any additional initialization specific to centralEstimator here
 
-    # CENTRALIZED EXTENDED KALMAN FILTER
-    # Inputs: All satellite objects, targetID to estimate, and the environment time
-    # Output: New estimate in ECI
-    def EKF(self, sats, target, envTime):
-    
-        # Desired estimate: Xdot = [x, vx, y, vy, z, vz]
-        # Measurment: [in_track, cross_track] bearings measurement
-
-        # First get the measurements from the satellites at given time and targetID
-        targetID = target.targetID
-        satMeasurements = self.collectAllMeasurements(sats, targetID, envTime)
-        
-        # GET THE PRIOR DATA
-        if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
-            # start with true position and velocity plus some noise
-            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 5, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 15, 3)
-            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
-                                 
-            # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
-            P_prior = np.array([[50, 0, 0, 0, 0, 0],
-                                [0, 100, 0, 0, 0, 0],
-                                [0, 0, 50, 0, 0, 0],
-                                [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]])
-                
-            # Store these and return for first iteration
-            self.estHist[targetID][envTime] = est_prior
-            self.covarianceHist[targetID][envTime] = P_prior
-            self.innovationHist[targetID][envTime] = np.zeros(3)
-            self.innovationCovHist[targetID][envTime] = np.eye(3)
-            return est_prior
-
-        else:
-        # Else, get prior estimate, need to get the last time, which will be the max
-            time_prior = max(self.estHist[targetID].keys())
-            est_prior = self.estHist[targetID][time_prior]
-            P_prior = self.covarianceHist[targetID][time_prior]
-
-        # Now to get dt, use time since last measurement
-        dt = envTime - time_prior
-
-        # Predict the next state
-        est_pred = self.state_transition(est_prior, dt)
-        
-        # Evaluate the Jacobian of the state transition
-        F = self.state_transition_jacobian(est_prior, dt)
-        
-        # Predict the prcoess noise
-        Q = np.zeros([6,6]) 
-        #Q[2,2] = 10 # Assume some acceleration noise in the z direction
-                
-        # Predict the covariance
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-    
-        # Define the sensor nonise matrix, R.
-        # Needs to be stacked for each satellite
-        for i, sat in enumerate(satMeasurements):
-            R_curr = np.eye(2) * sat.sensor.bearingsError**2
-            if i == 0:
-                R_stack = R_curr
-            else:
-                R_stack = block_diag(R_stack, R_curr)
-
-        # EXTRACT THE MEASUREMENTS
-        z = np.array([satMeasurements[sat] for sat in satMeasurements]).flatten()
-
-        # Use the predicted state to calculate H
-        # Need this to be stacked for each satellite
-        # Each H will be a 2x6 matrix
-        H = np.zeros((2*len(satMeasurements), 6))
-        for i, sat in enumerate(satMeasurements):
-            H[2*i:2*i+2][0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-
-        # UPDATE:
-        # Calculate innovation terms:
-        # We need to calculate the innovation for each satellite
-        for i, sat in enumerate(satMeasurements):
-            innovation_curr = satMeasurements[sat] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])) # Difference between the measurement and the predicted measurement
-            if i == 0:
-                innovation = innovation_curr
-            else:
-                innovation = np.append(innovation, innovation_curr)
-
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R_stack
-
-        # Solve for the Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
-
-        # Correct prediction
-        est = est_pred + np.dot(K, innovation)
-        P = P_pred - np.dot(K, np.dot(H, P_pred))
-        
-
-        # CALCUATE NEES AND NIS
-        # For nees, we need to get the error compared to the truth data:
-        # Get the true position
-        true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])
-        # Get the error
-        error = est - true
-        # Get the covariance of the error
-        nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
-        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
-
-        # SAVE THE DATA
-        self.estHist[targetID][envTime] = est
-        self.covarianceHist[targetID][envTime] = P
-        self.innovationHist[targetID][envTime] = innovation
-        self.innovationCovHist[targetID][envTime] = innovationCov
-        self.neesHist[targetID][envTime] = nees
-        self.nisHist[targetID][envTime] = nis
-
-    # Input: All satellites and a single target
-    # Output: A dictionary containing the satelite object and the measurement associated with that satellite
-    def collectAllMeasurements(self, sats, targetID, envTime):
-        satMeasurements = defaultdict(dict)
-        for sat in sats: # check if a satellite viewed a target at this time
-            if (hasattr(sat, 'measurementHist') and 
-                targetID in sat.measurementHist and envTime in sat.measurementHist[targetID]):                
-                    
-                    # Add the satellite and the measurement to the dictionary
-                    satMeasurements[sat] = sat.measurementHist[targetID][envTime]
-            
-        return satMeasurements
-
-# VAN LOANS METHOD FOR Q
-    # def calculate_Q(self, dt, intensity=np.array([0.001, 5, 5])):
-    #     # Use Van Loan's method to tune Q using the matrix exponential
-        
-    #     # Define the state transition matrix, A.
-    #     A = np.array([[0, 1, 0, 0, 0, 0], 
-    #                   [0, 0, 0, 0, 0, 0],
-    #                   [0, 0, 0, 1, 0, 0],
-    #                   [0, 0, 0, 0, 0, 0],
-    #                   [0, 0, 0, 0, 0, 1],
-    #                   [0, 0, 0, 0, 0, 0]])
-        
-    #     # Assume there could be noise impacting the cartesian acceleration
-    #     Gamma = np.array([[0, 0, 0],
-    #                       [1, 0, 0],
-    #                       [0, 0, 0],
-    #                       [0, 1, 0],
-    #                       [0, 0, 0],
-    #                       [0, 0, 1]])
-        
-    #     # Assing a maximum intensity of the noise --> 0.001 km/min^2 = 1 m/min^2 over the time step
-        
-    #     rangeNoise, elevationNoise, azimuthNoise = intensity
-    #     x = rangeNoise * np.cos(elevationNoise) * np.cos(azimuthNoise)
-    #     y = rangeNoise * np.cos(elevationNoise) * np.sin(azimuthNoise)
-    #     z = rangeNoise * np.sin(elevationNoise)
-        
-    #     W = np.array([[x, 0, 0],
-    #                   [0, y, 0],
-    #                   [0, 0, z]])
-    
-    #     # Form Block Matrix Z
-    #     Z = dt * np.block([ [-A, Gamma @ W @ Gamma.T], [np.zeros([6,6]), A.T]])
-        
-    #     # Compute Matrix Exponential
-    #     vanLoan = expm(Z)
-
-    #     # Extract Q = F.T * VanLoan[0:6, 6:12]
-    #     F = vanLoan[6:12, 0:6].T
-
-    #     Q = F @ vanLoan[0:6, 6:12]
-        
-    #     return Q
+    def EKF(self, sats, measurements, target, envTime):
+        return super().EKF(sats, measurements, target, envTime)
