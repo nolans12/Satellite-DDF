@@ -174,7 +174,7 @@ def plot_NEES_NIS(simData):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 150, 150 * 15 + 1) * u.minute
+    time_vec = np.linspace(0, 500, 500 * 15 + 1) * u.minute
     
     # Number of simulations:
     numSims = 1
@@ -184,10 +184,10 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "150sec_4dt", showSim = False)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "500sec_4dt", showSim = False)
 
     # Plot the NEES and NIS results:
-    # plot_NEES_NIS(simData)
+    plot_NEES_NIS(simData)
 
     # Save the gif:
-    # env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+    # env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)wqq q
