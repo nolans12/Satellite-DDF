@@ -34,7 +34,7 @@ class BaseEstimator:
             # start with true position and velocity plus some noise
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 1, 3)
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1, 3)
-            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+            est_prior = np.array([prior_pos[0], 0, prior_pos[1], 0, prior_pos[2], 0])
                                  
             # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
