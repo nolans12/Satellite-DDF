@@ -41,7 +41,8 @@ class BaseEstimator:
             #                     [0, 0, 0, 100, 0, 0],
             #                     [0, 0, 0, 0, 50, 0],
             #                     [0, 0, 0, 0, 0, 100]])
-            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6)
+            # est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6)
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
@@ -70,7 +71,11 @@ class BaseEstimator:
         # Define the process noise matrix, Q.
         # Estimate the randomness of the acceleration
         # Use Van Loan's method to tune Q
-        Q = self.calculate_Q(dt)
+        # Q = self.calculate_Q(dt)
+
+        # make Q be all zeros:
+        Q = np.zeros((6,6))
+
 
         # Define the sensor noise matrix, R.
         # This is the covariance estimate of the sensor error
@@ -343,7 +348,8 @@ class centralEstimator(BaseEstimator):
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
         # If no prior estimates, use the first measurement and assume no velocity
         
-            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
+            # est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
+            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
             # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
@@ -383,7 +389,10 @@ class centralEstimator(BaseEstimator):
         # Define the process noise matrix, Q.
         # Is a 6x6 matrix representing the covariance of the process noise
         # Estimate the randomness of the acceleration
-        Q = self.calculate_Q(dt)
+        # Q = self.calculate_Q(dt)
+
+        # all zeros for Q
+        Q = np.zeros((6,6))
 
         # Define the sensor nonise matrix, R.
         # Needs to be stacked for each satellite

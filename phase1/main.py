@@ -69,7 +69,6 @@ def create_environment():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
-
 def simple_environment():
    # Define a sensor model:
     sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
@@ -98,7 +97,6 @@ def simple_environment():
 
     # Define the target objects:
     targ1 = target(name = 'Targ1', targetID=1, coords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
-    targ2 = target(name = 'Targ2', targetID=2, coords = np.array([60,-45,200]), heading=90, speed=10, climbrate = 1, color = 'r')
     targs = [targ1]
 
     # Define the communication network:
@@ -174,7 +172,7 @@ def plot_NEES_NIS(simData):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 500, 500 * 15 + 1) * u.minute
+    time_vec = np.linspace(0, 50, 50 + 1) * u.minute
     
     # Number of simulations:
     numSims = 1
@@ -182,9 +180,9 @@ if __name__ == "__main__":
     for i in range(numSims):
         print(f'Simulation {i + 1} out of {numSims}')
         # Create a new environment instance for each simulation run:
-        env = create_environment()
+        env = simple_environment()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "500sec_4dt", showSim = False)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "simpleSim", showSim = False)
 
     # Plot the NEES and NIS results:
     plot_NEES_NIS(simData)
