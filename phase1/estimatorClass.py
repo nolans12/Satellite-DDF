@@ -31,17 +31,24 @@ class BaseEstimator:
 
         # GET THE PRIOR DATA
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
-        # If no prior estimates, use the first measurement and assume no velocity
-            # start with true position plus some noise
-            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) + np.random.normal(0, 1, 6) 
-            # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
+            # TODO: 
+            # We want our initial guess to be based on the initial guess of the target
+            # Although the target may not actually have this state, it is sampled from a distrbition
+            # est_prior = target.propagate(envTime, envTime, target.initialGuess)
+            # P_prior = np.array([[50, 0, 0, 0, 0, 0],
+            #                     [0, 100, 0, 0, 0, 0],
+            #                     [0, 0, 50, 0, 0, 0],
+            #                     [0, 0, 0, 100, 0, 0],
+            #                     [0, 0, 0, 0, 50, 0],
+            #                     [0, 0, 0, 0, 0, 100]])
+            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6)
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
                                 [0, 0, 0, 0, 50, 0],
-                                [0, 0, 0, 0, 0, 100]])# + np.random.normal(0, 1, (6,6))*np.eye(6)
-            
+                                [0, 0, 0, 0, 0, 100]])
+
         # Store these and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior

@@ -139,6 +139,8 @@ class environment:
     # Update the current time
         self.time += time_step
 
+        print("Time: ", self.time.to_value())
+
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
         for targ in self.targs:
@@ -235,7 +237,7 @@ class environment:
     def plotResults(self, time_vec, savePlot, saveName):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
-        state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+        state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]']
 
     # FOR EACH TARGET and EACH SATELLITE MAKE A PLOT
@@ -290,9 +292,15 @@ class environment:
                             timesCent = [time for time in time_vec.value if time in estHistCent]
                         # ERROR PLOTS
                         for i in range(6):
-                            axes[i].plot(timesCent, [estHistCent[time][i] - trueHistCent[time][i] for time in timesCent], color='green', label='Central')
-                            axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')
+                            # if its a velocity term, divide by 60 to get in km/s
+                            if i % 2 == 1:
+                                axes[i].plot(timesCent, [(estHistCent[time][i] - trueHistCent[time][i]) / 60 for time in timesCent], color='green', label='Central', linewidth=2.5)
+                                axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) / 60 for time in timesCent], color='green', linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                                axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) / 60 for time in timesCent], color='green', linestyle='dashed', linewidth=2.5)
+                            else:
+                                axes[i].plot(timesCent, [estHistCent[time][i] - trueHistCent[time][i] for time in timesCent], color='green', label='Central')
+                                axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                                axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')
                     
 
             # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
@@ -325,6 +333,7 @@ class environment:
                     # ERROR PLOTS
                     for i in range(6):
                         if times:
+                            # if its a velocity term, divide by 60 to get in km/s
                             axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
                             axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                             axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
