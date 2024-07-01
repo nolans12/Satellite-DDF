@@ -29,12 +29,15 @@ class BaseEstimator:
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
         
-        # For this target: Get the prior Data
+        ## For this target: Get the prior Data
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use true position plus noise
             # start with true position and velocity plus some noise
-            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 1, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1, 3)
-            est_prior = np.array([prior_pos[0], 0, prior_pos[1], 0, prior_pos[2], 0])
+            #prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 1, 3)
+            #prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1, 3)
+            
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) 
+            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
                                  
             # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
@@ -50,6 +53,7 @@ class BaseEstimator:
             self.innovationHist[targetID][envTime] = np.zeros(3)
             self.innovationCovHist[targetID][envTime] = np.eye(3)
             return est_prior
+        #elif len(self.estHist[targetID]) == 1 and len(self.covarianceHist[targetID]) == 1: # If a single estimate exists, just use true position plus noise   
         else:
         # Else, get most recent estimate and covariance
             time_prior = max(self.estHist[targetID].keys())
@@ -116,7 +120,6 @@ class BaseEstimator:
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
 
-        # Use the sensor noise assosiated with each measurement
     
     def state_transition(self, estPrior, dt):
         # Takes in previous ECI State and returns the next state after dt
