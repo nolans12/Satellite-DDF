@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     # Vector of time for simulation:
     #time_vec = np.linspace(0, 250, 250*4 + 1) * u.minute
-    time_vec = np.linspace(0, 3, 3*4 + 1) * u.minute
+    time_vec = np.linspace(0, 250, 250*4 + 1) * u.minute
     np.set_printoptions(precision=3, suppress=True)
 
     
@@ -184,9 +184,9 @@ if __name__ == "__main__":
     for i in range(numSims):
         print(f'Simulation {i + 1} out of {numSims}')
         # Create a new environment instance for each simulation run:
-        env = simple_environment()
+        env = create_environment()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "debug_", showSim = True)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "debug_testCase_", showSim = True)
 
     # Plot the NEES and NIS results:
     plot_NEES_NIS(simData)
