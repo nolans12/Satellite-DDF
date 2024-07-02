@@ -202,18 +202,26 @@ class BaseEstimator:
         
         return jacobian
 
-class indeptEstimator(BaseEstimator):
+### Central Estimator Class
+class centralEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         super().__init__(targetIDs)
-        # Add any additional initialization specific to indeptEstimator here
 
     def EKF(self, sats, measurements, target, envTime):
         return super().EKF(sats, measurements, target, envTime)
 
+### Independent Estimator Class
+class indeptEstimator(BaseEstimator):
+    def __init__(self, targetIDs):
+        super().__init__(targetIDs)
+
+    def EKF(self, sats, measurements, target, envTime):
+        return super().EKF(sats, measurements, target, envTime)
+
+### DDF Estimator Class
 class ddfEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         super().__init__(targetIDs)
-        # Add any additional initialization specific to ddfEstimator here
 
     def EKF(self, sats, measurements, target, envTime):
         return super().EKF(sats, measurements, target, envTime)
@@ -296,12 +304,3 @@ class ddfEstimator(BaseEstimator):
         omega = omega[0]
         P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
         return np.linalg.det(P)
-
-
-class centralEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
-        super().__init__(targetIDs)
-        # Add any additional initialization specific to centralEstimator here
-
-    def EKF(self, sats, measurements, target, envTime):
-        return super().EKF(sats, measurements, target, envTime)
