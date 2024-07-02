@@ -24,7 +24,7 @@ class BaseEstimator:
         # Measurements is a list of all measurements but it can also be a single measurement for local estimation
         
         self.gottenEstimate = True
-        numMeasurements = len(measurements)
+        numMeasurements = 2*len(measurements)
         
         # First get the measurements from the satellites at given time and targetID
         targetID = target.targetID
@@ -36,7 +36,7 @@ class BaseEstimator:
             #prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1, 3)
             
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) 
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + 1.5
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
                                  
             # start with some covariance, about +- 50 km and +- 100 km/min to make sure the covariance converges
@@ -50,16 +50,18 @@ class BaseEstimator:
             # Store these and return for first iteration to intialize the filter consistently
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
-            self.innovationHist[targetID][envTime] = np.zeros(3)
-            self.innovationCovHist[targetID][envTime] = np.eye(3)
+            self.innovationHist[targetID][envTime] = np.zeros(2)
+            self.innovationCovHist[targetID][envTime] = np.eye(2)
             return est_prior
-        #elif len(self.estHist[targetID]) == 1 and len(self.covarianceHist[targetID]) == 1: # If a single estimate exists, just use true position plus noise   
+       
         else:
         # Else, get most recent estimate and covariance
             time_prior = max(self.estHist[targetID].keys())
             est_prior = self.estHist[targetID][time_prior]
             P_prior = self.covarianceHist[targetID][time_prior]
 
+        ### Note that est_prior is a 1x6 array, and P_prior is a 6x6 array
+        
         # Now to get dt, use time since last estimate for prediction step
         dt = envTime - time_prior
 
@@ -75,20 +77,42 @@ class BaseEstimator:
         # Predict the covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
         
-        ### Extract Measurements and Calcualate Jacobian, Sensor Noise, and Innovation        
-        z = np.zeros((numMeasurements, 2))
-        H = np.zeros((2*numMeasurements, 6))
-        R = np.zeros((2*numMeasurements, 2*numMeasurements))
-        innovation = np.zeros((2*numMeasurements))
+        # Now to get the measurements and update the estimate --> numMeasurements = 2*len(measurements) [alpha, beta]
+        z = np.zeros((numMeasurements, 1)) # 2Nx1 stacked vector of measurements
+        H = np.zeros((numMeasurements, 6)) # 2Nx6 Jacobian of the sensor model
+        R = np.zeros((numMeasurements, numMeasurements)) # NxN Sensor noise matrix
+        innovation = np.zeros((numMeasurements,1))
         
         i = 0
         for sat in sats: # for each satellite, get the measurement and update the H, R, and innovation
-            z[i] = measurements[i] # get 1x2 measurement vector
+            # Stack the measurements into a 2Nx1 vector
+            z[2*i:2*i+2] = np.reshape(measurements[i][:],(2,1)) # Measurement stack
+            
+            # Compute the Jacobian Evaluated at the predicted state
             H[2*i:2*i+2,0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred) # Jacobian of the sensor model
+            
+            # Compute the block diagonal sensor noise matrix
             R[2*i:2*i+2,2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 # Sensor noise matrix
-            innovation[2*i:2*i+2] = (z[i] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))).flatten() # 1 x 2N vector of innovations
+            
+            # Determine the innovation
+            innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))),(2,1)) # 2N x 1 vector of innovations
             
             i += 1
+                        
+        ### Extract Measurements and Calcualate Jacobian, Sensor Noise, and Innovation        
+        # z = np.zeros((numMeasurements, 2))
+        # H = np.zeros((2*numMeasurements, 6))
+        # R = np.zeros((2*numMeasurements, 2*numMeasurements))
+        # innovation = np.zeros((2*numMeasurements))
+        
+        # i = 0
+        # for sat in sats: # for each satellite, get the measurement and update the H, R, and innovation
+        #     z[i] = measurements[i] # get 1x2 measurement vector
+        #     H[2*i:2*i+2,0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred) # Jacobian of the sensor model
+        #     R[2*i:2*i+2,2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 # Sensor noise matrix
+        #     innovation[2*i:2*i+2] = (z[i] - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))).flatten() # 1 x 2N vector of innovations
+            
+        #     i += 1
                         
         # Calculate the innovation covariance
         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
@@ -97,7 +121,8 @@ class BaseEstimator:
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
         
         # Correct the prediction
-        est = est_pred + np.dot(K, innovation.T).T # Note that est pred is a 1x6 array, so we need to transpose the innovation to make it a 1x6 array
+        est = est_pred + np.reshape(np.dot(K, innovation),(6)) # Note that estimates storedis a 1x6 array, so we need to transpose result
+        
         # Correct the Covariance
         P = P_pred - np.dot(K, np.dot(H, P_pred))
         
@@ -110,16 +135,15 @@ class BaseEstimator:
         
         # Get the covariance of the error and innovation
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))
-        nis = np.dot(innovation, np.dot(np.linalg.inv(innovationCov), innovation.T))
+        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))
 
         # SAVE THE DATA
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.innovationHist[targetID][envTime] = innovation
+        self.innovationHist[targetID][envTime] = np.reshape(innovation,(numMeasurements))
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
-        self.nisHist[targetID][envTime] = nis
-
+        self.nisHist[targetID][envTime] = nis[0][0]
     
     def state_transition(self, estPrior, dt):
         # Takes in previous ECI State and returns the next state after dt
@@ -227,8 +251,10 @@ class ddfEstimator(BaseEstimator):
             dt = sentTime - priorTime
             
             estPrior_prop = self.state_transition(estPrior, dt)
-            F = self.state_transition_jacobian(estPrior, dt)
             
+            F = self.state_transition_jacobian(estPrior, dt)
+            covPrior_prop = np.dot(F, np.dot(covPrior, F.T))
+
             # print("Propegated prior estimate to new time: " + str(sentTime) + " for " + str(sat.name) + " from " + str(priorTime) + " to " + str(sentTime) + " : " + str(estPrior) + " to " + str(estPrior_prop))
 
         # Check, should we THROW OUT the prior? or do CI with it?
@@ -236,7 +262,7 @@ class ddfEstimator(BaseEstimator):
             if dt > 5 or self.gottenEstimate == False: 
                 # print(str(sat.name) + " is throwing out prior estimate and covariance from " + str(priorTime) + " for " + str(commNode['queued_data'][targetID][sentTime]['sender']) + "s new update at " + str(sentTime))
                 estPrior_prop = commNode['queued_data'][targetID][sentTime]['est'][0]
-                covPrior = commNode['queued_data'][targetID][sentTime]['cov'][0]
+                covPrior_prop = commNode['queued_data'][targetID][sentTime]['cov'][0]
             # If the time b/w prior and new estimate is less than 5 mins, keep the prior the same, then do CI
 
         # Now do CI on all new estimates and covariances taken at that time step
@@ -246,17 +272,19 @@ class ddfEstimator(BaseEstimator):
                 covSent = commNode['queued_data'][targetID][sentTime]['cov'][i]
 
                 # Minimize the covariance determinant
-                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior, covSent), bounds=[(0, 1)]).x
+                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior_prop, covSent), bounds=[(0, 1)]).x
 
                 # Now compute the fused covariance
-                cov1 = covPrior
+                cov1 = covPrior_prop
                 cov2 = covSent
-                covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
-                estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
+                
+                covPrior_prop = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+                estPrior_prop = covPrior_prop @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
         # Finally, save the fused estimate and covariance
+            print("Fused estimate and covariance for " + str(sat.name) + " for target " + str(targetID) + " at time " + str(sentTime))# + " : " + str(estPrior_prop) + " and " + str(covPrior_prop))
             self.estHist[targetID][sentTime] = estPrior_prop
-            self.covarianceHist[targetID][sentTime] = covPrior
+            self.covarianceHist[targetID][sentTime] = covPrior_prop
 
         # Clear the queued data
         commNode['queued_data'][targetID] = {}

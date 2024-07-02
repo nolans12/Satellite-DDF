@@ -89,14 +89,15 @@ def simple_environment():
     sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = 0, nu = 0, color='b')
     sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -25, nu = 0, color='c')
     sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 90, raan = -45, argp = -50, nu = 0, color='y')
-    sat4 = satellite(name = 'Sat4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -30, nu = 0, color='r')
+    sat4 = satellite(name = 'Sat4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color='r')
     sat5 = satellite(name = 'Sat5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -60, nu = 0, color='g')
     sat6 = satellite(name = 'Sat6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = -90, nu = 0, color='m')
 
-    sats = [sat1, sat2, sat3, sat4, sat5, sat6]
-
+    #sats = [sat1, sat2, sat3, sat4, sat5, sat6]
+    sats = [sat1,sat4]
+    
     # Define the target objects:
-    targ1 = target(name = 'Targ1', targetID=1, coords = np.array([90,0,0]), heading=0, speed=5, climbrate = 0, color = 'k')
+    targ1 = target(name = 'Targ1', targetID=1, coords = np.array([0,-43,0]), heading=0, speed=0, climbrate = 0, color = 'k')
     targs = [targ1]
 
     # Define the communication network:
@@ -172,7 +173,10 @@ def plot_NEES_NIS(simData):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 250, 250*4 + 1) * u.minute
+    #time_vec = np.linspace(0, 250, 250*4 + 1) * u.minute
+    time_vec = np.linspace(0, 3, 3*4 + 1) * u.minute
+    np.set_printoptions(precision=3, suppress=True)
+
     
     # Number of simulations:
     numSims = 1
@@ -180,9 +184,9 @@ if __name__ == "__main__":
     for i in range(numSims):
         print(f'Simulation {i + 1} out of {numSims}')
         # Create a new environment instance for each simulation run:
-        env = create_environment()
+        env = simple_environment()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "nolanCase", showSim = False)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "debug_", showSim = True)
 
     # Plot the NEES and NIS results:
     plot_NEES_NIS(simData)
