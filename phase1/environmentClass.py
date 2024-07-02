@@ -105,11 +105,11 @@ class environment:
 
             for sat in self.sats:
                 if sat.ddfEstimator:
+                    # Check for if sat has any estimates yet
+                    if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                        continue # If sat doesnt have estimates yet, nothing to send
                     for neighbor in self.comms.G.neighbors(sat):
                     # Check if the most recent estimate time is newer than the neighbor
-                        # Check for if sat has any estimates yet
-                        if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
-                            continue # If sat doesnt have estimates yet, nothing to send
 
                         # Most recent measurement time by satellite
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
@@ -185,14 +185,13 @@ class environment:
         # Put text of current time in top left corner
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
 
-    # PLOT EARTH
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
-
     # FOR EACH SATELLITE, PLOTS
         for sat in self.sats:
         # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
-            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+            # Cut the label of a satellite off before the first underscore
+            satName = sat.name.split('.')[0]
+            self.ax.scatter(x, y, z, s=40, color = sat.color, label=satName)
 
         # Plot the visible projection of the satellite sensor
             points = sat.sensor.projBox
@@ -213,8 +212,15 @@ class environment:
 
             self.ax.quiver(x, y, z, vx*1000, vy*1000, vz*1000, color = targ.color, arrow_length_ratio=0.75, label=targ.name)
             
-        self.ax.legend()
-    
+        # PLOT EARTH
+        self.ax.plot_surface(self.x_earth - 1000, self.y_earth - 1000, self.z_earth - 1000, color = 'white', alpha=1)
+        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
+        
+        # Get rid of any duplicates in the legend:
+        handles, labels = self.ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        self.ax.legend(by_label.values(), by_label.keys())
+
     # PLOT COMMUNICATION STRUCTURE
         if self.comms.displayStruct:
             for edge in self.comms.G.edges:

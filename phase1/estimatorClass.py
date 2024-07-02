@@ -41,8 +41,8 @@ class BaseEstimator:
             #                     [0, 0, 0, 100, 0, 0],
             #                     [0, 0, 0, 0, 50, 0],
             #                     [0, 0, 0, 0, 0, 100]])
-            # est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6)
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
+            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6)
+            # est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
                                 [0, 0, 50, 0, 0, 0],
@@ -172,7 +172,7 @@ class BaseEstimator:
 
         Q = F @ vanLoan[0:6, 6:12]
         
-        return Q
+        return Q0
     
     def state_transition(self, estPrior, dt):
     
@@ -348,8 +348,8 @@ class centralEstimator(BaseEstimator):
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0: # If no prior estimate exists, just use the measurement
         # If no prior estimates, use the first measurement and assume no velocity
         
-            # est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
-            est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
+            est_prior = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]]) +  np.random.normal(0, 1, 6) 
+            # est_prior = np.array([target.pos[0], 0, target.pos[1], 0, target.pos[2], 0])
             # start with some covariance, about +- 5 km and +- 15 km/min, then plus some noise 
             P_prior = np.array([[50, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
@@ -373,23 +373,6 @@ class centralEstimator(BaseEstimator):
 
         # Now to get dt, use time since last measurement
         dt = envTime - time_prior
-
-        # CALCULATE MATRICES:
-        # Define the state transition matrix, F.
-        # Is a 6x6 matrix representing mapping b/w state at time k and time k+1
-        # How does our state: [x, vx, y, vy, z, vz] change over time?
-        
-        # F = np.array([[1, dt, 0, 0, 0, 0], # Assume no acceleration, just constant velocity over the time step
-        #               [0, 1, 0, 0, 0, 0],
-        #               [0, 0, 1, dt, 0, 0],
-        #               [0, 0, 0, 1, 0, 0],
-        #               [0, 0, 0, 0, 1, dt],
-        #               [0, 0, 0, 0, 0, 1]])
-
-        # Define the process noise matrix, Q.
-        # Is a 6x6 matrix representing the covariance of the process noise
-        # Estimate the randomness of the acceleration
-        # Q = self.calculate_Q(dt)
 
         # all zeros for Q
         Q = np.zeros((6,6))
