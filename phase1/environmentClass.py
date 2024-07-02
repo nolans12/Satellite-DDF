@@ -29,7 +29,7 @@ class environment:
         self.ax.set_xlim([-15000, 15000])
         self.ax.set_ylim([-15000, 15000])
         self.ax.set_zlim([-15000, 15000])
-        self.ax.view_init(elev=30, azim=-10)
+        self.ax.view_init(elev=30, azim=30)
         self.ax.set_box_aspect([1,1,1])
         self.ax.set_xlabel('X (km)')
         self.ax.set_ylabel('Y (km)')
@@ -105,11 +105,11 @@ class environment:
 
             for sat in self.sats:
                 if sat.ddfEstimator:
+                    # Check for if sat has any estimates yet
+                    if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
+                        continue # If sat doesnt have estimates yet, nothing to send
                     for neighbor in self.comms.G.neighbors(sat):
                     # Check if the most recent estimate time is newer than the neighbor
-                        # Check for if sat has any estimates yet
-                        if len(sat.ddfEstimator.estHist[targ.targetID].keys()) == 0:
-                            continue # If sat doesnt have estimates yet, nothing to send
 
                         # Most recent measurement time by satellite
                         satTime = max(sat.ddfEstimator.estHist[targ.targetID].keys())
@@ -138,6 +138,8 @@ class environment:
         
     # Update the current time
         self.time += time_step
+
+        print("Time: ", self.time.to_value())
 
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
@@ -183,14 +185,13 @@ class environment:
         # Put text of current time in top left corner
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
 
-    # PLOT EARTH
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
-
     # FOR EACH SATELLITE, PLOTS
         for sat in self.sats:
         # Plot the current xyz location of the satellite
             x, y, z = sat.orbit.r.value
-            self.ax.scatter(x, y, z, s=40, color = sat.color, label=sat.name)
+            # Cut the label of a satellite off before the first underscore
+            satName = sat.name.split('.')[0]
+            self.ax.scatter(x, y, z, s=40, color = sat.color, label=satName)
 
         # Plot the visible projection of the satellite sensor
             points = sat.sensor.projBox
@@ -203,10 +204,23 @@ class environment:
         for targ in self.targs:
         # Plot the current xyz location of the target
             x, y, z = targ.pos
-            self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            vx, vy, vz = targ.vel
+            # self.ax.scatter(x, y, z, s=20, marker = '*', color = targ.color, label=targ.name)
+            mag = np.linalg.norm([vx, vy, vz])
+            if mag > 0:
+                vx, vy, vz = vx / mag, vy / mag, vz / mag
+
+            self.ax.quiver(x, y, z, vx*1000, vy*1000, vz*1000, color = targ.color, arrow_length_ratio=0.75, label=targ.name)
             
-        self.ax.legend()
-    
+        # PLOT EARTH
+        self.ax.plot_surface(self.x_earth - 1000, self.y_earth - 1000, self.z_earth - 1000, color = 'white', alpha=1)
+        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color = 'k', alpha=0.1)
+        
+        # Get rid of any duplicates in the legend:
+        handles, labels = self.ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        self.ax.legend(by_label.values(), by_label.keys())
+
     # PLOT COMMUNICATION STRUCTURE
         if self.comms.displayStruct:
             for edge in self.comms.G.edges:
@@ -229,7 +243,7 @@ class environment:
     def plotResults(self, time_vec, savePlot, saveName):
         # Close the sim plot so that sizing of plots is good
         plt.close('all')
-        state_labels = ['X [km]', 'Vx [km/s]', 'Y [km]', 'Vy [km/s]', 'Z [km]', 'Vz [km/s]']
+        state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]']
 
     # FOR EACH TARGET and EACH SATELLITE MAKE A PLOT
@@ -271,6 +285,30 @@ class environment:
                     for i in range(2):  # Note: only 2 plots in the third row
                         axes[6 + i].set_xlabel("Time [min]")
                         axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
+
+            # FIRST, PLOT CENTRAL   
+                    # USE COLOR GREEN FOR CENTRAL ESTIMATOR
+                    if self.centralEstimator:
+                        if targ.targetID in self.centralEstimator.estHist:
+                            trueHistCent = targ.hist
+                            estHistCent = self.centralEstimator.estHist[targ.targetID]
+                            covHistCent = self.centralEstimator.covarianceHist[targ.targetID]
+                            innovationHistCent = self.centralEstimator.innovationHist[targ.targetID]
+                            innovationCovHistCent = self.centralEstimator.innovationCovHist[targ.targetID]
+                            timesCent = [time for time in time_vec.value if time in estHistCent]
+                        # ERROR PLOTS
+                        for i in range(6):
+                            # if its a velocity term, divide by 60 to get in km/s
+                            if i % 2 == 1:
+                                axes[i].plot(timesCent, [(estHistCent[time][i] - trueHistCent[time][i]) / 60 for time in timesCent], color='green', label='Central', linewidth=2.5)
+                                axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) / 60 for time in timesCent], color='green', linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
+                                axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) / 60 for time in timesCent], color='green', linestyle='dashed', linewidth=2.5)
+                            else:
+                                axes[i].plot(timesCent, [estHistCent[time][i] - trueHistCent[time][i] for time in timesCent], color='green', label='Central')
+                                axes[i].plot(timesCent, [2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                                axes[i].plot(timesCent, [-2 * np.sqrt(covHistCent[time][i][i]) for time in timesCent], color='green', linestyle='dashed')
+                    
+
             # FOR EACH SATELLITE, EXTRACT ALL DATA for independent estimator and ddf estimator
                     satColor = sat.color
                     trueHist = targ.hist
@@ -301,6 +339,7 @@ class environment:
                     # ERROR PLOTS
                     for i in range(6):
                         if times:
+                            # if its a velocity term, divide by 60 to get in km/s
                             axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color=satColor, label='Local', linewidth=2.5)#, label='Local Estimate'
                             axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)#, label='2 Sigma Bounds')
                             axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color=satColor, linestyle='dashed', linewidth=2.5)
@@ -332,22 +371,7 @@ class environment:
                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
                             axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
                     
-                    # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
-                    # USE COLOR PINK FOR CENTRAL ESTIMATOR
-                    if self.centralEstimator:
-                        if targ.targetID in self.centralEstimator.estHist:
-                            trueHist = targ.hist
-                            estHist = self.centralEstimator.estHist[targ.targetID]
-                            covHist = self.centralEstimator.covarianceHist[targ.targetID]
-                            innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-                            innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                            times = [time for time in time_vec.value if time in estHist]
-                        # ERROR PLOTS
-                        for i in range(6):
-                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green', label='Central')
-                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
-                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
-                    
+                   
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
                     for ax in axes:

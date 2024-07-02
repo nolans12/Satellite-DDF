@@ -39,7 +39,7 @@ class comms:
         if time not in self.G.nodes[receiver]['queued_data'][targetID]:
             self.G.nodes[receiver]['queued_data'][targetID][time] = {'est': [], 'cov': [], 'sender': []}
 
-        # Add the measurement to the receiver's queued data at the specified targetID and time
+        # Add the estimate to the receiver's queued data at the specified targetID and time
         self.G.nodes[receiver]['queued_data'][targetID][time]['est'].append(est_meas)
         self.G.nodes[receiver]['queued_data'][targetID][time]['cov'].append(cov_meas)
         self.G.nodes[receiver]['queued_data'][targetID][time]['sender'].append(sender.name)
