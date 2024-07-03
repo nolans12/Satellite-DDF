@@ -62,7 +62,8 @@ class environment:
             self.propagate(t_d)
 
         # Collect individual data measurements for satellites and then do data fusion
-            self.data_fusion(t_d)
+            self.data_fusion()
+            # self.data_fusion_old(t_d)
 
             if savePlot:
             # Update the plot environment
@@ -78,8 +79,74 @@ class environment:
 
         return self.collectData()
         
+
+    """
+        data_fusion
+
+        Collect measurements from all satellites and do data fusion
+    """
+    def data_fusion(self):
+        
+    # TODO: CHANGE THIS CENTRAL STUFF LATER TO BE CLEANER
+        collectedFlag = defaultdict(lambda: defaultdict(dict))
+        measurements = defaultdict(lambda: defaultdict(dict))
+        # Collect measurements on any avaliable targets
+        for targ in self.targs:
+            for sat in self.sats:
+                # TODO: CHANGE THIS TO USE AVALIABLE TARGETS
+                # Collect the bearing measurement, if avaliable, and run an EKF to update the estimate on the target
+                collectedFlag[targ][sat] = sat.collect_measurements_and_filter(targ)
+
+                if collectedFlag[targ][sat]:
+                    measurements[targ][sat] = sat.measurementHist[targ.targetID][self.time.to_value()]
+
+        # Now do central fusion
+        for targ in self.targs:
+            # Extract Satellites that took a measurement
+            satsWithMeasurements = [sat for sat in self.sats if collectedFlag[targ][sat]]
+            newMeasurements = [measurements[targ][sat] for sat in satsWithMeasurements]
+
+            # If any satellite took a measurement on this target    
+            if satsWithMeasurements:
+                # Run EKF with all satellites that took a measurement on the target
+                self.centralEstimator.EKF(satsWithMeasurements, newMeasurements, targ, self.time.to_value())
+
+        # Now send estimates for future CI
+        self.send_estimates()
+
+        # Now, each satellite will perform covariance intersection on the measurements sent to it
+        for sat in self.sats:
+            sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
+
+
+    """
+        send_estimates
+
+        For each satellite send the most recent estimate to its neighbors
+    """
+    def send_estimates(self):
+
+        # Loop through all satellites
+        for sat in self.sats:
+
+            # For each targetID in the satellite estimate history
+            for targetID in sat.ddfEstimator.estHist.keys():
+
+                # TODO: SOON WONT NEED THIS EXTRA CHECK BELOW AS TARGETIDS WILL ONLY GET INITALIZED IF THEY HAVE ESTIMATES
+                if len(sat.ddfEstimator.estHist[targetID].keys()) == 0:
+                    continue
+
+                # This means satellite has an estimate for this target, now send it to neighbors
+                for neighbor in self.comms.G.neighbors(sat):
+
+                    # Get the most recent estimate time
+                    satTime = max(sat.ddfEstimator.estHist[targetID].keys())
+
+                    # Send most recent estimate to neighbor
+                    self.comms.send_estimate(sat, neighbor, sat.ddfEstimator.estHist[targetID][satTime], sat.ddfEstimator.covarianceHist[targetID][satTime], targetID, satTime)
+
 # Collect measurements from all satellites and do data fusion
-    def data_fusion(self, time_step):
+    def data_fusion_old(self, time_step):
 
         # print("Running data fusion at time: ", self.time.to_value())
 
@@ -140,14 +207,13 @@ class environment:
             # Now, each satellite will perform covariance intersection on the measurements sent to it
             for sat in self.sats:
                 # For each satellite, perform CI on the measurements it received
-                sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+                sat.ddfEstimator.CI_old(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
         
     # Update the current time
         self.time += time_step
-        print("Time: ", self.time.to_value())
 
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
@@ -382,7 +448,7 @@ class environment:
                         if ddf_innovation_times:
                             axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
-                            # axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+                            axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
         
                     if self.centralEstimator:
                         if targ.targetID in self.centralEstimator.estHist:

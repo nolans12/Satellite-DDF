@@ -167,11 +167,6 @@ class BaseEstimator:
         # Calculate azimuth rate
         azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
 
-        # Print intermediate values (comment out if not needed in production)
-        # jax.debug.print(
-        #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
-        #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
-        # print('*'*50)
         # Propagate the State
         range = range + rangeRate * dt
         elevation = elevation + elevationRate * dt
@@ -226,7 +221,79 @@ class ddfEstimator(BaseEstimator):
     def EKF(self, sats, measurements, target, envTime):
         return super().EKF(sats, measurements, target, envTime)
 
-    def CI(self, sat, commNode, targetID):
+
+    def CI(self, sat, commNode):
+
+        # Check if there is any information in the queue:
+        if len(commNode['queued_data']) == 0: 
+            return
+        
+        # There is information in the queue, get the newest info
+        timeSent = max(commNode['queued_data'].keys())
+
+        # Check all the targets in the queue
+        for targetID in commNode['queued_data'][timeSent].keys():
+
+            # For each target, loop through all the estimates and covariances
+            for i in range(len(commNode['queued_data'][timeSent][targetID]['est'])):
+                
+                estSent = commNode['queued_data'][timeSent][targetID]['est'][i]
+                covSent = commNode['queued_data'][timeSent][targetID]['cov'][i]
+
+                # Check, does satellite have an estimate and covariance for this target already?
+                if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
+                    # If not, use the sent estimate and covariance to initialize
+                    self.estHist[targetID][timeSent] = estSent
+                    self.covarianceHist[targetID][timeSent] = covSent
+                    continue
+
+                # If the satellite does have an estimate and covariance for this target already, check if we should CI
+                timePrior = max(self.estHist[targetID].keys())
+
+                # If the send time is older than the prior estimate, throw out the sent estimate
+                if timeSent < timePrior:
+                    continue
+
+                # If the time between the sent estimate and the prior estimate is greater than 5 minutes, throw out the prior
+                if timeSent - timePrior > 5:
+                    self.estHist[targetID][timeSent] = estSent
+                    self.covarianceHist[targetID][timeSent] = covSent
+                    continue
+
+                # Else, lets do CI
+                estPrior = self.estHist[targetID][timePrior]
+                covPrior = self.covarianceHist[targetID][timePrior]
+
+                # Now propegate the prior estimate and cov to the new time
+                dt = timeSent - timePrior
+                estPrior = self.state_transition(estPrior, dt)
+                F = self.state_transition_jacobian(estPrior, dt)
+                covPrior = np.dot(F, np.dot(covPrior, F.T))
+
+                # Minimize the covariance determinant
+                omegaOpt = minimize(self.det_of_fused_covariance, [0.5], args=(covPrior, covSent), bounds=[(0, 1)]).x
+
+                # Now compute the fused covariance
+                cov1 = covPrior
+                cov2 = covSent
+
+                covPrior = np.linalg.inv(omegaOpt * np.linalg.inv(cov1) + (1 - omegaOpt) * np.linalg.inv(cov2))
+                estPrior = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
+
+                # Save the fused estimate and covariance
+                self.estHist[targetID][timeSent] = estPrior
+                self.covarianceHist[targetID][timeSent] = covPrior
+
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        # Calculate the determinant of the fused covariance matrix
+        # omega is the weight of the first covariance matrix
+        # cov1 and cov2 are the covariance matrices of the two estimates
+        omega = omega[0]
+        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        return np.linalg.det(P)
+
+    def CI_old(self, sat, commNode, targetID):
 
         # Check if there is any information in the queue:
         if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
@@ -290,17 +357,9 @@ class ddfEstimator(BaseEstimator):
                 estPrior_prop = covPrior_prop @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
         # Finally, save the fused estimate and covariance
-            print("Fused estimate and covariance for " + str(sat.name) + " for target " + str(targetID) + " at time " + str(sentTime))# + " : " + str(estPrior_prop) + " and " + str(covPrior_prop))
+            # print("Fused estimate and covariance for " + str(sat.name) + " for target " + str(targetID) + " at time " + str(sentTime))# + " : " + str(estPrior_prop) + " and " + str(covPrior_prop))
             self.estHist[targetID][sentTime] = estPrior_prop
             self.covarianceHist[targetID][sentTime] = covPrior_prop
 
         # Clear the queued data
         commNode['queued_data'][targetID] = {}
-
-    def det_of_fused_covariance(self, omega, cov1, cov2):
-        # Calculate the determinant of the fused covariance matrix
-        # omega is the weight of the first covariance matrix
-        # cov1 and cov2 are the covariance matrices of the two estimates
-        omega = omega[0]
-        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
-        return np.linalg.det(P)
