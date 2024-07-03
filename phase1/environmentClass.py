@@ -62,7 +62,7 @@ class environment:
             self.propagate(t_d)
 
         # Collect individual data measurements for satellites and then do data fusion
-            self.data_fusion(t_d)
+            self.data_fusion()
 
             if savePlot:
             # Update the plot environment
@@ -78,8 +78,54 @@ class environment:
 
         return self.collectData()
         
+
+    """
+        data_fusion 
+
+        Collect measurements from all satellites and does data fusion
+    """
+    def data_fusion(self):
+
+        # Loop through all target and satellite pairings and collect individual measurements
+        for targ in self.targs:
+            for sat in self.sats:
+                # Collect the bearing measurement, if avaliable, and run an EKF to update the estimate on the target
+                sat.collect_measurements_and_filter(targ)
+
+        # Now decide, should we send the estimates?
+        self.send_estimates()
+
+        # Now, each satellite will perform covariance intersection on the measurements sent to it
+        for sat in self.sats:
+            sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
+
+
+    """
+        send_estimates
+
+        Loops through all satellites and their first neighbors and sends the most recent estimate to the neighbor
+    """
+    def send_estimates(self):
+
+        # Loop through each satellite
+        for sat in self.sats:
+
+            # Loop through all the targets the satellite has an estimate on
+            for targetID in sat.ddfEstimator.estHist.keys():
+
+                # If satellite has an estimate, lets share it with the neighbors
+                for neighbor in self.comms.G.neighbors(sat):
+
+                    # Get the most recent estimate time
+                    satTime = max(sat.ddfEstimator.estHist[targetID].keys())
+
+                    # Send the most recent estimate to the neighbor
+                    self.send_measurement(sat, neighbor, sat.ddfEstimator.estHist[targetID][satTime], sat.ddfEstimator.covarianceHist[targetID][satTime], targetID, satTime)
+
 # Collect measurements from all satellites and do data fusion
-    def data_fusion(self, time_step):
+    def data_fusion_old(self, time_step):
+
+        # TODO: CHANGE THIS FUNCTION SO THAT IT ALWAYS SENDS DATA, THEN NEIGHBOR DECIDES IF IT SHOULD FUSE IT OR NOT
 
         # print("Running data fusion at time: ", self.time.to_value())
 
@@ -131,15 +177,14 @@ class environment:
             # Now, each satellite will perform covariance intersection on the measurements sent to it
             for sat in self.sats:
                 # For each satellite, perform CI on the measurements it received
-                sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat], targ.targetID)
+                sat.ddfEstimator.CI_old(sat, self.comms.G.nodes[sat], targ.targetID)
 
 # Propagate the satellites over the time step  
     def propagate(self, time_step):
         
     # Update the current time
         self.time += time_step
-
-        print("Time: ", self.time.to_value())
+        # print("Time: ", self.time.to_value())
 
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
@@ -148,7 +193,7 @@ class environment:
         for sat in self.sats:
             sat.time = time_val
 
-        # Propagate the targets position
+    # Propagate the targets position
         for targ in self.targs:
 
             # Propagate the target
@@ -158,9 +203,7 @@ class environment:
             targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
 
 
-        collectedFlag = np.zeros(np.size(self.sats))
-        satNum = 0
-        # Propagate the satellites
+    # Propagate the satellites
         for sat in self.sats:
             
         # Propagate the orbit
@@ -169,8 +212,6 @@ class environment:
 
         # Update the communication network for the new sat position:
             self.comms.make_edges(self.sats)
-
-        
 
 # Plot the current state of the environment
     def plot(self):
@@ -238,7 +279,6 @@ class environment:
                 else:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
         
-
 # Plots all of the results to the user.
     def plotResults(self, time_vec, savePlot, saveName):
         # Close the sim plot so that sizing of plots is good
@@ -336,7 +376,47 @@ class environment:
                     ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                     ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
   
-                    # ERROR PLOTS
+                # # ERROR PLOTS
+                #     for i in range(6):
+                #         if times:
+                #             axes[i].scatter(times, [estHist[time][i] - trueHist[time][i] for time in times], s=20,  color=satColor)
+                #             axes[i].scatter(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], s=20, color=satColor, edgecolors='none', alpha=0.6)
+                #             axes[i].scatter(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], s=20, color=satColor, edgecolors='none', alpha=0.6)
+                        
+                #         if ddf_times:
+                #             axes[i].scatter(ddf_times, [ddf_estHist[time][i] - trueHist[time][i] for time in ddf_times], color='r')
+                #             axes[i].scatter(ddf_times, [2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', edgecolors='none', alpha=0.6)
+                #             axes[i].scatter(ddf_times, [-2 * np.sqrt(ddf_covHist[time][i][i]) for time in ddf_times], color='r', edgecolors='none', alpha=0.6)
+
+                #     # INNOVATION PLOTS
+                #     for i in range(2):
+                #         if times:
+                #             axes[6 + i].scatter(times, [innovationHist[time][i] for time in times], s=20, color=satColor)
+                #             axes[6 + i].scatter(times, [2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], s=20, color=satColor, edgecolors='none', alpha=0.6)
+                #             axes[6 + i].scatter(times, [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in times], s=20, color=satColor, edgecolors='none', alpha=0.6)
+                        
+                #         if ddf_innovation_times:
+                #             axes[6 + i].scatter(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')
+                #             axes[6 + i].scatter(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', edgecolors='none', alpha=0.6)
+                #             axes[6 + i].scatter(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', edgecolors='none', alpha=0.6)
+                                    
+                # # IF CENTRAL ESTIMATOR FLAG IS SET, ALSO PLOT THAT:
+                #     if self.centralEstimator:
+                #         if targ.targetID in self.centralEstimator.estHist:
+                #             trueHist = targ.hist
+                #             estHist = self.centralEstimator.estHist[targ.targetID]
+                #             covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                #             innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                #             innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                #             times = [time for time in time_vec.value if time in estHist]
+                        
+                #         # ERROR PLOTS
+                #         for i in range(6):
+                #             axes[i].scatter(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green')
+                #             axes[i].scatter(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', edgecolors='none', alpha=0.6)
+                #             axes[i].scatter(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', edgecolors='none', alpha=0.6)
+
+                # ERROR PLOTS
                     for i in range(6):
                         if times:
                             # if its a velocity term, divide by 60 to get in km/s
@@ -370,8 +450,24 @@ class environment:
                             axes[6 + i].plot(ddf_innovation_times, [ddf_innovationHist[time][i] for time in ddf_innovation_times], color='r')#, label='DDF Estimate')
                             axes[6 + i].plot(ddf_innovation_times, [2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')#, label='DDF 2 Sigma Bounds')
                             axes[6 + i].plot(ddf_innovation_times, [-2 * np.sqrt(ddf_innovationCovHist[time][i][i]) for time in ddf_innovation_times], color='r', linestyle='dotted')
+        
+                    if self.centralEstimator:
+                        if targ.targetID in self.centralEstimator.estHist:
+                            trueHist = targ.hist
+                            estHist = self.centralEstimator.estHist[targ.targetID]
+                            covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                            innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                            innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                            times = [time for time in time_vec.value if time in estHist]       
+                        
+                        # ERROR PLOTS
+                        for i in range(6):
+                            axes[i].plot(times, [estHist[time][i] - trueHist[time][i] for time in times], color='green')
+                            axes[i].plot(times, [2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')#, label='2 Sigma Bounds')
+                            axes[i].plot(times, [-2 * np.sqrt(covHist[time][i][i]) for time in times], color='green', linestyle='dashed')
+                            
+                        #NO INNOVATION PLOTS FOR CENTRAL ESTIMATOR?
                     
-                   
                     # COLLECT LEGENDS REMOVING DUPLICATES
                     handles, labels = [], []
                     for ax in axes:

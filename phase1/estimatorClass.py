@@ -197,11 +197,14 @@ class BaseEstimator:
         # Calculate azimuth rate
         azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
 
+<<<<<<< Updated upstream
         # Print intermediate values (comment out if not needed in production)
         # jax.debug.print(
         #     "Predic: Range: {range}, Range Rate: {rangeRate}, Elevation: {elevation}, Elevation Rate: {elevationRate}, Azimuth: {azimuth}, Azimuth Rate: {azimuthRate}",
         #     range=range, rangeRate=rangeRate, elevation=elevation, elevationRate=elevationRate, azimuth=azimuth, azimuthRate=azimuthRate)
         
+=======
+>>>>>>> Stashed changes
         # Propagate the State
         range = range + rangeRate * dt
         elevation = elevation + elevationRate * dt
@@ -244,6 +247,7 @@ class ddfEstimator(BaseEstimator):
         super().__init__(targetIDs)
         # Add any additional initialization specific to ddfEstimator here
 
+<<<<<<< Updated upstream
     def EKF(self, sat, measurement, target, envTime):
         return self.local_EKF(sat, measurement, target, envTime)
 
@@ -254,6 +258,18 @@ class ddfEstimator(BaseEstimator):
     #   - targetID: target ID
     #   - envTime: environment time
     def CI(self, sat, commNode, targetID):
+=======
+    def EKF(self, sats, measurements, target, envTime):
+        return super().EKF(sats, measurements, target, envTime)
+    
+
+    def CI(self, sat, commNode):
+        test = 1
+
+    def CI_old(self, sat, commNode, targetID):
+
+        # TODO: CHANGE THIS TO DECIDE IF WE SHOULD FUSE DATA OR NOT BASED ON TIME
+>>>>>>> Stashed changes
 
         # Check if there is any information in the queue:
         if len(commNode['queued_data']) == 0 or targetID not in commNode['queued_data'] or len(commNode['queued_data'][targetID]) == 0:
@@ -312,6 +328,10 @@ class ddfEstimator(BaseEstimator):
                 estPrior_prop = covPrior @ (omegaOpt * np.linalg.inv(cov1) @ estPrior_prop + (1 - omegaOpt) * np.linalg.inv(cov2) @ estSent)
 
         # Finally, save the fused estimate and covariance
+<<<<<<< Updated upstream
+=======
+            # print("Fused estimate and covariance for " + str(sat.name) + " for target " + str(targetID) + " at time " + str(sentTime))# + " : " + str(estPrior_prop) + " and " + str(covPrior_prop))
+>>>>>>> Stashed changes
             self.estHist[targetID][sentTime] = estPrior_prop
             self.covarianceHist[targetID][sentTime] = covPrior
 
