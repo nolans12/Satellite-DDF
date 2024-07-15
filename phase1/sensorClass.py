@@ -13,7 +13,7 @@ class sensor:
         self.projBox = np.array([0, 0, 0])
 
         # Used for saving data
-        self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle", "Range"]
+        self.stringHeader = ["Time", "x_sat", "y_sat", "z_sat", "InTrackAngle", "CrossTrackAngle"]
 
     # Input: A satellite and target object
     # Output: If visible, returns a sensor measurement of target, otherwise returns 0
@@ -46,7 +46,6 @@ class sensor:
         # Add sensor error, assuming gaussian
         in_track_meas = in_track_truth + np.random.normal(0, self.bearingsError[0])
         cross_track_meas = cross_track_truth + np.random.normal(0, self.bearingsError[1])
-        # range_meas = range_truth + np.random.normal(0, self.rangeError)
 
         return np.array([in_track_meas, cross_track_meas])
     
@@ -54,8 +53,33 @@ class sensor:
     def normalize(self, vec):
         return vec / jnp.linalg.norm(vec)
 
+    def transform_eci_to_bearings(self, r_value, v_value, meas_ECI):
+        rVec = self.normalize(jnp.array(r_value))
+        vVec = self.normalize(jnp.array(v_value))
+        wVec = self.normalize(jnp.cross(r_value, v_value))
 
-    def transform_eci_to_bearings(self, sat, meas_ECI):
+        T = jnp.stack([vVec.T, wVec.T, rVec.T])
+
+        sat_pos = jnp.array(r_value)
+        x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
+
+        meas_ECI_sym = jnp.array(meas_ECI)
+        x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym
+
+        satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])
+
+        targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])
+        in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec))
+
+        targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])
+        cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec))
+
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
+
+        return jnp.array([in_track_angle_deg, cross_track_angle_deg])
+    
+    def transform_eci_to_bearings_O(self, sat, meas_ECI):
         rVec = self.normalize(jnp.array(sat.orbit.r.value))
         vVec = self.normalize(jnp.array(sat.orbit.v.value))
         wVec = self.normalize(jnp.cross(sat.orbit.r.value, sat.orbit.v.value))
@@ -78,7 +102,8 @@ class sensor:
         # Now get the in-track component:
         targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
         in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec))
-
+        
+        
         # If targVec_inTrack is negative, switch
         if x_targ_sens < 0:
             in_track_angle = -in_track_angle
@@ -94,14 +119,66 @@ class sensor:
         # Convert to degrees:
         in_track_angle_deg = in_track_angle * 180 / jnp.pi
         cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
+        
+        return jnp.array([in_track_angle_deg, cross_track_angle_deg])
+    
+    def transform_eci_to_bearings2(self, sat, meas_ECI):
+        # Transform the ECI measurement into the Sensor frame
+        
+        # Get the current sensor frame vectors
+        rVec = jnp.array(sat.orbit.r.value)/jnp.linalg.norm(jnp.array(sat.orbit.r.value)) # ECI position of satellite (radial)
+        vVec = jnp.array(sat.orbit.v.value)/jnp.linalg.norm(jnp.array(sat.orbit.v.value)) # ECI velocity of satellite (in-track)
+        wVec = jnp.cross(sat.orbit.r.value, sat.orbit.v.value)/jnp.linalg.norm(jnp.cross(sat.orbit.r.value, sat.orbit.v.value)) # ECI cross-track vector
 
+        # Create the transformation matrix T = in-track x cross-track x radial
+        T = jnp.stack([vVec.T, wVec.T, rVec.T]) 
+
+        # Rotate the satellite position into Sensor frame:
+        sat_pos = jnp.array(sat.orbit.r.value)
+        x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
+
+        # Rotate the measurement into the Sensor frame:
+        x, y, z = meas_ECI
+        meas_ECI_sym = jnp.array([x, y, z]) # incase the measurement is a vector
+        x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym
+
+        # Create a line from satellite to the center of Earth:
+        satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])  # sat - earth
+
+        # Now get the in-track component:
+        targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
+        targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])  # sat - target
+        
+        # Normalize all the vectors for numerical stability
+        # satVec = satVec/jnp.linalg.norm(satVec)
+        # targVec_inTrack = targVec_inTrack/jnp.linalg.norm(targVec_inTrack)
+        # targVec_crossTrack = targVec_crossTrack/jnp.linalg.norm(targVec_crossTrack)
+
+        # Use dot product to get the angle between the vectors
+        cos_inTrack = jnp.dot(targVec_inTrack, satVec) / (jnp.linalg.norm(targVec_inTrack) * jnp.linalg.norm(satVec))
+        cos_crossTrack = jnp.dot(targVec_crossTrack, satVec) / (jnp.linalg.norm(targVec_crossTrack) * jnp.linalg.norm(satVec))
+        
+        # Clip for numerical issues
+        cos_inTrack = jnp.clip(cos_inTrack, -1.0, 1.0)
+        cos_crossTrack = jnp.clip(cos_crossTrack, -1.0, 1.0)
+        
+        in_track_angle = jnp.arccos(cos_inTrack)
+        cross_track_angle = jnp.arccos(cos_crossTrack)
+        
+        # Convert to degrees:
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
+        
+        in_track_angle2 = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec)) * 180 / jnp.pi
+        cross_track_angle2 = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec)) * 180 / jnp.pi
+        
         return jnp.array([in_track_angle_deg, cross_track_angle_deg])
       
 
     # Input: A satellite object and a targets ECI position, in the form of [x, y, z]
     # Output: The in-track and cross-track angles between the satellite and target
     def convert_to_bearings(self, sat, meas_ECI):
-        sensor_measurement = self.transform_eci_to_bearings(sat, meas_ECI)
+        sensor_measurement = self.transform_eci_to_bearings(sat.orbit.r.value, sat.orbit.v.value, meas_ECI)
 
         return float(sensor_measurement[0]), float(sensor_measurement[1])
 
@@ -109,7 +186,12 @@ class sensor:
     # Output: The jacobian matrix H used in a kalman filter for the sensor
     def jacobian_ECI_to_bearings(self, sat, meas_ECI_full):
         # Calculate the Jacobian
-        jacobian = jax.jacfwd(lambda x: self.transform_eci_to_bearings(sat, x))(jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]))
+        pred_position = jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]])
+        
+        # Use reverse automatic differentiation since more inputs 3 than outputs 2
+        jacobian = jax.jacrev(lambda x: self.transform_eci_to_bearings(sat.orbit.r.value, sat.orbit.v.value, x))(pred_position)
+        
+        #jacobian = jax.jacfwd(lambda x: self.transform_eci_to_bearings(sat, x))(pred_position)
 
         # Initialize a new Jacobian matrix with zeros
         new_jacobian = jnp.zeros((2, 6))

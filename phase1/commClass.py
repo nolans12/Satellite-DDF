@@ -17,6 +17,38 @@ class comms:
         self.dataRate = dataRate
         self.displayStruct = displayStruct
 
+
+# Function to send a estimate from one satellite to another
+    # Send from sender to receiver, with the estimate, targetID, and time
+    # Inputs:
+    # sender: Satellite sending the estimate
+    # receiver: Satellite receiving the estimate
+    # est_meas: Estimate estimate to send
+    # cov_meas: Covariance estimate to send
+    # targetID: ID of the target the estimate is from
+    # time: time the estimate was taken
+    def send_estimate(self, sender, receiver, est_meas, cov_meas, targetID, time):
+        # Check if the receiver is in the sender's neighbors
+        if not self.G.has_edge(sender, receiver):
+            return 
+        
+        # Initialize the targetID key in the receiver's queued data if not present
+        if time not in self.G.nodes[receiver]['queued_data']:
+            self.G.nodes[receiver]['queued_data'][time] = {}
+        
+        # Initialize the time key in the targetID's queued data if not present
+        if targetID not in self.G.nodes[receiver]['queued_data'][time]:
+            self.G.nodes[receiver]['queued_data'][time][targetID] = {'est': [], 'cov': [], 'sender': []}
+
+        # Add the estimate to the receiver's queued data at the specified targetID and time
+        self.G.nodes[receiver]['queued_data'][time][targetID]['est'].append(est_meas)
+        self.G.nodes[receiver]['queued_data'][time][targetID]['cov'].append(cov_meas)
+        self.G.nodes[receiver]['queued_data'][time][targetID]['sender'].append(sender.name)
+
+        # Also activate the edge between the two satellites
+        # TODO: WE SHOULD HAVE SOME WAY TO CHANGE THIS SO ONLY ACTIVATES WHEN CI IS ACTUALLY PERFORMED
+        # self.G.edges[sender, receiver]['active'] = True
+
 # Function to send a measurement from one satellite to another
     # Send from sender to receiver, with the measurement, targetID, and time
     # Inputs:
@@ -26,7 +58,7 @@ class comms:
     # cov_meas: Covariance measurement to send
     # targetID: ID of the target the measurement is from
     # time: time the measurement was taken
-    def send_measurement(self, sender, receiver, est_meas, cov_meas, targetID, time):
+    def send_measurement_old(self, sender, receiver, est_meas, cov_meas, targetID, time):
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
             return 

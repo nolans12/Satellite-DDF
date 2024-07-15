@@ -111,8 +111,8 @@ class target:
         vz = rangeRate * np.sin(elevation) + \
             range * elevationRate * np.cos(elevation)
 
-        self.pos = np.array([x, y, z])  
-        self.vel = np.array([vx, vy, vz])
+        self.pos = np.array([x, y, z])# + np.random.normal(0, 15.5, 3)
+        self.vel = np.array([vx, vy, vz])# + np.random.normal(0, 5.5, 3)
 
         # print("Target Position: ", self.pos)
         # print("Target Velocity: ", self.vel)
