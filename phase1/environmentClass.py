@@ -174,7 +174,7 @@ class environment:
             targ.propagate(time_step, self.time)
 
             # Update the history of the target, time and xyz position and velocity [x xdot y ydot z zdot]
-            targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
+            #targ.hist[targ.time] = np.array([targ.pos[0], targ.vel[0], targ.pos[1], targ.vel[1], targ.pos[2], targ.vel[2]])
 
 
         collectedFlag = np.zeros(np.size(self.sats))
