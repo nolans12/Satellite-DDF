@@ -66,7 +66,7 @@ class satellite:
 
                 # Update the local filters
                 self.update_local_filters(measurement, target, self.time)
-                                                            
+
         return collectedFlag
 
     def update_local_filters(self, measurement, target, time):

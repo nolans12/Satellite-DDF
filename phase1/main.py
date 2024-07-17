@@ -147,6 +147,7 @@ def create_environment_edge():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
+
 def simple_environment():
    # Define a sensor model:
     sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
@@ -251,7 +252,8 @@ def plot_NEES_NIS(simData):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(35, 45, 10*2 + 1) * u.minute
+    time_vec = np.linspace(30, 50, 20 + 1) * u.minute
+    fileName = "redo_code4_"
     
     # Number of simulations:
     numSims = 1
@@ -261,10 +263,12 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = "test", showSim = True)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
 
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
 
     # Save the gif:
-    env.render_gif(fileName = 'satellite_simulation.gif', fps = 5)
+    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
+    env.render_gif(fileType='uncertainity_ellipse', saveName=fileName, fps = 5)
+    
