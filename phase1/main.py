@@ -89,7 +89,6 @@ def create_environment_standard():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
-
 #### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
 def create_environment_edge():
 
@@ -253,7 +252,7 @@ if __name__ == "__main__":
 
     # Vector of time for simulation:
     time_vec = np.linspace(30, 50, 20 + 1) * u.minute
-    fileName = "redo_code4_"
+    fileName = "example"
     
     # Number of simulations:
     numSims = 1
@@ -266,6 +265,7 @@ if __name__ == "__main__":
         simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
 
     # Plot the NEES and NIS results:
+    # TODO: Eventual monte-carlo benchmarking, at the moment do not use this function!
     # plot_NEES_NIS(simData)
 
     # Save the gif:
