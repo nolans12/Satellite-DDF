@@ -247,7 +247,7 @@ class sensor:
         dir_new_list = []
 
         # Calculate distance between radial vector and edges of FOV
-        change = sat_dist * np.tan(np.radians(self.fov / 2))  # TODO: should this be times sqrt(2) for edges? 
+        change = sat_dist * np.tan(np.radians(self.fov / 2))  
         
         # Loop over the four directions
         for axis in rotation_axes:
