@@ -263,8 +263,8 @@ if __name__ == "__main__":
         # Simulate the satellites through the vector of time:
         simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
 
-    # Plot the NEES and NIS results:
     # TODO: Eventual monte-carlo benchmarking, at the moment do not use this function!
+    # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
 
     # Save the gif:
