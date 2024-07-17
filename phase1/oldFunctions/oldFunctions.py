@@ -90,3 +90,85 @@ def state_transition_Orig(self, estPrior, dt):
         range * elevationRate * jnp.cos(elevation)
     
     return jnp.array([x, vx, y, vy, z, vz])
+
+
+def transform_eci_to_bearings_O(self, sat, meas_ECI):
+    rVec = self.normalize(jnp.array(sat.orbit.r.value))
+    vVec = self.normalize(jnp.array(sat.orbit.v.value))
+    wVec = self.normalize(jnp.cross(sat.orbit.r.value, sat.orbit.v.value))
+    # Create the transformation matrix T
+    T = jnp.stack([vVec.T, wVec.T, rVec.T])
+    # Rotate the satellite into Sensor frame:
+    sat_pos = jnp.array(sat.orbit.r.value)
+    x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
+    # Rotate the measurement into the Sensor frame:
+    x, y, z = meas_ECI
+    meas_ECI_sym = jnp.array([x, y, z])
+    x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym
+    # Create a line from satellite to the center of Earth:
+    satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])  # sat - earth
+    # Now get the in-track component:
+    targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
+    in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec))
+    
+    
+    # If targVec_inTrack is negative, switch
+    if x_targ_sens < 0:
+        in_track_angle = -in_track_angle
+    # Now get the cross-track component:
+    targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])  # sat - target
+    cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec))
+    # If targVec_crossTrack is negative, switch
+    if y_targ_sens > 0:
+        cross_track_angle = -cross_track_angle
+    # Convert to degrees:
+    in_track_angle_deg = in_track_angle * 180 / jnp.pi
+    cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
+    
+    return jnp.array([in_track_angle_deg, cross_track_angle_deg])
+
+def transform_eci_to_bearings2(self, sat, meas_ECI):
+    # Transform the ECI measurement into the Sensor frame
+    
+    # Get the current sensor frame vectors
+    rVec = jnp.array(sat.orbit.r.value)/jnp.linalg.norm(jnp.array(sat.orbit.r.value)) # ECI position of satellite (radial)
+    vVec = jnp.array(sat.orbit.v.value)/jnp.linalg.norm(jnp.array(sat.orbit.v.value)) # ECI velocity of satellite (in-track)
+    wVec = jnp.cross(sat.orbit.r.value, sat.orbit.v.value)/jnp.linalg.norm(jnp.cross(sat.orbit.r.value, sat.orbit.v.value)) # ECI cross-track vector
+    # Create the transformation matrix T = in-track x cross-track x radial
+    T = jnp.stack([vVec.T, wVec.T, rVec.T]) 
+    # Rotate the satellite position into Sensor frame:
+    sat_pos = jnp.array(sat.orbit.r.value)
+    x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
+    # Rotate the measurement into the Sensor frame:
+    x, y, z = meas_ECI
+    meas_ECI_sym = jnp.array([x, y, z]) # incase the measurement is a vector
+    x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym
+    # Create a line from satellite to the center of Earth:
+    satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])  # sat - earth
+    # Now get the in-track component:
+    targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens])  # sat - target
+    targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens])  # sat - target
+    
+    # Normalize all the vectors for numerical stability
+    # satVec = satVec/jnp.linalg.norm(satVec)
+    # targVec_inTrack = targVec_inTrack/jnp.linalg.norm(targVec_inTrack)
+    # targVec_crossTrack = targVec_crossTrack/jnp.linalg.norm(targVec_crossTrack)
+    # Use dot product to get the angle between the vectors
+    cos_inTrack = jnp.dot(targVec_inTrack, satVec) / (jnp.linalg.norm(targVec_inTrack) * jnp.linalg.norm(satVec))
+    cos_crossTrack = jnp.dot(targVec_crossTrack, satVec) / (jnp.linalg.norm(targVec_crossTrack) * jnp.linalg.norm(satVec))
+    
+    # Clip for numerical issues
+    cos_inTrack = jnp.clip(cos_inTrack, -1.0, 1.0)
+    cos_crossTrack = jnp.clip(cos_crossTrack, -1.0, 1.0)
+    
+    in_track_angle = jnp.arccos(cos_inTrack)
+    cross_track_angle = jnp.arccos(cos_crossTrack)
+    
+    # Convert to degrees:
+    in_track_angle_deg = in_track_angle * 180 / jnp.pi
+    cross_track_angle_deg = cross_track_angle * 180 / jnp.pi
+    
+    in_track_angle2 = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec)) * 180 / jnp.pi
+    cross_track_angle2 = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec)) * 180 / jnp.pi
+    
+    return jnp.array([in_track_angle_deg, cross_track_angle_deg])

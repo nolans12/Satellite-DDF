@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
     # Vector of time for simulation:
     time_vec = np.linspace(30, 50, 20 + 1) * u.minute
-    fileName = "redo_code3_"
+    fileName = "redo_code4_"
     
     # Number of simulations:
     numSims = 1
@@ -263,7 +263,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = False)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
 
     # Plot the NEES and NIS results:
     # plot_NEES_NIS(simData)
