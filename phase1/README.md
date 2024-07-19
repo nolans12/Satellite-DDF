@@ -15,20 +15,26 @@ their neighbors for collective estimation.
 
 ## Installation
 ```bash
-# Create a python virtual environment
+# Create a python virtual environment in a python terminal
 python3 -m venv env
 
 # Activate the virtual environment
-source env/bin/activate
+.\env\Scripts\activate
 
 # Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
 
 # Navigate to the project directory
-cd projectname
+cd Satellite-DDF/phase1
 
 # Install python 3.10.0
+# for macOS:
 brew install python@3.10
+
+# for windowsOS:
+https://www.python.org/downloads/release/python-3100/
+
+# Verify the terminal is running the correct version of python
 
 # Install dependencies
 pip install -r requirements.txt
