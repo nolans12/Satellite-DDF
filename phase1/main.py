@@ -170,25 +170,20 @@ def plot_NEES_NIS(simData):
         os.makedirs(plotPath, exist_ok=True)
         plt.savefig(os.path.join(plotPath,"NEES_NIS_results.png"), dpi=300)
 
+
+
+### Main code to run the simulation
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 200, 200 + 1) * u.minute
-    fileName = "redo4_"
-    
-    # Number of simulations:
-    numSims = 1
-    simData = defaultdict(dict)
-    for i in range(numSims):
-        print(f'Simulation {i + 1} out of {numSims}')
-        # Create a new environment instance for each simulation run:
-        env = create_environment_edge()
-        # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = False)
+    time_vec = np.linspace(0, 20, 20 + 1) * u.minute
 
-    # TODO: Eventual monte-carlo benchmarking, at the moment do not use this function!
-    # Plot the NEES and NIS results:
-    # plot_NEES_NIS(simData)
+    # Header name for the plots, gifs, and data
+    fileName = "example"
+
+    env = create_environment_edge()
+    # Simulate the satellites through the vector of time:
+    env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
