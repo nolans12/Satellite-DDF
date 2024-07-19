@@ -13,29 +13,48 @@ their neighbors for collective estimation.
 
 ## Installation
 ```bash
+# Begin by installing python 3.10, is the version of python that used:
+# for windowsOS:
+https://www.python.org/downloads/release/python-3100/
+# for linux:
+apt install python3.10
+
 # Create a python virtual environment in a python terminal
-python3 -m venv env
+python3.10 -m venv env
+# Note, you can change "env" to whatever you want your virtual environment to be called
+
+# Now go into your virtual environment
+# In a terminal:
+cd env/
 
 # Activate the virtual environment
+# Windows:
 .\env\Scripts\activate
+# Linux:
+source bin/activate
+
+# In the virtual environment:
+# Check that the version of python is correct:
+python3 --version
+# It should say Python 3.10
+# Now check your virtual environment packages:
+pip list
+# It should only display pip and setuptools
+
+# Navigate to the include folder of the virtual environment
+cd include/
 
 # Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
 
-# Navigate to the project directory
-cd Satellite-DDF/phase1
-
-# Install python 3.10.0
-# for macOS:
-brew install python@3.10
-
-# for windowsOS:
-https://www.python.org/downloads/release/python-3100/
-
-# Verify the terminal is running the correct version of python
+# Navigate into the repository
+cd Satellite-DDF/
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Now you should be able to run main.py in phase1 to run the code!
+# Use your favorite IDE, such as VSCode, to run the python code.
 ```
 
 ## Usage
