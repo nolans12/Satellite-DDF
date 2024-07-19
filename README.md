@@ -38,9 +38,3 @@ https://www.python.org/downloads/release/python-3100/
 
 # Install dependencies
 pip install -r requirements.txt
-
-
-
-
-
-
