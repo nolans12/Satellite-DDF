@@ -1,23 +1,22 @@
 from import_libraries import *
 
-class target:
-    """Target class that moves linearly around the earth with constant angular velocity.
-
-    Args:
-        name (str): Name of the target.
-        targetID (int): ID of the target.
-        coords (np.array): Initial position [latitude, longitude, altitude].
-        heading (float): Heading direction in degrees.
-        speed (float): Speed in km/h.
-        color (str): Color representation of the target.
-        uncertainty (np.array): Uncertainty in the initial state. Defaults to np.array([0, 0, 0, 0, 0, 0]).
-        climbrate (float): Climbing rate in km/h. Defaults to 0.
-        changeAoA (bool): Whether the target should change Angle of Attack. Defaults to False.
-    """
-    
+class target:    
     def __init__(self, name, targetID, coords, heading, speed, color, 
                  uncertainty=np.array([0, 0, 0, 0, 0, 0]), climbrate=0, 
                  changeAoA=False):
+        """Target class that moves linearly around the earth with constant angular velocity.
+
+        Args:
+            name (str): Name of the target.
+            targetID (int): ID of the target.
+            coords (np.array): Initial position [latitude, longitude, altitude].
+            heading (float): Heading direction in degrees.
+            speed (float): Speed in km/h.
+            color (str): Color representation of the target.
+            uncertainty (np.array): Uncertainty in the initial state. Defaults to np.array([0, 0, 0, 0, 0, 0]).
+            climbrate (float): Climbing rate in km/h. Defaults to 0.
+            changeAoA (bool): Whether the target should change Angle of Attack. Defaults to False.
+        """
         
         # Initialize the target's parameters
         self.targetID = targetID
