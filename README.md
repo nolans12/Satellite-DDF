@@ -13,45 +13,64 @@ their neighbors for collective estimation.
 
 ## Installation
 ```bash
-# Begin by installing python 3.10, is the version of python that used:
+## Create a folder for the project
+
+## Begin by installing python 3.10 in the folder:
 # for windowsOS:
 https://www.python.org/downloads/release/python-3100/
 # for linux:
 apt install python3.10
 
-# Create a python virtual environment in a python terminal
-python3.10 -m venv env
-# Note, you can change "env" to whatever you want your virtual environment to be called
+## Open a python terminal
 
-# Now go into your virtual environment
-# In a terminal:
-cd env/
+## Create a python3.10 virtual environment in the terminal
+python3.10 -m venv env 
+# Note, you can change "env" to any name
 
-# Activate the virtual environment
+## Navigate into your virtual environment
 # Windows:
-.\env\Scripts\activate
+cd .\env\
+# linux:
+cd env
+
+## Activate the virtual environment inside the folder
+# Windows:
+.\bin\activate
 # Linux:
 source bin/activate
 
-# In the virtual environment:
+## In the virtual environment:
 # Check that the version of python is correct:
 python3 --version
-# It should say Python 3.10
+# It should say Python 3.10 (3.10.11)
 # Now check your virtual environment packages:
 pip list
 # It should only display pip and setuptools
 
 # Navigate to the include folder of the virtual environment
+# Windows:
+cd .\include\
+# Linux:
 cd include/
 
-# Clone the repository
+## Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
 
 # Navigate into the repository
+# Windows:
+cd .\Satellite-DDF\
+# Linux:
 cd Satellite-DDF/
 
-# Install dependencies
+
+## Install dependencies
 pip install -r requirements.txt
+
+## Navigate to Phase1 Directory
+# Windows:
+cd .\phase1\
+# Linux:
+cd phase1/
 
 # Now you should be able to run main.py in phase1 to run the code!
 # Use your favorite IDE, such as VSCode, to run the python code.
