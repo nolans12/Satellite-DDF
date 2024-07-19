@@ -9,9 +9,7 @@ their neighbors for collective estimation.
 1. [Installation](#installation)
 2. [Usage](#usage)
 3. [Project Structure](#project-structure)
-4. [Contributing](#contributing)
-5. [License](#license)
-6. [Contact](#contact)
+4. [Contact](#contact)
 
 ## Installation
 ```bash
@@ -38,3 +36,53 @@ https://www.python.org/downloads/release/python-3100/
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+## Usage
+```bash
+# Run the simulation
+python main.py
+
+# Estimation Results
+State Estimation Error: "plots"
+
+# Gaussian Uncertainty Ellipsoids
+Gasussian Uncertainty Ellipsoids: "gifs"
+
+# Simulation Visualization
+Simulation Visualization: "gifs"
+
+# Data Dump File
+Data Dump File: "data"
+
+# Modify the simulation parameters in main.py file
+#   - Number of satellites
+#   - Number of targets
+#   - Placement of satellites and targets
+#   - Sensor parameters
+#   - Communication Strucutre
+```
+## Project Structure
+```
+Satellite-DDF
+│   README.md
+│   requirements.txt
+│   .gitignore
+│   phase1
+│   ├── main.py
+│   ├── satelliteClass.py
+│   ├── targetClass.py
+│   ├── sensorClass.py
+│   ├── estimatorClass.py
+│   ├── communicationClass.py
+│   ├── environmentClass.py
+│   ├── import_libraries.py
+
+```
+
+## Contact
+```
+Nolan Stevenson - nolan.stevenson@colorado.edu
+Aidan Bagley - aidan.bagley@colorado.edu
+```
+```
