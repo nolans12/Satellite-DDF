@@ -30,6 +30,7 @@ cd env/
 # Activate the virtual environment
 # Windows:
 Type "activate"
+# If you ever want to deactivate type "deactivate"
 # Linux:
 source bin/activate
 
