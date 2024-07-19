@@ -85,4 +85,3 @@ Satellite-DDF
 Nolan Stevenson - nolan.stevenson@colorado.edu
 Aidan Bagley - aidan.bagley@colorado.edu
 ```
-```
