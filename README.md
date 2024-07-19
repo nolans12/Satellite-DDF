@@ -19,18 +19,16 @@ https://www.python.org/downloads/release/python-3100/
 # for linux:
 apt install python3.10
 
-# Create a python virtual environment in a python terminal
+# Create a python virtual environment from a terminal, on windows use powershell.
 py -3.10 -m venv env
 # Note, you can change "env" to whatever you want your virtual environment to be called
 
-# Now go into your virtual environment
-# In a terminal:
-cd env/
+# Now navigate into your virtual environment in the terminal:
+cd .\env\
 
 # Activate the virtual environment
 # Windows:
-Type "activate"
-# If you ever want to deactivate type "deactivate"
+.\Scripts\activate
 # Linux:
 source bin/activate
 
@@ -44,10 +42,11 @@ pip list
 # It should only display pip and setuptools
 
 # Navigate to the include folder of the virtual environment
-cd ..\Include\
+cd .\Include\
 
 # Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
+# Or, put the Satellite-DDF unzipped folder into the include folder
 
 # Navigate into the repository
 cd .\Satellite-DDF\
@@ -58,6 +57,10 @@ pip install -r requirements.txt
 
 # Now you should be able to run main.py in phase1 to run the code!
 # Use your favorite IDE, such as VSCode, to run the python code.
+code .
+Then run main.py
+
+# If you ever want to deactivate your environment, type "deactivate" in Windows
 ```
 
 ## Usage
