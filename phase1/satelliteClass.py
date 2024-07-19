@@ -3,7 +3,23 @@ from import_libraries import *
 
 class satellite:
     def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None):
-    
+        """Initialize a Satellite object.
+
+        Args:
+            a (float or int): Semi-major axis of the satellite's orbit.
+            ecc (float or int): Eccentricity of the satellite's orbit.
+            inc (float or int): Inclination of the satellite's orbit in degrees.
+            raan (float or int): Right ascension of the ascending node in degrees.
+            argp (float or int): Argument of periapsis in degrees.
+            nu (float or int): True anomaly in degrees.
+            sensor (object): Sensor used by the satellite.
+            target_ids (list): List of target IDs to track.
+            indept_estimator (object): Independent estimator for benchmarking.
+            name (str): Name of the satellite.
+            color (str): Color of the satellite for visualization.
+            ddf_estimator (object, optional): DDF estimator to test. Defaults to None.
+        """
+
     # Sensor to use
         self.sensor = sensor
         self.measurementHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
@@ -51,6 +67,17 @@ class satellite:
         self.time = 0
 
     def collect_measurements_and_filter(self, target):
+        """Collect measurements from the sensor for a specified target and update local filters.
+                The satellite will use its sensor class to collect a measurement on the target.
+                It then stores the measurement in its measurement history and updates its local filters.
+                Updating hte local filters calls the EKF functions to update the state and covariance estimates based on the measurement.
+
+        Args:
+            target (object): Target object containing targetID and other relevant information.
+
+        Returns:
+            int: Flag indicating whether measurements were successfully collected (1) or not (0).
+        """
         collectedFlag = 0
         if target.targetID in self.targetIDs:
         # Is the current target one of the ones to track?
@@ -70,7 +97,19 @@ class satellite:
         return collectedFlag
 
     def update_local_filters(self, measurement, target, time):
-        # Update the local filters
+        """Update the local filters for the satellite.
+
+        The satellite will update its local filters using the measurement provided.
+        This will call the EKF functions to update the state and covariance estimates based on the measurement.
+
+        Args:
+            measurement (object): Measurement data obtained from the sensor.
+            target (object): Target object containing targetID and other relevant information.
+            time (float): Current time at which the measurement is taken.
+        """
+        # Update the local filters using the independent estimator
         self.indeptEstimator.EKF([self], [measurement], target, time)
+        
+        # If a DDF estimator is present, update the DDF filters using a local EKF 
         if self.ddfEstimator:
             self.ddfEstimator.EKF([self], [measurement], target, time)

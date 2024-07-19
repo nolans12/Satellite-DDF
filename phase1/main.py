@@ -9,87 +9,8 @@ from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
 from sensorClass import sensor
 from commClass import comms
 
-#### This environment is used for a standard LEO constellation sim, 20 satellites at 1000 km ####
-def create_environment_standard():
 
-    # Define the sensor model:
-    sens = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1]))
-
-    # Define targets for the satellites to track:
-    targetIDs = [1,2,3]
-
-    # Define local estimators:
-    local = indeptEstimator(targetIDs = targetIDs)
-
-    # Define the Data Fusion Algorithm, use the covariance intersection estimator:
-    ddf = ddfEstimator(targetIDs = targetIDs)
-
-    # Define the centralized estimator
-    central = centralEstimator(targetIDs = targetIDs)
-
-    # Define the colors for the targets:
-    red_shades = ['#EE4B2B', '#800020', '#DE3163']
-
-    # For the equatorial orbits, use a bunch of purples:
-    purple_shades = ['#9467BD', '#8A2BE2', '#800080', '#4B0082', '#483D8B', '#0000FF', '#0000CD', '#00008B', '#000080', '#191970']
-    yellow_shades = ['#FFBF00', '#E49B0F', '#FDDA0D', '#FFD700', '#FFA500', '#FF8C00', '#FF7F50', '#FF6347', '#FF4500', '#FF0000']
-    green_shades = ['#00FF00', '#32CD32', '#008000', '#006400', '#9ACD32', '#6B8E23', '#556B2F', '#808000', '#556B2F', '#2E8B57']
-
-    # Constellation of 10 satellites at RAAN = -20, i = 60
-    sat1_1 = satellite(name = 'Sat1.1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*0, nu = 0, color=purple_shades[0])
-    sat1_2 = satellite(name = 'Sat1.2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*1, nu = 0, color=purple_shades[1])
-    sat1_3 = satellite(name = 'Sat1.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*2, nu = 0, color=purple_shades[2])
-    sat1_4 = satellite(name = 'Sat1.4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*3, nu = 0, color=purple_shades[3])
-    sat1_5 = satellite(name = 'Sat1.5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*4, nu = 0, color=purple_shades[4])
-    sat1_6 = satellite(name = 'Sat1.6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*5, nu = 0, color=purple_shades[5])
-    sat1_7 = satellite(name = 'Sat1.7', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*6, nu = 0, color=purple_shades[6])
-    sat1_8 = satellite(name = 'Sat1.8', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*7, nu = 0, color=purple_shades[7])
-    sat1_9 = satellite(name = 'Sat1.9', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*8, nu = 0, color=purple_shades[8])
-    sat1_10 = satellite(name = 'Sat1.10', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 36*9, nu = 0, color=purple_shades[9])
-
-    # Constellation of 10 satellites at RAAN = -20 + 180, i = 60
-    sat2_1 = satellite(name = 'Sat2.1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*0, nu = 0, color=yellow_shades[0])
-    sat2_2 = satellite(name = 'Sat2.2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*1, nu = 0, color=yellow_shades[1])
-    sat2_3 = satellite(name = 'Sat2.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*2, nu = 0, color=yellow_shades[2])
-    sat2_4 = satellite(name = 'Sat2.4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*3, nu = 0, color=yellow_shades[3])
-    sat2_5 = satellite(name = 'Sat2.5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*4, nu = 0, color=yellow_shades[4])
-    sat2_6 = satellite(name = 'Sat2.6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*5, nu = 0, color=yellow_shades[5])
-    sat2_7 = satellite(name = 'Sat2.7', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*6, nu = 0, color=yellow_shades[6])
-    sat2_8 = satellite(name = 'Sat2.8', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*7, nu = 0, color=yellow_shades[7])
-    sat2_9 = satellite(name = 'Sat2.9', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*8, nu = 0, color=yellow_shades[8])
-    sat2_10 = satellite(name = 'Sat2.10', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 180 - 60, raan = 45, argp = 36*9, nu = 0, color=yellow_shades[9])
-
-    # Constellation of 10 sats doing equotorial orbits
-    sat3_1 = satellite(name = 'Sat3.1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*0, nu = 0, color=green_shades[0])
-    sat3_2 = satellite(name = 'Sat3.2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*1, nu = 0, color=green_shades[1])
-    sat3_3 = satellite(name = 'Sat3.3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*2, nu = 0, color=green_shades[2])
-    sat3_4 = satellite(name = 'Sat3.4', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*3, nu = 0, color=green_shades[3])
-    sat3_5 = satellite(name = 'Sat3.5', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*4, nu = 0, color=green_shades[4])
-    sat3_6 = satellite(name = 'Sat3.6', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*5, nu = 0, color=green_shades[5])
-    sat3_7 = satellite(name = 'Sat3.7', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*6, nu = 0, color=green_shades[6])
-    sat3_8 = satellite(name = 'Sat3.8', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*7, nu = 0, color=green_shades[7])
-    sat3_9 = satellite(name = 'Sat3.9', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*8, nu = 0, color=green_shades[8])
-    sat3_10 = satellite(name = 'Sat3.10', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf),  a = Earth.R + 1000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 36*9, nu = 0, color=green_shades[9])
-
-    sats = [sat1_1, sat1_2, sat1_3, sat1_4, sat1_5, sat1_6, sat1_7, sat1_8, sat1_9, sat1_10, sat2_1, sat2_2, sat2_3, sat2_4, sat2_5, sat2_6, sat2_7, sat2_8, sat2_9, sat2_10, sat3_1, sat3_2, sat3_3, sat3_4, sat3_5, sat3_6, sat3_7, sat3_8, sat3_9, sat3_10]
-
-    # Define the targets:
-    # At M = 4.7, hypersonic
-    targ1 = target(name = 'Targ1', targetID=1, coords = np.array([0,-45,0]), heading=90, speed= 1.61538*60, color = red_shades[0])
-    # At M = 0.7, transonic speed
-    targ2 = target(name = 'Targ2', targetID=2, coords = np.array([100,-5,0]), heading=180, speed= 0.2401*60, color = red_shades[1])
-    # At 50 mph 
-    targ3 = target(name = 'Targ3', targetID=3, coords = np.array([45,0,0]), heading=180 + 45, speed= 0.022352*60, color = red_shades[2])
-    
-    targs = [targ1, targ2, targ3]
-
-    # Define the communication network:
-    comms_network = comms(sats, maxNeighbors = 3, maxRange = 7500*u.km, minRange = 5*u.km, displayStruct = True)
-
-    # Create and return an environment instance:
-    return environment(sats, targs, comms_network, central)
-
-#### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
+### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
 def create_environment_edge():
 
     # Define a sensor model:
@@ -146,7 +67,7 @@ def create_environment_edge():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
-
+### This environment is used for standard testing, 6 sats at 1000 km ####
 def simple_environment():
    # Define a sensor model:
     sens = sensor(name = 'Sensor 1', fov = 115, bearingsError = np.array([0.05, 0.05]))
@@ -183,6 +104,7 @@ def simple_environment():
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
+
 
 # Plot the NEES and NIS results:
 def plot_NEES_NIS(simData):
@@ -251,8 +173,8 @@ def plot_NEES_NIS(simData):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(30, 50, 20 + 1) * u.minute
-    fileName = "example"
+    time_vec = np.linspace(0, 200, 200 + 1) * u.minute
+    fileName = "redo4_"
     
     # Number of simulations:
     numSims = 1
@@ -262,7 +184,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
+        simData[i] = env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = False)
 
     # Plot the NEES and NIS results:
     # TODO: Eventual monte-carlo benchmarking, at the moment do not use this function!
@@ -270,5 +192,5 @@ if __name__ == "__main__":
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
-    env.render_gif(fileType='uncertainity_ellipse', saveName=fileName, fps = 5)
+    env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
     

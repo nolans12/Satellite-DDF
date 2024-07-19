@@ -29,4 +29,3 @@ from scipy.spatial.transform import Rotation as R
 from scipy.linalg import block_diag
 from scipy.optimize import minimize
 from collections import defaultdict
-from ambiance import Atmosphere # NOLAN install this libray for Std Atm
