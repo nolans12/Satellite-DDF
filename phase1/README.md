@@ -1,5 +1,3 @@
-def create_readme():
-    content = """\
 # Distributed Data Fusion for Space Based Target Tracking 
 
 ## Overview
@@ -35,10 +33,6 @@ brew install python@3.10
 # Install dependencies
 pip install -r requirements.txt
 
-## Usage
-```bash
-# Run the simulation
-python main.py
 
 
 
