@@ -29,7 +29,6 @@ cd env/
 
 # Activate the virtual environment
 # Windows:
-Navigate to ".\Scripts\"
 Type "activate"
 # Linux:
 source bin/activate
