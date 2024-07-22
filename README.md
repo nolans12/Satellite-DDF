@@ -21,59 +21,49 @@ https://www.python.org/downloads/release/python-3100/
 # for linux:
 apt install python3.10
 
-## Open a python terminal
+# Create a python virtual environment from a terminal, on windows use powershell.
+py -3.10 -m venv env
+# Note, you can change "env" to whatever you want your virtual environment to be called
 
-## Create a python3.10 virtual environment in the terminal
-python3.10 -m venv env 
-# Note, you can change "env" to any name
-
-## Navigate into your virtual environment
-# Windows:
+# Now navigate into your virtual environment in the terminal:
 cd .\env\
-# linux:
-cd env
 
-## Activate the virtual environment inside the folder
+# Activate the virtual environment
 # Windows:
-.\bin\activate
+.\Scripts\activate
 # Linux:
 source bin/activate
 
-## In the virtual environment:
+# The virtual environment should now be activate.
+# In the virtual environment:
 # Check that the version of python is correct:
-python3 --version
-# It should say Python 3.10 (3.10.11)
+python --version
+# It should say Python 3.10
 # Now check your virtual environment packages:
 pip list
 # It should only display pip and setuptools
 
 # Navigate to the include folder of the virtual environment
-# Windows:
-cd .\include\
-# Linux:
-cd include/
+cd .\Include\
 
 ## Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
+# Or, put the Satellite-DDF unzipped folder into the include folder
 
 # Navigate into the repository
-# Windows:
 cd .\Satellite-DDF\
-# Linux:
-cd Satellite-DDF/
 
 
 ## Install dependencies
 pip install -r requirements.txt
-
-## Navigate to Phase1 Directory
-# Windows:
-cd .\phase1\
-# Linux:
-cd phase1/
+# This may take a while
 
 # Now you should be able to run main.py in phase1 to run the code!
 # Use your favorite IDE, such as VSCode, to run the python code.
+code .
+Then run main.py
+
+# If you ever want to deactivate your environment, type "deactivate" in Windows
 ```
 
 ## Usage
