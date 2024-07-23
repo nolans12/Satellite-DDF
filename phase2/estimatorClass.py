@@ -430,3 +430,65 @@ class ddfEstimator(BaseEstimator):
         omega = omega[0]  # Ensure omega is a scalar
         P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
         return np.linalg.det(P)
+
+### Event Triggered Estimator Class
+class etEstimator(BaseEstimator):
+    def __init__(self, targetIDs, satID):
+        """
+        Initialize Event Triggered Estimator object. This object holds the 
+        common information filter between two agents.
+
+        Args:
+        - targetIDs (list): List of target IDs to track.
+        - satID (list): Name of other satellite to share common information with. ## TODO: Add another key to differentiate between common information filters.
+        """
+        super().__init__(targetIDs)
+        self.sharedSat = satID
+
+    def EKF(self, sats, measurements, target, envTime):
+        """
+        Extended Kalman Filter for explicit event-triggered estimation.
+
+        Args:
+        - sats (list): List of satellites.
+        - measurements (list): List of measurements.
+        - target (object): Target object.
+        - envTime (float): Current environment time.
+
+        Returns:
+        - np.array: Estimated state after filtering.
+        """
+        return super().EKF(sats, measurements, target, envTime)
+
+    def ET(self, sat, target):
+        """
+        Event Trigger function to determine if an update is needed.
+
+        Args:
+        - sat (object): Satellite object that is receiving information.
+        - target (object): Target object.
+
+        Returns:
+        - bool: True if an update is needed, False otherwise.
+        """
+        # Check if the satellite has an estimate for the target
+        if not self.estHist[target.targetID]:
+            return True
+
+        # Get the most recent estimate and covariance
+        time_prior = max(self.estHist[target.targetID].keys())
+        est_prior = self.estHist[target.targetID][time_prior]
+        
+        
+        cov_prior = self.covarianceHist[target.targetID][time_prior]
+
+        # Calculate the track quality metric
+        trackQuality = self.calcTrackQuailty(est_prior, cov_prior)
+
+        # Check if the track quality metric is below a threshold
+        if trackQuality < 1:
+            return True
+
+        return False
+    
+    
