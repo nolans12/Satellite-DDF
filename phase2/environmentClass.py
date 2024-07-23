@@ -54,7 +54,7 @@ class environment:
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
 
 
-    def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveData=False, saveName=None, showSim=False):
+    def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
         """
         Simulate the environment over a time range.
         
@@ -92,6 +92,9 @@ class environment:
         if savePlot:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
+           
+        if saveGif:
+            # Save the uncertainty ellipse plots
             self.plot_all_uncertainty_ellipses() # Uncertainty Ellipse Plots
 
         # Log the Data
@@ -156,11 +159,13 @@ class environment:
         self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        self.send_estimates()
+        self.send_estimates() # TODO: Send estimates should have a twin function for send ET-Measurements
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
+            ## TODO: Sat.etEstimator.measurement update (sat, self.comms.G.nodes[sat])
+            ## TODO: Should ddf update before CI
 
 
     def send_estimates(self):
@@ -197,7 +202,7 @@ class environment:
         """
         # Update the current time
         self.time += time_step
-        print("Time: ", self.time.to_value())
+        # print("Time: ", self.time.to_value())
 
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
@@ -1165,6 +1170,11 @@ class environment:
                     data[targ.targetID][sat.name] = {
                         'NEES': sat.indeptEstimator.neesHist[targ.targetID],
                         'NIS': sat.indeptEstimator.nisHist[targ.targetID]
+                    }
+                    # Also save the DDF data
+                    data[targ.targetID][f"{sat.name} DDF"] = {
+                        'NEES': sat.ddfEstimator.neesHist[targ.targetID],
+                        'NIS': sat.ddfEstimator.nisHist[targ.targetID]
                     }
 
             # If central estimator is used, also add that data

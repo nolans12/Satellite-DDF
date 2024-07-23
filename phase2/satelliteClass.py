@@ -93,6 +93,12 @@ class satellite:
 
                 # Update the local filters
                 self.update_local_filters(measurement, target, self.time)
+                
+                # Determine if measurement is unique to trigger ER
+                if self.etEstimator:
+                    if self.etEstimator.ET(self, target, self.time):
+                        # Send Measurement to neighbors
+                        self.etEstimator.send_measurement(self, target, self.time)
 
         return collectedFlag
 

@@ -54,7 +54,7 @@ class environment:
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
 
 
-    def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveData=False, saveName=None, showSim=False):
+    def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
         """
         Simulate the environment over a time range.
         
@@ -92,6 +92,9 @@ class environment:
         if savePlot:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
+           
+        if saveGif:
+            # Save the uncertainty ellipse plots
             self.plot_all_uncertainty_ellipses() # Uncertainty Ellipse Plots
 
         # Log the Data

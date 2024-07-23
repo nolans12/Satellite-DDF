@@ -105,18 +105,17 @@ def simple_environment():
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
 
-
-# Plot the NEES and NIS results:
-def plot_NEES_NIS(simData):
+### Plot the NEES and NIS results:
+def plot_NEES_NIS(simData, fileName):
 
     # Now that the simulations are done, we can plot the results for NEES and NIS:
     def nested_dict():
         return defaultdict(list)
-
-    # Now that the simulations are done, we can plot the results for NEES and NIS:
+    
+    # For each estimator, reset the nees and nis dictionaries
     nees_net = defaultdict(lambda: defaultdict(nested_dict))
     nis_net = defaultdict(lambda: defaultdict(nested_dict))
-    
+
     numSims = len(simData)
     # Just loop trough everything and append the data to the dictionaries:
     # Loop through all sims
@@ -124,68 +123,106 @@ def plot_NEES_NIS(simData):
     for i in range(numSims):
         # Loop through all the targets
         for targ in simData[i].keys():
-            # Loop through all sats
-            for sat in simData[i][targ].keys():
-                # Loop through all times:
+            # Loop through all of the different estimators we are using
+            for estimator in simData[i][targ].keys():
+                # For each estimator, store the NEES and NIS data for that in the nees_net and nis_net dictionaries
                 for time in time_vec.to_value():
-                    nees_data = simData[i][targ][sat]['NEES'][time]
-                    nis_data = simData[i][targ][sat]['NIS'][time]
+                    nees_data = simData[i][targ][estimator]['NEES'][time]
+                    nis_data = simData[i][targ][estimator]['NIS'][time]
                     # If not empty, append to the dictionary
                     if nees_data and nis_data:
                         # Append to the data at that time:
-                        if time not in nees_net[targ][sat].keys():
-                            nees_net[targ][sat][time] = []
-                        if time not in nis_net[targ][sat].keys():
-                            nis_net[targ][sat][time] = []
-                        nees_net[targ][sat][time].append(nees_data)
-                        nis_net[targ][sat][time].append(nis_data)
-                    
+                        if time not in nees_net[targ][estimator].keys():
+                            nees_net[targ][estimator][time] = []
+                        if time not in nis_net[targ][estimator].keys():
+                            nis_net[targ][estimator][time] = []
+                        nees_net[targ][estimator][time].append(nees_data)
+                        nis_net[targ][estimator][time].append(nis_data)
+
+    # Now, clean up the data
+    # Loop through nees net and nis net and if any of the target entries are 0, remove that key
+    for targ in nees_net.keys():
+        if not nees_net[targ]:
+            nees_net.pop(targ)
+    for targ in nis_net.keys():
+        if not nis_net[targ]:
+            nis_net.pop(targ)
+
     # Now we can finally plot the NEES and NIS plots:
     # Goal is to make one plot for each target.
     # Each plot will have 2 subplots, one for NEES and one for NIS plots
-    # The data on the plots will be the average NEES and NIS values for each satellite at each time step
+    # The data on the plots will be averages for each estimator at each time step
     for targ in nees_net.keys():
-        fig, axs = plt.subplots(1,2, figsize=(15, 8))
+        fig, axs = plt.subplots(2,2, figsize=(15, 8))
         fig.suptitle(f'Target {targ} NEES and NIS plots over {numSims} simulations', fontsize=16)
-        axs[0].set_title('Average NEES vs Time')
-        axs[0].set_xlabel('Time [min]')
-        axs[0].set_ylabel('NEES')
-        axs[1].set_title('Average NIS vs Time')
-        axs[1].set_xlabel('Time [min]')
-        axs[1].set_ylabel('NIS')
-        for sat in nees_net[targ].keys():
-            # Calculate the average NEES and NIS values for each time step
-            nees_avg = np.array([np.mean(nees_net[targ][sat][time]) for time in nees_net[targ][sat].keys()])
-            nis_avg = np.array([np.mean(nis_net[targ][sat][time]) for time in nis_net[targ][sat].keys()])
-            # Plot the data
-            axs[0].plot(nees_net[targ][sat].keys(), nees_avg, label=f'{sat}')
-            axs[1].plot(nis_net[targ][sat].keys(), nis_avg, label=f'{sat}')
+        axs[0, 0].set_title('Average NEES vs Time')
+        axs[0, 0].set_xlabel('Time [min]')
+        axs[0, 0].set_ylabel('NEES')
+        axs[0, 0].set_ylim([0, 12])
 
-                        
-        axs[0].legend()
-        axs[1].legend()
-        # Save the plots
+        axs[0, 1].set_title('Average NIS vs Time')
+        axs[0, 1].set_xlabel('Time [min]')
+        axs[0, 1].set_ylabel('NIS')
+        axs[0, 1].set_ylim([0, 6])
+
+        # axs[1, 0].set_title('Average NEES vs Time')
+        axs[1, 0].set_xlabel('Time [min]')
+        axs[1, 0].set_ylabel('NEES')
+
+        # axs[1, 1].set_title('Average NIS vs Time')
+        axs[1, 1].set_xlabel('Time [min]')
+        axs[1, 1].set_ylabel('NIS')
+
+        for estimator in nees_net[targ].keys():
+            # Calculate the average NEES and NIS values for each time step
+            nees_avg = np.array([np.mean(nees_net[targ][estimator][time]) for time in nees_net[targ][estimator].keys()])
+            nis_avg = np.array([np.mean(nis_net[targ][estimator][time]) for time in nis_net[targ][estimator].keys()])
+            # Plot the data
+            axs[0, 0].scatter(list(nees_net[targ][estimator].keys()), nees_avg, label=f'{estimator}')
+            axs[1, 0].scatter(list(nees_net[targ][estimator].keys()), nees_avg, label=f'{estimator}')
+            axs[0, 1].scatter(list(nis_net[targ][estimator].keys()), nis_avg, label=f'{estimator}')
+            axs[1, 1].scatter(list(nis_net[targ][estimator].keys()), nis_avg, label=f'{estimator}')
+ 
+        axs[0, 0].legend()
+        axs[0, 1].legend()
+        axs[1, 0].legend()
+        axs[1, 1].legend()
+
+        # Save the plots, one for each target
         filePath = os.path.dirname(os.path.realpath(__file__))
         plotPath = os.path.join(filePath, 'plots')
         os.makedirs(plotPath, exist_ok=True)
-        plt.savefig(os.path.join(plotPath,"NEES_NIS_results.png"), dpi=300)
-
-
+        saveName = f'{fileName}_Target_{targ}_NEES_NIS'
+        plt.savefig(os.path.join(plotPath,saveName), dpi=300)
 
 ### Main code to run the simulation
 if __name__ == "__main__":
 
-    # Vector of time for simulation:
-    time_vec = np.linspace(0, 20, 20 + 1) * u.minute
+    # # Vector of time for simulation:
+    # time_vec = np.linspace(0, 40, 40 + 1) * u.minute
 
-    # Header name for the plots, gifs, and data
-    fileName = "example"
+    # # Header name for the plots, gifs, and data
+    # fileName = "example"
 
-    env = create_environment_edge()
-    # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, savePlot = True, saveData = True, saveName = fileName, showSim = True)
+    # env = create_environment_edge()
+    # # Simulate the satellites through the vector of time:
+    # env.simulate(time_vec, savePlot = True, showSim = True, saveName = fileName)
 
-    # Save the gif:
-    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
-    env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    
+    # # Save the gif:
+    # env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
+    # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
+
+    ### Do formal NEES and NIS test:
+    time_vec = np.linspace(0, 160, 160 + 1) * u.minute
+    fileName = "r1_tinierQ"
+    numSims = 1
+    simData = defaultdict(dict)
+    for i in range(numSims):
+        print(f'Simulation {i + 1} out of {numSims}')
+        # Create a new environment instance for each simulation run:
+        env = create_environment_edge()
+        # Simulate the satellites through the vector of time:
+        simData[i] = env.simulate(time_vec, savePlot = True, saveName = fileName)
+
+    plot_NEES_NIS(simData, fileName)
+
