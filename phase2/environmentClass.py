@@ -200,7 +200,7 @@ class environment:
         """
         # Update the current time
         self.time += time_step
-        print("Time: ", self.time.to_value())
+        # print("Time: ", self.time.to_value())
 
         time_val = self.time.to_value(self.time.unit)
         # Update the time in targs, sats, and estimator
@@ -1168,6 +1168,11 @@ class environment:
                     data[targ.targetID][sat.name] = {
                         'NEES': sat.indeptEstimator.neesHist[targ.targetID],
                         'NIS': sat.indeptEstimator.nisHist[targ.targetID]
+                    }
+                    # Also save the DDF data
+                    data[targ.targetID][f"{sat.name} DDF"] = {
+                        'NEES': sat.ddfEstimator.neesHist[targ.targetID],
+                        'NIS': sat.ddfEstimator.nisHist[targ.targetID]
                     }
 
             # If central estimator is used, also add that data

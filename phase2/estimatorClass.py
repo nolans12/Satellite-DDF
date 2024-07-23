@@ -56,13 +56,21 @@ class BaseEstimator:
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) * 1.5
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             
+            # # Initial covariance matrix
+            # P_prior = np.array([[625, 0, 0, 0, 0, 0],
+            #                     [0, 100, 0, 0, 0, 0],
+            #                     [0, 0, 625, 0, 0, 0],
+            #                     [0, 0, 0, 100, 0, 0],
+            #                     [0, 0, 0, 0, 625, 0],
+            #                     [0, 0, 0, 0, 0, 100]])
+            
             # Initial covariance matrix
-            P_prior = np.array([[625, 0, 0, 0, 0, 0],
-                                [0, 100, 0, 0, 0, 0],
-                                [0, 0, 625, 0, 0, 0],
-                                [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 625, 0],
-                                [0, 0, 0, 0, 0, 100]])
+            P_prior = np.array([[10, 0, 0, 0, 0, 0],
+                                [0, 5, 0, 0, 0, 0],
+                                [0, 0, 10, 0, 0, 0],
+                                [0, 0, 0, 5, 0, 0],
+                                [0, 0, 0, 0, 10, 0],
+                                [0, 0, 0, 0, 0, 5]])
                 
             # Store initial values and return for first iteration
             self.estHist[targetID][envTime] = est_prior
@@ -90,8 +98,12 @@ class BaseEstimator:
         F = self.state_transition_jacobian(est_prior, dt)
         
         # Predict process noise associated with state transition
-        Q = np.diag([50, 1, 50, 1, 50, 1])  # Process noise matrix
-        
+        Q = np.diag([50, 1, 50, 1, 50, 1]) # Large # Process noise matrix
+        # Q = np.diag([2, 1, 2, 1, 2, 1])  # Smaller # Process noise matrix
+        # Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Tiny # Process noise matrix
+        Q = np.diag([0.01, 0.001, 0.01, 0.001, 0.01, 0.001]) # tinier # Process noise matrix
+
+
         # Predict covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
         
@@ -105,7 +117,7 @@ class BaseEstimator:
         for i, sat in enumerate(sats):
             z[2*i:2*i+2] = np.reshape(measurements[i][:], (2, 1))  # Measurement stack
             H[2*i:2*i+2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)  # Jacobian of the sensor model
-            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * 1000  # Sensor noise matrix scaled by 1000x
+            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * 1  # Sensor noise matrix scaled by X amount
             
             z_pred = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
             innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(z_pred, (2, 1))  # Innovations
