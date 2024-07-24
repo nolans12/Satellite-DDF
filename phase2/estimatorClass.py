@@ -972,21 +972,24 @@ class etEstimator(BaseEstimator):
         for targetID in commNode['measurement_data'][time_sent].keys():
             # Predict the next state using the Extended Kalman Filter
             est_pred, P_pred = self.pred_EKF(sat, targetID, envTime)
-            
-            # If I had a measurement on this target
+                            # If I took a measurement processs it first
             if len(sat.measurementHist[targetID]) > 0:                # Get the measurement
                 measurement = sat.measurementHist[targetID][envTime]
                 self.estHist[targetID][sat][sat][envTime] = est_pred
                 self.covarianceHist[targetID][sat][sat][envTime] = P_pred
                 self.explicit_measurement_update(sat, sat, measurement, targetID, envTime)
                 
-
+                for neighbor in self.neighbors:
+                    self.estHist[targetID][sat][neighbor][envTime] = self.estHist[targetID][sat][sat][envTime]
+                    self.covarianceHist[targetID][sat][neighbor][envTime] = self.covarianceHist[targetID][sat][sat][envTime]
+                            
             # For each target, loop through all the measurements sent on that target
-            for i in range(len(commNode['measurement_data'][time_sent][targetID]['meas'])):
+            for i in range(len(commNode['measurement_data'][time_sent][targetID]['meas'])):          # If I had a measurement on this target
+                                
                 measurement = commNode['measurement_data'][time_sent][targetID]['meas'][i]
                 sender = commNode['measurement_data'][time_sent][targetID]['sender'][i]
-                
-                # Categorize the measurements as implicit or explicit to sequentially process them
+                            
+                # Categorize the sent measurements as implicit or explicit to sequentially process them
                 
                 # First time will be in-track so run measurement as z = [measurement, 0]
                 scalarIT = np.zeros(2)
@@ -995,18 +998,18 @@ class etEstimator(BaseEstimator):
                 scalarIT[0] = measurement[0]
                 scalarCT[1] = measurement[1]
                 
-                if scalarIT.any() != np.nan:
+                if not all(np.isnan(measurement)):
                     self.explicit_measurement_update(sat, sender, scalarIT, targetID, envTime)
                 else:
                     mask = np.array([1, 0])
-                    self.implicit_measurement_update(sat, mask, targetID, envTime, est_pred, P_pred)
+                    self.implicit_measurement_update(sat, sender, mask, targetID, envTime, est_pred, P_pred)
                     
                 # Second time will be cross-track so run measurement as z = [0, measurement]
-                if scalarCT.any() != np.nan:
+                if not all(np.isnan(measurement)):
                     self.explicit_measurement_update(sat, sender, scalarCT, targetID, envTime)
                 else:
                     mask = np.array([0, 1])
-                    self.implicit_measurement_update(sat, mask, targetID, envTime, est_pred, P_pred)
+                    self.implicit_measurement_update(sat, sender, mask, targetID, envTime, est_pred, P_pred)
                     
                 
 
@@ -1096,6 +1099,15 @@ class etEstimator(BaseEstimator):
         R[0:2, 0:2] = np.eye(2) * neighbor.sensor.bearingsError**2 * 1  # Sensor noise matrix scaled by X amount
             
         z_pred = np.array(neighbor.sensor.convert_to_bearings(neighbor, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
+        
+        if z[0] == 0:
+            z_pred[0] = 0
+            R[0][0] = 0
+        elif z[1] == 0:
+            z_pred[1] = 0
+            R[1][1] = 0
+            
+        
         innovation[0:2] = z[0:2] - np.reshape(z_pred, (2, 1))  # Innovations
 
         # Calculate innovation covariance
@@ -1117,20 +1129,23 @@ class etEstimator(BaseEstimator):
         #nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
         
         # Calculate Track Quaility Metric
-        trackQuality = super().calcTrackQuailty(est, P)
+        #trackQuality = super().calcTrackQuailty(est, P)
 
         # Save Data into both filters
         self.estHist[targetID][sat][sat][envTime] = est
         self.estHist[targetID][sat][neighbor][envTime] = est
+        
         self.covarianceHist[targetID][sat][sat][envTime] = P
         self.covarianceHist[targetID][sat][neighbor][envTime] = P
+        
         self.innovationHist[targetID][sat][sat][envTime] = np.reshape(innovation, (numMeasurements))
         self.innovationHist[targetID][sat][neighbor][envTime] = np.reshape(innovation, (numMeasurements))
+        
         self.innovationCovHist[targetID][sat][sat][envTime] = innovationCov
         self.innovationCovHist[targetID][sat][neighbor][envTime] = innovationCov
         
         
-    def implicit_measurement_update(self, sat, neighbor, mask, target, envTime, est_pred, P_pred):
+    def implicit_measurement_update(self, sat, neighbor, mask, targetID, envTime, est_pred, P_pred):
         """
         Implicit measurement update function to update the estimate without a measurement.
         Fuses the local estimate with implicit information shared from a paired satellite.
@@ -1144,9 +1159,6 @@ class etEstimator(BaseEstimator):
         - np.array: Updated estimate for the target ECI state = [x, vx, y, vy, z, vz].
         """
         
-        # Get the target ID
-        targetID = target.targetID
-        
         # Grab The Local Estimate and Covariance
         est_local = self.estHist[targetID][sat][sat][envTime]
         cov_local = self.covarianceHist[targetID][sat][sat][envTime]
@@ -1159,51 +1171,67 @@ class etEstimator(BaseEstimator):
         delta = 0.5
         
         # Compute Truncated Gaussian Approximation
-        mu = sat.sensor.convert_to_bearings(sat, np.array([est_local[0], est_local[2], est_local[4]]))
-        - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))
+        mu = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_local[0], est_local[2], est_local[4]]))) - np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))
         
         # Only deal with scalar values
-        mu = np.dot(mu, mask)
+        if mask[0] == 0:
+            mu = mu[1]
         
+        if mask[1] == 0:
+            mu = mu[0]
+
         # Compute the Sensor Jacobian
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_local)
+        #H = sat.sensor.jacobian_ECI_to_bearings(sat, est_local)
         
         # Compute Sensor Noise Matrix
-        R = np.eye(2) * sat.sensor.bearingsError**2 * 1000
-        
-        # Only deal with scalar values
-        R = np.dot(R, mask)
+        #R = np.eye(2) * sat.sensor.bearingsError**2 * 1000
+        if mask[0] == 0:
+            R = sat.sensor.bearingsError[1]**2* 1000
+            H = sat.sensor.jacobian_ECI_to_bearings(sat, est_local)
+            H = H[1][:]
+            
+        if mask[1] == 0:
+            R = sat.sensor.bearingsError[0]**2 * 1000
+            H = sat.sensor.jacobian_ECI_to_bearings(sat, est_local)
+            H = H[0][:]
+            
         
         # Define expected process noise
-        Qe = H*P_pred*H.T + R
+        Qe = H @ P_pred @ H.T + R ## TODO: Check this
         
         # Compute Alpha
-        alpha = sat.sensor.convert_to_bearings(sat, np.array([est_neighbor[0], est_neighbor[2], est_neighbor[4]]))
-        - sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]]))
+        alpha = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_neighbor[0], est_neighbor[2], est_neighbor[4]])))
+        - np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))
         
         # Only deal with scalar values
-        alpha = np.dot(alpha, mask)
+        if mask[0] == 0:
+            alpha = alpha[1]
         
+        if mask[1] == 0:
+            alpha = alpha[0]
+            
+
         # Compute Expected Value of Implicit Measurement
         phi1 = norm.pdf(-delta + alpha - mu/np.sqrt(Qe))
         phi2 = norm.pdf(delta + alpha - mu/np.sqrt(Qe))
         
-        Q1 = norm.cdf(delta - alpha - mu/np.sqrt(Qe))
-        Q2 = norm.cdf(-delta - alpha - mu/np.sqrt(Qe))
+        Q1 = norm.cdf(-delta - alpha - mu/np.sqrt(Qe))
+        Q2 = norm.cdf(delta - alpha - mu/np.sqrt(Qe))
         
         zbar = (phi1 - phi2)/(Q1 - Q2) * np.sqrt(Qe)
-        
+                                        
         # Compute Expected Variance of Implicit Measurement
         nu = ((phi1 - phi2)/(Q1 - Q2))**2 - ((-delta + alpha - mu/np.sqrt(Qe)) * phi1 - (delta + alpha - mu/np.sqrt(Qe)) * phi2) / (Q1 - Q2)
-        
+                
         # Compute Kalman Gain
-        K = cov_local*H.T*np.linalg.inv(H*cov_local*H.T + R)
-        
+        #K = cov_local @ H.T @ np.linalg.inv(H @ cov_local @ H.T + R)
+        K = cov_local @ H.T * (H @ cov_local @ H.T + R)**-1
         # Update Estimate
-        est = est_local + K*zbar
+        
+        est = est_local + K * zbar
         
         # Update Covariance
-        cov = cov_local - nu * cov_local*H.T*np.linalg.inv(H*cov_local*H.T + R)*H*cov_local
+        cov = cov_local - nu * cov_local @ H.T * (H @ cov_local @ H.T + R)**-1 * H @ cov_local
     
         # Save Data into both filters
         self.estHist[targetID][sat][sat][envTime] = est

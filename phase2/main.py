@@ -222,7 +222,7 @@ if __name__ == "__main__":
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(35, 50, 15 + 1) * u.minute
+    time_vec = np.linspace(36, 51, 15 + 1) * u.minute
     fileName = "debug"
     numSims = 1
     simData = defaultdict(dict)
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=fileName, showSim=True)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=False, saveName=fileName, showSim=False)
 
     plot_NEES_NIS(simData, fileName)
 

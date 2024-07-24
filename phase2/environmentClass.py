@@ -461,8 +461,59 @@ class environment:
                                 Patch(color='#DC143C', label=f'{sat.name} DDF Estimator'),
                                 Patch(color='#228B22', label=f'Central Estimator')
                             ]
+                        
+                        elif k == 2: # ET-Measurements vs Central
+                            # Get the Local Data
+                            estHist = sat.indeptEstimator.estHist[targ.targetID]
+                            covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+                            innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+                            innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+                            NISHist = sat.indeptEstimator.nisHist[targ.targetID]
+                            NEESHist = sat.indeptEstimator.neesHist[targ.targetID]
+                            trackQualityHist = sat.indeptEstimator.trackQualityHist[targ.targetID]
                             
-                        elif k == 2:  # Local vs DDF vs Central
+                            # Get ET Data
+                            et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
+                            et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
+                            et_innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sat]
+                            et_innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sat]
+                            
+                            # Get the valid times for data
+                            times = [time for time in time_vec.value if time in estHist]
+                            et_times = [time for time in time_vec.value if time in et_estHist]
+                            
+                            # Plot the 3x3 Grid of Data
+                            self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
+                                                    satColor, linewidth=2.5)
+                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
+                                                    et_innovationHist, et_innovationCovHist, NISHist, NEESHist, trackQualityHist,
+                                                    '#DC143C', linewidth=2.0)
+                            
+                            if self.centralEstimator:  # If central estimator is used, plot the data
+                                # Get the data
+                                estHist = self.centralEstimator.estHist[targ.targetID]
+                                covHist = self.centralEstimator.covarianceHist[targ.targetID]
+                                innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+                                innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+                                trackQualityHist = self.centralEstimator.trackQualityHist[targ.targetID]
+                                
+                                # Get the valid times
+                                times = [time for time in time_vec.value if time in estHist]
+                                
+                                # Plot the 3x3 Grid of Data
+                                self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
+                                                        innovationHist, innovationCovHist, NISHist, NEESHist, 
+                                                        trackQualityHist, '#228B22', linewidth=1.5, c=True)
+
+                            # Create a patch for the legend
+                            handles = [
+                                Patch(color=satColor, label=f'{sat.name} Indept. Estimator'),
+                                Patch(color='#DC143C', label=f'{sat.name} ET Estimator'),
+                                Patch(color='#228B22', label=f'Central Estimator')
+                            ]        
+                            
+                        elif k == 3:  # Local vs DDF vs Central
                             # Get the Local Data
                             estHist = sat.indeptEstimator.estHist[targ.targetID]
                             covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
@@ -525,7 +576,7 @@ class environment:
                         plt.tight_layout()
                         
                         # Save the Plot with respective suffix
-                        suffix = ['indept', 'ddf', 'both'][k]
+                        suffix = ['indept', 'ddf', 'et', 'both'][k]
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
 
 
