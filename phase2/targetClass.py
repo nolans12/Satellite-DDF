@@ -1,9 +1,7 @@
 from import_libraries import *
 
 class target:    
-    def __init__(self, name, targetID, coords, heading, speed, color, 
-                 uncertainty=np.array([0, 0, 0, 0, 0, 0]), climbrate=0, 
-                 changeAoA=False):
+    def __init__(self, name, targetID, coords, heading, speed, color, uncertainty=np.array([0, 0, 0, 0, 0]), climbrate=0, changeAoA=False):
         """Target class that moves linearly around the earth with constant angular velocity.
 
         Args:
@@ -12,8 +10,8 @@ class target:
             coords (np.array): Initial position [latitude, longitude, altitude].
             heading (float): Heading direction in degrees.
             speed (float): Speed in km/h.
+            uncertainty (np.array): Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
             color (str): Color representation of the target.
-            uncertainty (np.array): Uncertainty in the initial state. Defaults to np.array([0, 0, 0, 0, 0, 0]).
             climbrate (float): Climbing rate in km/h. Defaults to 0.
             changeAoA (bool): Whether the target should change Angle of Attack. Defaults to False.
         """
@@ -23,6 +21,18 @@ class target:
         self.name = name
         self.color = color
         self.time = 0
+
+        # Take the initial coords, heading, speed and add the uncertainty to them
+        self.initialParams = np.array([coords[0], coords[1], coords[2], heading, speed])
+        self.initialCovMat = np.diag(uncertainty**2)
+
+        # Now sample from the uncertainty matrix to get the initial parameters
+        initialParameters = np.random.multivariate_normal(self.initialParams, self.initialCovMat)
+
+        # Now back out the original parameters
+        coords = initialParameters[0:3]
+        heading = initialParameters[3]
+        speed = initialParameters[4]
 
         # Convert the spherical coordinates and heading into a state vector
         # state = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
@@ -40,16 +50,8 @@ class target:
         # Initialize the state (guess of target position and velocity in spherical coordinates)
         self.initialState = np.array([range, rangeRate, elevation, elevationRate, azimuth, azimuthRate])
 
-        # Set the covariance (uncertainty in the initial guess in spherical coordinates)
-        self.initialCovariance = np.array([[uncertainty[0] ** 2, 0, 0, 0, 0, 0],
-                                    [0, uncertainty[1] ** 2, 0, 0, 0, 0],
-                                    [0, 0, np.deg2rad(uncertainty[2]) ** 2, 0, 0, 0],
-                                    [0, 0, 0, np.deg2rad(uncertainty[3]) ** 2, 0, 0],
-                                    [0, 0, 0, 0, np.deg2rad(uncertainty[4]) ** 2, 0],
-                                    [0, 0, 0, 0, 0, np.deg2rad(uncertainty[5]) ** 2]])
-
-        # Define the initial state vector X by sampling from the initialState and initialCovariance
-        self.X = np.random.multivariate_normal(self.initialState, self.initialCovariance)
+        # Define the initial state vector X
+        self.X = self.initialState
 
         self.hist = defaultdict(dict)  # Contains time, xyz, and velocity history in ECI [x xdot y ydot z zdot]
         
@@ -119,6 +121,3 @@ class target:
 
         # Update the target's dictionary with the current state for plotting
         self.hist[self.time] = np.array([self.pos[0], self.vel[0], self.pos[1], self.vel[1], self.pos[2], self.vel[2]])
-
-        # if initialState is not None: TODO: what is this for?
-        #     return np.array([x, y, z, vx, vy, vz])

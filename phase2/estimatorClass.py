@@ -51,12 +51,36 @@ class BaseEstimator:
         
         # Get prior data for the target
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
-            # If no prior estimate exists, initialize with true position plus noise
-            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) * 1.5
-            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+            # If not prior estimate exists:
             
-            # # Initial covariance matrix
+            # TODO: Eventually should initialize the kalman filter with the real of what target was sampled from
+            # # If the environment time == 0, initialize the filter with what the target was sampled from
+            # if envTime == 0:
+            #     test = 1
+
+            # # If the environment time is not 0, just initalize the filter with the true position plus some noise
+            # else:
+            # Initialize with true position plus noise
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+
+            # Initial covariance matrix
+            P_prior = np.array([[625, 0, 0, 0, 0, 0],
+                                [0, 100, 0, 0, 0, 0],
+                                [0, 0, 625, 0, 0, 0],
+                                [0, 0, 0, 100, 0, 0],
+                                [0, 0, 0, 0, 625, 0],
+                                [0, 0, 0, 0, 0, 100]])
+
+
+            #### START OLD
+            # # If no prior estimate exists, initialize with true position plus noise
+            # prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
+            # prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) * 1.5
+            # est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+            
+            # # # Initial covariance matrix
             # P_prior = np.array([[625, 0, 0, 0, 0, 0],
             #                     [0, 100, 0, 0, 0, 0],
             #                     [0, 0, 625, 0, 0, 0],
@@ -64,13 +88,15 @@ class BaseEstimator:
             #                     [0, 0, 0, 0, 625, 0],
             #                     [0, 0, 0, 0, 0, 100]])
             
-            # Initial covariance matrix
-            P_prior = np.array([[10, 0, 0, 0, 0, 0],
-                                [0, 5, 0, 0, 0, 0],
-                                [0, 0, 10, 0, 0, 0],
-                                [0, 0, 0, 5, 0, 0],
-                                [0, 0, 0, 0, 10, 0],
-                                [0, 0, 0, 0, 0, 5]])
+            # # Initial covariance matrix
+            # P_prior = np.array([[10, 0, 0, 0, 0, 0],
+            #                     [0, 5, 0, 0, 0, 0],
+            #                     [0, 0, 10, 0, 0, 0],
+            #                     [0, 0, 0, 5, 0, 0],
+            #                     [0, 0, 0, 0, 10, 0],
+            #                     [0, 0, 0, 0, 0, 5]])
+            #### END OLD
+
                 
             # Store initial values and return for first iteration
             self.estHist[targetID][envTime] = est_prior
@@ -91,6 +117,20 @@ class BaseEstimator:
         # Calculate time difference since last estimate
         dt = envTime - time_prior
 
+        # ### Also reset the filter if its been a certain amount of time since the last estimate
+        if dt > 30: 
+            prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
+            # Initial covariance matrix
+            P_prior = np.array([[625, 0, 0, 0, 0, 0],
+                                [0, 100, 0, 0, 0, 0],
+                                [0, 0, 625, 0, 0, 0],
+                                [0, 0, 0, 100, 0, 0],
+                                [0, 0, 0, 0, 625, 0],
+                                [0, 0, 0, 0, 0, 100]])
+            dt = 0 # Reset the time difference since were just reinitializing at this time
+
         # Predict next state using state transition function
         est_pred = self.state_transition(est_prior, dt)
         
@@ -99,10 +139,7 @@ class BaseEstimator:
         
         # Predict process noise associated with state transition
         Q = np.diag([50, 1, 50, 1, 50, 1]) # Large # Process noise matrix
-        # Q = np.diag([2, 1, 2, 1, 2, 1])  # Smaller # Process noise matrix
-        # Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Tiny # Process noise matrix
-        Q = np.diag([0.01, 0.001, 0.01, 0.001, 0.01, 0.001]) # tinier # Process noise matrix
-
+        # Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Smaller Q # Process noise matrix ## USED FOR THE PLOTS SHOWN
 
         # Predict covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
@@ -117,7 +154,7 @@ class BaseEstimator:
         for i, sat in enumerate(sats):
             z[2*i:2*i+2] = np.reshape(measurements[i][:], (2, 1))  # Measurement stack
             H[2*i:2*i+2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)  # Jacobian of the sensor model
-            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * 1  # Sensor noise matrix scaled by X amount
+            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * self.R_factor  # Sensor noise matrix scaled by X amount
             
             z_pred = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
             innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(z_pred, (2, 1))  # Innovations
@@ -258,7 +295,6 @@ class BaseEstimator:
         
         return jacobian
 
-    
     def calcTrackQuailty(self, est, cov):
         """
         Calculate the track quality metric for the current estimate.
@@ -286,6 +322,8 @@ class centralEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
+        self.R_factor = 1  # Factor to scale the sensor noise matrix
+
     def EKF(self, sats, measurements, target, envTime):
         """
         Extended Kalman Filter for central estimation.
@@ -301,7 +339,6 @@ class centralEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-
 ### Independent Estimator Class
 class indeptEstimator(BaseEstimator):
     def __init__(self, targetIDs):
@@ -312,6 +349,9 @@ class indeptEstimator(BaseEstimator):
         - targetIDs (list): List of target IDs to track.
         """
         super().__init__(targetIDs)
+
+        # self.R_factor = 1
+        self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -328,7 +368,6 @@ class indeptEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-
 ### DDF Estimator Class
 class ddfEstimator(BaseEstimator):
     def __init__(self, targetIDs):
@@ -339,6 +378,8 @@ class ddfEstimator(BaseEstimator):
         - targetIDs (list): List of target IDs to track.
         """
         super().__init__(targetIDs)
+            
+        self.R_factor = 1  # Factor to scale the sensor noise matrix
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -354,7 +395,6 @@ class ddfEstimator(BaseEstimator):
         - np.array: Estimated state after filtering.
         """
         return super().EKF(sats, measurements, target, envTime)
-
 
     def CI(self, sat, commNode):
         """
