@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None, etEstimator = None, neighbors = None):
         """Initialize a Satellite object.
 
         Args:
@@ -26,6 +26,9 @@ class satellite:
     
     # Targets to track:
         self.targetIDs = targetIDs
+        
+    # Topology to communciate with
+        self.neighbors = [self, neighbors] # List of neighbors, will be updated by the topology class
 
     # Estimator to use to benchmark against, worst case
         self.indeptEstimator = indeptEstimator
@@ -36,6 +39,12 @@ class satellite:
         else:
             self.ddfEstimator = None
 
+    # ET estimator to test
+        if etEstimator:
+            self.etEstimator = etEstimator
+        else:
+            self.etEstimator = None
+            
     # Other parameters
         self.name = name
         self.color = color
@@ -94,12 +103,6 @@ class satellite:
                 # Update the local filters
                 self.update_local_filters(measurement, target, self.time)
                 
-                # Determine if measurement is unique to trigger ER
-                if self.etEstimator:
-                    if self.etEstimator.ET(self, target, self.time):
-                        # Send Measurement to neighbors
-                        self.etEstimator.send_measurement(self, target, self.time)
-
         return collectedFlag
 
     def update_local_filters(self, measurement, target, time):
@@ -119,3 +122,6 @@ class satellite:
         # If a DDF estimator is present, update the DDF filters using a local EKF 
         if self.ddfEstimator:
             self.ddfEstimator.EKF([self], [measurement], target, time)
+            
+    def update_et_estimator(self, etEstimator):
+        self.etEstimator = etEstimator

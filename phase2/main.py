@@ -5,7 +5,7 @@ from import_libraries import *
 from satelliteClass import satellite
 from targetClass import target
 from environmentClass import environment
-from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
+from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator, etEstimator
 from sensorClass import sensor
 from commClass import comms
 
@@ -17,7 +17,7 @@ def create_environment_edge():
     sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.002, 0.002]))
 
     # Define targets for the satellites to track:
-    targetIDs = [1,2,3]
+    targetIDs = [1]
 
     # Define local estimators:
     local = indeptEstimator(targetIDs = targetIDs)
@@ -31,7 +31,10 @@ def create_environment_edge():
 
     # Define the Data Fusion Algorithm, use the covariance intersection estimator:
     ddf = ddfEstimator(targetIDs = targetIDs)
-
+    
+    # Define the ET Fusion Algorithm
+    et = etEstimator(targetIDs = targetIDs, sat=None, neighbors=None)
+    
     # Define the centralized estimator
     central = centralEstimator(targetIDs = targetIDs) 
 
@@ -41,15 +44,15 @@ def create_environment_edge():
     red_shades = ['#EE4B2B', '#800020', '#DE3163']
 
     # MONO TRACK SATELLITE
-    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color=purple_shades[0])
+    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et),a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color=purple_shades[0])
 
     # POLAR ORBIT SATELLITE
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = -45, color=blue_shades[0])
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = -45, color=blue_shades[0])
 
     # INCLINATION 50 SATELLITE
-    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90, color=yellow_shades[0])
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90, color=yellow_shades[0])
     
-    sats = [sat1, sat2, sat3]
+    sats = [sat1, sat2]#, sat3]
 
     # Define the target objects:
     # At M = 4.7, hypersonic
@@ -59,10 +62,16 @@ def create_environment_edge():
     # At 50 mph 
     targ3 = target(name = 'Targ3', targetID=3, coords = np.array([45,0,0]), heading=180 + 45, speed= 0.022352*60, color = red_shades[2])
     
-    targs = [targ1, targ2, targ3]
+    targs = [targ1]#, targ2, targ3]
 
     # Define the communication network:
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 15000*u.km, minRange = 1*u.km, displayStruct = True)
+    
+    # Update ET estimators with correct neighbors
+    for sat in sats:
+        neighbors = [neighbor for neighbor in sats if neighbor != sat]
+        et = etEstimator(targetIDs=targetIDs, sat=sat, neighbors=neighbors)
+        sat.update_et_estimator(et)
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
@@ -213,8 +222,8 @@ if __name__ == "__main__":
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(0, 160, 160 + 1) * u.minute
-    fileName = "r1_tinierQ"
+    time_vec = np.linspace(35, 50, 15 + 1) * u.minute
+    fileName = "debug"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
@@ -222,7 +231,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, savePlot = True, saveName = fileName)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=fileName, showSim=True)
 
     plot_NEES_NIS(simData, fileName)
 

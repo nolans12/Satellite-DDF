@@ -159,16 +159,15 @@ class environment:
         self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        self.send_estimates() # TODO: Send estimates should have a twin function for send ET-Measurements
+        self.send_information() # TODO: Send estimates should have a twin function for send ET-Measurements
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
-            ## TODO: Sat.etEstimator.measurement update (sat, self.comms.G.nodes[sat])
-            ## TODO: Should ddf update before CI
+            sat.etEstimator.event_triggered_fusion(sat, self.time.to_value() ,self.comms.G.nodes[sat])
 
 
-    def send_estimates(self):
+    def send_information(self):
         """
         Send the most recent estimates from each satellite to its neighbors.
         """
@@ -178,7 +177,7 @@ class environment:
             for targetID in sat.ddfEstimator.estHist.keys():
                 # Skip if there are no estimates for this targetID
                 if len(sat.ddfEstimator.estHist[targetID].keys()) == 0:
-                    continue
+                    continue  
 
                 # This means satellite has an estimate for this target, now send it to neighbors
                 for neighbor in self.comms.G.neighbors(sat):
@@ -194,7 +193,29 @@ class environment:
                         targetID, 
                         satTime
                     )
-
+            # For each targetID in satellites measurement history        
+            for targetID in sat.measurementHist.keys():
+                # Skip if there are no measurements for this targetID
+                if len(sat.measurementHist[targetID].keys()) == 0:
+                    continue
+                
+                # This means satellite has a measurement for this target, now send it to neighbors
+                for neighbor in self.comms.G.neighbors(sat):
+                    # Get the most recent measurement time
+                    satTime = max(sat.measurementHist[targetID].keys())
+                    
+                    # Create implicit and explicit measurements vector for this neighbor
+                    meas = sat.etEstimator.event_trigger(sat, neighbor, targetID, satTime)
+                    
+                    # Send that to neightbor
+                    self.comms.send_measurements(
+                        sat, 
+                        neighbor, 
+                        meas, 
+                        targetID, 
+                        satTime
+                    )
+                            
 
     def propagate(self, time_step):
         """
