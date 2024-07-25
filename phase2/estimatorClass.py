@@ -21,7 +21,7 @@ class BaseEstimator:
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
         
-        self.trackQualityHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
+        self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
@@ -66,38 +66,13 @@ class BaseEstimator:
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
 
             # Initial covariance matrix
-            P_prior = np.array([[625, 0, 0, 0, 0, 0],
+            P_prior = np.array([[1000, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
-                                [0, 0, 625, 0, 0, 0],
+                                [0, 0, 1000, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 625, 0],
+                                [0, 0, 0, 0, 1000, 0],
                                 [0, 0, 0, 0, 0, 100]])
 
-
-            #### START OLD
-            # # If no prior estimate exists, initialize with true position plus noise
-            # prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
-            # prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) * 1.5
-            # est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
-            
-            # # # Initial covariance matrix
-            # P_prior = np.array([[625, 0, 0, 0, 0, 0],
-            #                     [0, 100, 0, 0, 0, 0],
-            #                     [0, 0, 625, 0, 0, 0],
-            #                     [0, 0, 0, 100, 0, 0],
-            #                     [0, 0, 0, 0, 625, 0],
-            #                     [0, 0, 0, 0, 0, 100]])
-            
-            # # Initial covariance matrix
-            # P_prior = np.array([[10, 0, 0, 0, 0, 0],
-            #                     [0, 5, 0, 0, 0, 0],
-            #                     [0, 0, 10, 0, 0, 0],
-            #                     [0, 0, 0, 5, 0, 0],
-            #                     [0, 0, 0, 0, 10, 0],
-            #                     [0, 0, 0, 0, 0, 5]])
-            #### END OLD
-
-                
             # Store initial values and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -105,7 +80,7 @@ class BaseEstimator:
             self.innovationCovHist[targetID][envTime] = np.eye(2)
             self.nisHist[targetID][envTime] = 0
             self.neesHist[targetID][envTime] = 0
-            self.trackQualityHist[targetID][envTime] = 0
+            self.trackErrorHist[targetID][envTime] = self.calcTrackQuailty(est_prior, P_prior)
             return est_prior
        
         else:
@@ -117,7 +92,7 @@ class BaseEstimator:
         # Calculate time difference since last estimate
         dt = envTime - time_prior
 
-        # ### Also reset the filter if its been a certain amount of time since the last estimate
+        ### Also reset the filter if its been a certain amount of time since the last estimate
         if dt > 30: 
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
@@ -138,8 +113,8 @@ class BaseEstimator:
         F = self.state_transition_jacobian(est_prior, dt)
         
         # Predict process noise associated with state transition
-        Q = np.diag([50, 1, 50, 1, 50, 1]) # Large # Process noise matrix
-        # Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Smaller Q # Process noise matrix ## USED FOR THE PLOTS SHOWN
+        # Q = np.diag([50, 1, 50, 1, 50, 1]) # Larger Q 
+        Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Smaller Q 
 
         # Predict covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
@@ -178,7 +153,7 @@ class BaseEstimator:
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
         
         # Calculate Track Quaility Metric
-        trackQuality = self.calcTrackQuailty(est, P)
+        trackError = self.calcTrackQuailty(est, P)
 
         # Save data
         self.estHist[targetID][envTime] = est
@@ -187,7 +162,7 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-        self.trackQualityHist[targetID][envTime] = trackQuality
+        self.trackErrorHist[targetID][envTime] = trackError
         self.gottenEstimate = True
     
     def state_transition(self, estPrior, dt):
@@ -306,10 +281,28 @@ class BaseEstimator:
         Returns:
         - float: Track quality metric.
         """
-        # Calculate the track quality metric
-        trackQuality = 1 / np.linalg.det(cov)
+        # Since we are guaranteeing that the state will always live within the covariance estimate
+        # Why not just use the diag of the covariance matrix, then calculate the 2 sigma bounds of xyz
+        # Then take norm of xyz max as the error
+
+        # Calculate the 2 sigma bounds of the position
+        diag = np.sqrt(np.diag(cov))
+
+        # Calculate the std
+        posStd = np.array([np.sqrt(diag[0]), np.sqrt(diag[2]), np.sqrt(diag[4])])
+
+        # Now calculate the 2 sigma bounds of the position
+        pos2Sigma = 2 * posStd
+
+        # Now get the norm of the 2 sigma bounds xyz
+        posError_1side = np.linalg.norm(pos2Sigma)
+
+        # Multiple this value by 2 to get the total error the state could be in
+        posError = 2 * posError_1side
+
+        # print(f"Position Error: {posError}")
         
-        return trackQuality
+        return posError
 
 ### Central Estimator Class
 class centralEstimator(BaseEstimator):
@@ -323,6 +316,7 @@ class centralEstimator(BaseEstimator):
         super().__init__(targetIDs)
 
         self.R_factor = 1  # Factor to scale the sensor noise matrix
+        # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -350,8 +344,8 @@ class indeptEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
-        # self.R_factor = 1
-        self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
+        self.R_factor = 1
+        # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -380,6 +374,7 @@ class ddfEstimator(BaseEstimator):
         super().__init__(targetIDs)
             
         self.R_factor = 1  # Factor to scale the sensor noise matrix
+        # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
         """
