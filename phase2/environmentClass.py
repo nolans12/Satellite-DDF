@@ -74,7 +74,7 @@ class environment:
         time_vec = time_vec + self.time
         for t_net in time_vec:
             t_d = t_net - self.time  # Get delta time to propagate, works because propagate func increases time after first itr
-
+            
             # Propagate the satellites and environments position
             self.propagate(t_d)
 
@@ -206,6 +206,9 @@ class environment:
                     
                     # Create implicit and explicit measurements vector for this neighbor
                     meas = sat.etEstimator.event_trigger(sat, neighbor, targetID, satTime)
+                    
+                    # Store the measurement I am sending to neighbor
+                    sat.etEstimator.measHist[targetID][sat][neighbor][satTime] = meas
                     
                     # Send that to neightbor
                     self.comms.send_measurements(
@@ -475,8 +478,8 @@ class environment:
                             # Get ET Data
                             et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                             et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
-                            et_innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sat]
-                            et_innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sat]
+                            #et_innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sat]
+                            #et_innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sat]
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
@@ -486,9 +489,9 @@ class environment:
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
                                                     innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
                                                     satColor, linewidth=2.5)
-                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
-                                                    et_innovationHist, et_innovationCovHist, NISHist, NEESHist, trackQualityHist,
-                                                    '#DC143C', linewidth=2.0)
+                            # self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
+                            #                         et_innovationHist, et_innovationCovHist, NISHist, NEESHist, trackQualityHist,
+                            #                         '#DC143C', linewidth=2.0)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -1124,6 +1127,13 @@ class environment:
                     ddf_innovation_times = sat.ddfEstimator.innovationHist[targ.targetID].keys()
                     ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
                     ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+                    
+                    et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
+                    et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
+                    et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
+                    #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]
+                    
+                    
 
                     # File Name
                     filename = f"{filePath}/data/{saveName}_{targ.name}_{sat.name}.csv"
@@ -1134,7 +1144,7 @@ class environment:
                         sat_measHistTimes, sat_measHist, estTimes, estHist, covHist,
                         trackQuality, innovationHist, innovationCovHist, ddf_times,
                         ddf_estHist, ddf_covHist, ddf_trackQuality, ddf_innovation_times,
-                        ddf_innovationHist, ddf_innovationCovHist
+                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist
                     )
 
 
@@ -1142,7 +1152,8 @@ class environment:
         self, filename, targetID, times, sat_hist, trueHist, sat_measHistTimes,
         sat_measHist, estTimes, estHist, covHist, trackQuality, innovationHist,
         innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackQuality,
-        ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist
+        ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
+        et_estHist, et_covHist
     ):
         """
         Formats and writes data to a CSV file.
@@ -1168,6 +1179,9 @@ class environment:
         - ddf_innovation_times (dict_keys): DDF innovation times.
         - ddf_innovationHist (dict): DDF innovation history.
         - ddf_innovationCovHist (dict): DDF innovation covariance history.
+        - et_times (dict_keys): ET estimation times.
+        - et_estHist (dict): ET estimation history.
+        - et_covHist (dict): ET covariance history.
 
         Returns:
         None
@@ -1193,7 +1207,9 @@ class environment:
                 'Innovation_ITA', 'Innovation_CTA', 'InnovationCov_ITA', 'InnovationCov_CTA',
                 'DDF_Est_x', 'DDF_Est_vx', 'DDF_Est_y', 'DDF_Est_vy', 'DDF_Est_z', 'DDF_Est_vz',
                 'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Quality',
-                'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA'
+                'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
+                'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
+                'ET_Cov_vzvz'
             ])
 
             # Writing data rows
@@ -1220,6 +1236,10 @@ class environment:
                 if time in ddf_innovation_times:
                     row += format_list(ddf_innovationHist[time])
                     row += format_list(np.diag(ddf_innovationCovHist[time]))
+                    
+                if time in et_times:
+                    row += format_list(et_estHist[time])
+                    row += format_list(np.diag(et_covHist[time]))
 
                 writer.writerow(row)
                 

@@ -33,7 +33,7 @@ def create_environment_edge():
     ddf = ddfEstimator(targetIDs = targetIDs)
     
     # Define the ET Fusion Algorithm
-    et = etEstimator(targetIDs = targetIDs, sat=None, neighbors=None)
+    et = etEstimator(targetIDs = targetIDs, targets=None, sat=None, neighbors=None)
     
     # Define the centralized estimator
     central = centralEstimator(targetIDs = targetIDs) 
@@ -70,7 +70,7 @@ def create_environment_edge():
     # Update ET estimators with correct neighbors
     for sat in sats:
         neighbors = [neighbor for neighbor in sats if neighbor != sat]
-        et = etEstimator(targetIDs=targetIDs, sat=sat, neighbors=neighbors)
+        et = etEstimator(targets = targs, targetIDs=targetIDs, sat=sat, neighbors=neighbors)
         sat.update_et_estimator(et)
 
     # Create and return an environment instance:
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_edge()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=False, saveName=fileName, showSim=False)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=True, saveName=fileName, showSim=False)
 
     plot_NEES_NIS(simData, fileName)
 
