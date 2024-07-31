@@ -490,9 +490,10 @@ class etEstimator(BaseEstimator):
         '''
         # For each target
         for target in self.targs:
+            # Get the targetID
             targetID = target.targetID
             # Did I take a measurement on this target
-            if len(sat.measurementHist[targetID][envTime])  > 0:
+            if len(sat.measurementHist[targetID][envTime]) > 0:
                 # Get the measurements for this target
                 alpha, beta = sat.measurementHist[targetID][envTime]
                 
@@ -518,7 +519,6 @@ class etEstimator(BaseEstimator):
                     return # No need to continue if this is the first measurement
                     
                 # Otherwise, I have a prior estimate and covariance for this target
-                # Get most recent local estimate and covariance
                 time_prior = max(self.estHist[targetID][sat][sat].keys())
                 est_prior = self.estHist[targetID][sat][sat][time_prior]
                 P_prior = self.covarianceHist[targetID][sat][sat][time_prior]
@@ -529,20 +529,16 @@ class etEstimator(BaseEstimator):
                 # Proccess my measurement in the local filter
                 self.explicit_measurement_update(sat, sat, alpha, 'IT', targetID, envTime)
                 self.explicit_measurement_update(sat, sat, beta, 'CT', targetID, envTime)
-                
-                # Note: self.estHist[targetID][sat][sat][envTime] = est_pred -> best current estimate
-                
+            
                 # Check if there is any information in the queue:
-                if len(commNode['measurement_data']) > 0:
-                    
-                    # Get the newest info
-                    time_sent = max(commNode['measurement_data'].keys())
+                if len(commNode['measurement_data']) > 0: 
+                    time_sent = max(commNode['measurement_data'].keys()) # Get the newest info
                     
                     # If I got a new measurement on the same target from a neighbor'
                     if targetID in commNode['measurement_data'][time_sent].keys():
                         
                         # Process the new measurement on the target
-                        for i in range(len(commNode['measurement_data'][time_sent])):
+                        for i in range(len(commNode['measurement_data'][time_sent])): # number of messages on this target
                             
                             # Get the satellite sender to check if I have a common filter with this neighbor
                             sender = commNode['measurement_data'][time_sent][targetID]['sender'][i]
@@ -569,16 +565,7 @@ class etEstimator(BaseEstimator):
                                 return # No need to continue if this is the shared first measurement between both
                             
                             # Otherwise I have an initialized common filter with this neighbor
-
-                            # Get my most recent common estimate and covariance
-                            time_prior = max(self.estHist[targetID][sat][sender].keys())
-                            common_est_prior = self.estHist[targetID][sat][sender][time_prior]
-                            common_P_prior = self.covarianceHist[targetID][sat][sender][time_prior]
-                            
-                            # Store these as priors for prediction step
-                            self.estHist[targetID][sat][sender][time_prior] = common_est_prior
-                            self.covarianceHist[targetID][sat][sender][time_prior] = common_P_prior
-                            
+                                                        
                             # Run Prediction Step on this target for common fitler
                             self.pred_EKF(sat, sender, targetID, envTime)
                             
@@ -645,15 +632,6 @@ class etEstimator(BaseEstimator):
                                         # If either measurement is missing, update the common filter with the implicit measurement
                                         if np.isnan(alpha) or np.isnan(beta):
                                             
-                                            # Get the most recent local estimate and covariance
-                                            time_prior = max(self.estHist[targetID][sat][neighbor].keys())
-                                            est_prior = self.estHist[targetID][sat][neighbor][time_prior]
-                                            P_prior = self.covarianceHist[targetID][sat][neighbor][time_prior]
-                                            
-                                            # Store these as priors for prediction step
-                                            self.estHist[targetID][sat][neighbor][time_prior] = est_prior 
-                                            self.covarianceHist[targetID][sat][neighbor][time_prior] = P_prior
-                                            
                                             # Run Prediction Step on this target for local fitler
                                             self.pred_EKF(sat, neighbor, targetID, envTime) # TODO: if this got updated previously this should propagate nothing
                                             
@@ -664,7 +642,7 @@ class etEstimator(BaseEstimator):
                                             else:
                                                 self.implicit_measurement_update(sat, neighbor, est_prior, P_prior, 'IT', 'common', targetID, envTime)
                                             
-                                            if np.isnan(beta):
+                                            if not np.isnan(beta):
                                                 # Cross-Track Measurement
                                                 self.explicit_measurement_update(sat, neighbor, beta, 'CT', targetID, envTime)
                                             else:

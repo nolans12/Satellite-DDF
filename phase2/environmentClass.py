@@ -489,9 +489,10 @@ class environment:
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
                                                     innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
                                                     satColor, linewidth=2.5)
-                            # self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
-                            #                         et_innovationHist, et_innovationCovHist, NISHist, NEESHist, trackQualityHist,
-                            #                         '#DC143C', linewidth=2.0)
+                            
+                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
+                                                    [], [], NISHist, NEESHist, trackQualityHist,
+                                                    '#DC143C', linewidth=2.0, e = True)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -583,7 +584,7 @@ class environment:
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
 
 
-    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, label_color, linewidth, c=False):
+    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, label_color, linewidth, c=False, e=False):
         """
         Plot all data.
 
@@ -606,12 +607,16 @@ class environment:
             linewidth (float): Width of the plot lines.
             c (bool): Flag indicating whether it is a central estimator.
         """
-        if not c:  # Not central estimator so plot everything
+        if e and not c:  # ET-Measurements vs Central
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
-            self.plot_innovations(axes, innTimes, innovationHist, innovationCovHist, label_color, linewidth)
+            
+        elif c and not e:  # Not central estimator so plot everything
+            self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
             self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
+        
         else:  # Central estimator doesn't have innovation data
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
+            self.plot_innovations(axes, innTimes, innovationHist, innovationCovHist, label_color, linewidth)
             self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
 
             
