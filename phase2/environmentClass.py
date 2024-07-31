@@ -52,6 +52,7 @@ class environment:
         self.imgs_ddf_GE = defaultdict(lambda: defaultdict(list))
         self.imgs_cent_GE = defaultdict(lambda: defaultdict(list))
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
+        self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
 
 
     def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
@@ -488,11 +489,11 @@ class environment:
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
                                                     innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
-                                                    satColor, linewidth=2.5)
+                                                    satColor, linewidth=3.5)
                             
                             self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
                                                     [], [], NISHist, NEESHist, trackQualityHist,
-                                                    '#DC143C', linewidth=2.0, e = True)
+                                                    '#DC143C', linewidth=2, e = True)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -756,7 +757,6 @@ class environment:
             saveName (str): Name for the saved plot file.
         """
         fig = plt.figure(figsize=(15, 8))
-        fig.suptitle("Satellite Communication Messages", fontsize=14)
         
         # Create a 2x1 grid for the plots
         # The top row is in-track measurements with explicit in red and implict in blie
@@ -772,21 +772,23 @@ class environment:
                     for time in sat.etEstimator.measHist[targetID][sat][neighbor].keys():
                         alpha, beta = sat.etEstimator.measHist[targetID][sat][neighbor][time]
                         if not np.isnan(alpha):
-                            ax1.scatter(time, time, color='r')
+                            ax1.scatter(time, 1, color='r')
                         else:
-                            ax1.scatter(time, time, color='b')
+                            ax1.scatter(time, 0, color='b')
                         
                         if not np.isnan(beta):
-                            ax2.scatter(time, time, color='r')
+                            ax2.scatter(time, 1, color='r')
                         else:
-                            ax2.scatter(time, time, color='b')
+                            ax2.scatter(time, 0, color='b')
                             
+                fig.suptitle(f"Satellite Msgs from {sat.name} to {neighbor.name}", fontsize=14)
+
                 # Label the plots
                 ax1.set_xlabel("Time [min]")
-                ax1.set_ylabel("Time [min]")
+                ax1.set_ylabel("Measurement Type")
                 
                 ax2.set_xlabel("Time [min]")
-                ax2.set_ylabel("Time [min]")
+                ax2.set_ylabel("Measurement Type")
                 
                 # Create a patch for the legend
                 handles = [
@@ -828,7 +830,9 @@ class environment:
         for targ in self.targs:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
-                    for k in range(4):
+                    for k in range(5):
+                        if k != 4:
+                            continue
                         if k == 0:  # Plot Local Uncertainty Ellipsoid
                             fig = plt.figure(figsize=(10, 8))
                             ax = fig.add_subplot(111, projection='3d')
@@ -968,6 +972,66 @@ class environment:
 
                                             img = self.save_GEplot_to_image(fig)
                                             self.imgs_stereo_GE[targ.targetID][sat].append(img)
+                                            ax.cla()  # Clear the plot for the next iteration
+                                        plt.close(fig)
+                        if k == 4: # plot stereo with et
+                            for sat2 in self.sats:
+                                if sat2 != sat:
+                                    if targ.targetID in sat2.targetIDs:
+                                        fig = plt.figure(figsize=(10, 8))
+                                        fig.suptitle(f"{targ.name}, {sat.name} and {sat2.name} ET Gaussian Uncertainty Ellipsoids")
+
+                                        ax = fig.add_subplot(111, projection='3d')
+                                        sat1Color = sat.color
+                                        sat2Color = sat2.color
+                                        etColor = '#DC143C'
+                                        alpha = 0.3
+
+                                        sat1_times = sat.indeptEstimator.estHist[targ.targetID].keys()
+                                        sat2_times = sat2.indeptEstimator.estHist[targ.targetID].keys()
+                                        et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
+                                        times = [time for time in sat1_times if time in sat2_times and time in et_times]
+
+                                        for time in times:
+                                            true_pos = targ.hist[time][[0, 2, 4]]
+                                            est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                            est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                            et_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
+
+                                            cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                            cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                            et_cov = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]                                            
+                                            eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
+                                            eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
+                                            et_eigenvalues, et_eigenvectors = np.linalg.eigh(et_cov)
+                                            
+                                            error1 = np.linalg.norm(true_pos - est_pos1)
+                                            error2 = np.linalg.norm(true_pos - est_pos2)
+                                            et_error = np.linalg.norm(true_pos - et_pos)
+                                            
+                                            LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                            LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
+                                            
+                                            self.plot_ellipsoid(ax, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
+                                            self.plot_ellipsoid(ax, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
+                                            self.plot_ellipsoid(ax, et_pos, et_cov, color=etColor, alpha=alpha)
+                                            
+                                            self.plot_estimate(ax, est_pos1, true_pos, sat1Color)
+                                            self.plot_estimate(ax, est_pos2, true_pos, sat2Color)
+                                            self.plot_estimate(ax, et_pos, true_pos, etColor)
+                                            
+                                            self.plot_LOS(ax, est_pos1, LOS_vec1)
+                                            self.plot_LOS(ax, est_pos2, LOS_vec2)
+                                            
+                                            self.plot_all_labels(ax, targ, sat, sat2, time, error1, error2, et_error)
+                                            
+                                            if np.max(eigenvalues1) > np.max(eigenvalues2):
+                                                self.set_axis_limits(ax, est_pos1, np.sqrt(eigenvalues1), margin=50.0)
+                                            else:
+                                                self.set_axis_limits(ax, est_pos2, np.sqrt(eigenvalues2), margin=50.0)
+                                                
+                                            img = self.save_GEplot_to_image(fig)
+                                            self.imgs_stereo_ET_GE[targ.targetID][sat].append(img)
                                             ax.cla()  # Clear the plot for the next iteration
                                         plt.close(fig)
 
@@ -1117,7 +1181,7 @@ class environment:
         return img
       
 
-    def render_gif(self, fileType, saveName, filePath=os.path.dirname(os.path.realpath(__file__)), fps=10):
+    def render_gif(self, fileType, saveName, filePath=os.path.dirname(os.path.realpath(__file__)), fps=1):
         """
         Renders and saves GIFs based on the specified file type.
 
@@ -1160,6 +1224,11 @@ class environment:
                         both_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_stereo_GE.gif")
                         with imageio.get_writer(both_file, mode='I', duration=frame_duration) as writer:
                             for img in self.imgs_stereo_GE[targ.targetID][sat]:
+                                writer.append_data(img)
+                                
+                        et_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_stereo_ET_GE.gif")
+                        with imageio.get_writer(et_file, mode='I', duration=frame_duration) as writer:
+                            for img in self.imgs_stereo_ET_GE[targ.targetID][sat]:
                                 writer.append_data(img)
   
 ### Data Dump File ###        
@@ -1268,6 +1337,8 @@ class environment:
         def format_list(lst):
             if isinstance(lst, np.ndarray):
                 return [f"{x:.{precision}f}" for x in lst.flatten()]
+            elif isinstance(lst, int) or isinstance(lst, float):
+                return [f"{float(lst):.{precision}f}"]
             else:
                 return [f"{x:.{precision}f}" for x in lst]
 
@@ -1301,14 +1372,14 @@ class environment:
                 if time in estTimes:
                     row += format_list(estHist[time])
                     row += format_list(np.diag(covHist[time]))
-                    row += format_list(trackQuality)
+                    row += format_list(trackQuality[time])
                     row += format_list(innovationHist[time])
                     row += format_list(np.diag(innovationCovHist[time]))
 
                 if time in ddf_times:
                     row += format_list(ddf_estHist[time])
                     row += format_list(np.diag(ddf_covHist[time]))
-                    row += format_list(ddf_trackQuality)
+                    row += format_list(ddf_trackQuality[time])
 
                 if time in ddf_innovation_times:
                     row += format_list(ddf_innovationHist[time])
