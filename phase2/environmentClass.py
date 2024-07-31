@@ -516,7 +516,7 @@ class environment:
                                 Patch(color='#DC143C', label=f'{sat.name} ET Estimator'),
                                 Patch(color='#228B22', label=f'Central Estimator')
                             ]        
-                            
+
                         elif k == 3:  # Local vs DDF vs Central
                             # Get the Local Data
                             estHist = sat.indeptEstimator.estHist[targ.targetID]
@@ -582,6 +582,10 @@ class environment:
                         # Save the Plot with respective suffix
                         suffix = ['indept', 'ddf', 'et', 'both'][k]
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
+                        
+                        if k == 2:
+                            self.plot_messages(savePlot, saveName)
+
 
 
     def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, label_color, linewidth, c=False, e=False):
@@ -741,6 +745,74 @@ class environment:
                 plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
         plt.close()
 
+
+### Plot all messages
+    def plot_messages(self, savePlot, saveName):
+        """
+        Plot all messages sent between satellites.
+
+        Args:
+            savePlot (bool): Flag indicating whether to save the plot.
+            saveName (str): Name for the saved plot file.
+        """
+        fig = plt.figure(figsize=(15, 8))
+        fig.suptitle("Satellite Communication Messages", fontsize=14)
+        
+        # Create a 2x1 grid for the plots
+        # The top row is in-track measurements with explicit in red and implict in blie
+        # The bottom row is cross-track measurements with explicit in red and implict in blie
+        gs = gridspec.GridSpec(2, 1)
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax2 = fig.add_subplot(gs[1, 0])
+        
+        # Plot the in-track and cross-track measurements
+        for sat in self.sats:
+            for neighbor in self.comms.G.neighbors(sat):
+                for targetID in sat.etEstimator.measHist.keys():
+                    for time in sat.etEstimator.measHist[targetID][sat][neighbor].keys():
+                        alpha, beta = sat.etEstimator.measHist[targetID][sat][neighbor][time]
+                        if not np.isnan(alpha):
+                            ax1.scatter(time, time, color='r')
+                        else:
+                            ax1.scatter(time, time, color='b')
+                        
+                        if not np.isnan(beta):
+                            ax2.scatter(time, time, color='r')
+                        else:
+                            ax2.scatter(time, time, color='b')
+                            
+                # Label the plots
+                ax1.set_xlabel("Time [min]")
+                ax1.set_ylabel("Time [min]")
+                
+                ax2.set_xlabel("Time [min]")
+                ax2.set_ylabel("Time [min]")
+                
+                # Create a patch for the legend
+                handles = [
+                    Patch(color='r', label=f'{sat.name} Explicit Measurements'),
+                    Patch(color='b', label=f'{sat.name} Implicit Measurements'),
+                ]
+                        
+                        # Create a legend   
+                fig.legend(handles=handles, loc='lower right', bbox_to_anchor=(1, 0))
+                plt.tight_layout()
+                
+                # Save the plot
+                if savePlot:
+                    filePath = os.path.dirname(os.path.realpath(__file__))
+                    plotPath = os.path.join(filePath, 'plots')
+                    os.makedirs(plotPath, exist_ok=True)
+                    if saveName is None:
+                        plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
+                    else:
+                        plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
+                plt.close()
+                
+                
+                            
+        
+        
 
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self):
