@@ -25,7 +25,7 @@ class environment:
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
         
-        # Set axis limits and view angle
+        # Set axis limits and view angle, original limits for mono plot
         # self.ax.set_xlim([-15000, 15000])
         # self.ax.set_ylim([-15000, 15000])
         # self.ax.set_zlim([-15000, 15000])
@@ -33,11 +33,12 @@ class environment:
         # self.ax.set_box_aspect([1, 1, 1])
 
         # If you want to do standard case:
-        self.ax.set_xlim([0, 15000])
-        self.ax.set_ylim([-15000, 15000])
-        self.ax.set_zlim([-15000, 15000])
-        self.ax.set_box_aspect([0.5, 1, 1])
+        self.ax.set_xlim([2000, 8000])
+        self.ax.set_ylim([-6000, 6000])
+        self.ax.set_zlim([2000, 8000])
         self.ax.view_init(elev=30, azim=0)
+        # auto scale the axis to be equal
+        self.ax.set_box_aspect([0.5, 1, 0.5])
         
         # Label the axes and set title
         self.ax.set_xlabel('X (km)')
@@ -289,16 +290,31 @@ class environment:
             if mag > 0:
                 vx, vy, vz = vx / mag, vy / mag, vz / mag
 
-            self.ax.quiver(x, y, z, vx * 1000, vy * 1000, vz * 1000, color=targ.color, arrow_length_ratio=0.75, label=targ.name)
+            # self.ax.quiver(x, y, z, vx * 1000, vy * 1000, vz * 1000, color=targ.color, arrow_length_ratio=0.75, label=targ.name)
 
+            # do a standard scatter plot for the target
+            self.ax.scatter(x, y, z, s=40, color=targ.color, label=targ.name)
 
     def plotEarth(self):
         """
         Plot the Earth's surface.
         """
-        self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='k', alpha=0.1)
-        ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
-        self.ax.plot_surface(self.x_earth*0.9, self.y_earth*0.9, self.z_earth*0.9, color = 'white', alpha=1) 
+        # Create a mask to filter points to be within plot limits
+        mask = ((self.x_earth >= self.ax.get_xlim()[0]) & (self.x_earth <= self.ax.get_xlim()[1]) &
+                (self.y_earth >= self.ax.get_ylim()[0]) & (self.y_earth <= self.ax.get_ylim()[1]) &
+                (self.z_earth >= self.ax.get_zlim()[0]) & (self.z_earth <= self.ax.get_zlim()[1]))
+        
+        # x_earth_clipped = np.ma.masked_where(~mask, self.x_earth)
+        # y_earth_clipped = np.ma.masked_where(~mask, self.y_earth)
+        # z_earth_clipped = np.ma.masked_where(~mask, self.z_earth)
+        x_earth_clipped = self.x_earth
+        y_earth_clipped = self.y_earth
+        z_earth_clipped = self.z_earth
+
+        self.ax.plot_surface(x_earth_clipped, y_earth_clipped, z_earth_clipped, color='k', alpha=0.1)
+        # ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
+        # self.ax.plot_surface(self.x_earth*0.9, self.y_earth*0.9, self.z_earth*0.9, color = 'white', alpha=1) 
+    
 
 
     def plotCommunication(self):
@@ -355,6 +371,10 @@ class environment:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
                     for k in range(3):
+
+                        if k != 2:
+                            continue
+
                         # Create a figure
                         fig = plt.figure(figsize=(15, 8))
                         fig.suptitle(f"{targ.name}, {sat.name} Estimation Error and Innovation Plots", fontsize=14)
@@ -511,7 +531,8 @@ class environment:
                         plt.tight_layout()
                         
                         # Save the Plot with respective suffix
-                        suffix = ['indept', 'ddf', 'both'][k]
+                        # suffix = ['indept', 'ddf', 'both'][k]
+                        suffix = ['','',''][k]
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
 
 

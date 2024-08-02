@@ -25,7 +25,6 @@ class BaseEstimator:
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
-        self.state = "active"  # State of the estimator, can also be "sleep"
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -100,11 +99,11 @@ class BaseEstimator:
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             # Initial covariance matrix
-            P_prior = np.array([[625, 0, 0, 0, 0, 0],
+            P_prior = np.array([[1000, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
-                                [0, 0, 625, 0, 0, 0],
+                                [0, 0, 1000, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 625, 0],
+                                [0, 0, 0, 0, 1000, 0],
                                 [0, 0, 0, 0, 0, 100]])
             dt = 0 # Reset the time difference since were just reinitializing at this time
 
@@ -156,53 +155,6 @@ class BaseEstimator:
         
         # Calculate Track Quaility Metric
         trackError = self.calcTrackQuailty(est, P)
-
-        # TODO:
-        ### CHECK, DO I HAVE A BAD ESTIMATE OR MONO TRACK?
-        # Eventually, want to be able to turn the state of an estimator into "sleep" or something
-
-        # #### TESTING:
-        # # check is there only 1 satellite object that was inputted:
-        # if len(sats) == 1:
-        #     # Now check, is the name of that satellite Sat1
-        #     # if sats[0].name == 'Sat1':
-        #     # Check, is the target ID 1
-        #     if targetID == 1:
-        #         # Check is the parent class indeptEstimator or ddfEstimator
-        #         if self.__class__.__name__ == 'indeptEstimator':
-        #             # Goal is to check: is the covairance matrix approximately rank deficient
-        #             # AKA, are we in a monotrack mode that is so bad that we have unobservability
-
-        #             print("This is the indept estimator for ")
-        #             # also print out the name of the satellite:
-        #             print(f"Satellite Name: {sats[0].name}")
-        #             # U, S, V = np.linalg.svd(P)
-        #             # print(f"Ratio: {np.min(S) / np.max(S)}")
-
-        #             # Try to get a metric for how elongated the DDF estimator covariance matrix is
-        #             # Get the eigenvalues of the covariance matrix
-        #             eigvals, eigvecs = np.linalg.eig(P)
-        #             # Get the ratio of the largest to smallest eigenvalue
-        #             ratio = np.max(eigvals) / np.min(eigvals)
-        #             print(f"Ratio: {ratio}")
-
-        #             print("\n")
-        #         else:
-        #             print("This is the ddf estimator for ")
-
-        #             # also print out the name of the satellite:
-        #             print(f"Satellite Name: {sats[0].name}")
-
-        #             # U, S, V = np.linalg.svd(P)
-        #             # print(f"Ratio: {np.min(S) / np.max(S)}")
-
-        #             # Try to get a metric for how elongated the DDF estimator covariance matrix is
-        #             # Get the eigenvalues of the covariance matrix
-        #             eigvals, eigvecs = np.linalg.eig(P)
-        #             # Get the ratio of the largest to smallest eigenvalue
-        #             ratio = np.max(eigvals) / np.min(eigvals)
-        #             print(f"Ratio: {ratio}")
-        #             print("\n")
 
         # Save data
         self.estHist[targetID][envTime] = est
@@ -510,6 +462,10 @@ class ddfEstimator(BaseEstimator):
                 # Save the fused estimate and covariance
                 self.estHist[targetID][time_sent] = est_prior
                 self.covarianceHist[targetID][time_sent] = cov_prior
+                
+                # Calculate Track Quaility Metric
+                trackError = self.calcTrackQuailty(est_prior, cov_prior)
+                self.trackErrorHist[targetID][time_sent] = trackError
     
     def det_of_fused_covariance(self, omega, cov1, cov2):
         """
