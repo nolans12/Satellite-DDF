@@ -25,6 +25,8 @@ class BaseEstimator:
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
+        self.state = "active"  # State of the estimator, can also be "sleep"
+
     def EKF(self, sats, measurements, target, envTime):
         """
         Extended Kalman Filter for both local and central estimation.
@@ -154,6 +156,53 @@ class BaseEstimator:
         
         # Calculate Track Quaility Metric
         trackError = self.calcTrackQuailty(est, P)
+
+        # TODO:
+        ### CHECK, DO I HAVE A BAD ESTIMATE OR MONO TRACK?
+        # Eventually, want to be able to turn the state of an estimator into "sleep" or something
+
+        # #### TESTING:
+        # # check is there only 1 satellite object that was inputted:
+        # if len(sats) == 1:
+        #     # Now check, is the name of that satellite Sat1
+        #     # if sats[0].name == 'Sat1':
+        #     # Check, is the target ID 1
+        #     if targetID == 1:
+        #         # Check is the parent class indeptEstimator or ddfEstimator
+        #         if self.__class__.__name__ == 'indeptEstimator':
+        #             # Goal is to check: is the covairance matrix approximately rank deficient
+        #             # AKA, are we in a monotrack mode that is so bad that we have unobservability
+
+        #             print("This is the indept estimator for ")
+        #             # also print out the name of the satellite:
+        #             print(f"Satellite Name: {sats[0].name}")
+        #             # U, S, V = np.linalg.svd(P)
+        #             # print(f"Ratio: {np.min(S) / np.max(S)}")
+
+        #             # Try to get a metric for how elongated the DDF estimator covariance matrix is
+        #             # Get the eigenvalues of the covariance matrix
+        #             eigvals, eigvecs = np.linalg.eig(P)
+        #             # Get the ratio of the largest to smallest eigenvalue
+        #             ratio = np.max(eigvals) / np.min(eigvals)
+        #             print(f"Ratio: {ratio}")
+
+        #             print("\n")
+        #         else:
+        #             print("This is the ddf estimator for ")
+
+        #             # also print out the name of the satellite:
+        #             print(f"Satellite Name: {sats[0].name}")
+
+        #             # U, S, V = np.linalg.svd(P)
+        #             # print(f"Ratio: {np.min(S) / np.max(S)}")
+
+        #             # Try to get a metric for how elongated the DDF estimator covariance matrix is
+        #             # Get the eigenvalues of the covariance matrix
+        #             eigvals, eigvecs = np.linalg.eig(P)
+        #             # Get the ratio of the largest to smallest eigenvalue
+        #             ratio = np.max(eigvals) / np.min(eigvals)
+        #             print(f"Ratio: {ratio}")
+        #             print("\n")
 
         # Save data
         self.estHist[targetID][envTime] = est

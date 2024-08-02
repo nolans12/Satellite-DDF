@@ -26,11 +26,18 @@ class environment:
         self.ax = self.fig.add_subplot(111, projection='3d')
         
         # Set axis limits and view angle
-        self.ax.set_xlim([-15000, 15000])
+        # self.ax.set_xlim([-15000, 15000])
+        # self.ax.set_ylim([-15000, 15000])
+        # self.ax.set_zlim([-15000, 15000])
+        # self.ax.view_init(elev=30, azim=30)
+        # self.ax.set_box_aspect([1, 1, 1])
+
+        # If you want to do standard case:
+        self.ax.set_xlim([0, 15000])
         self.ax.set_ylim([-15000, 15000])
         self.ax.set_zlim([-15000, 15000])
-        self.ax.view_init(elev=30, azim=30)
-        self.ax.set_box_aspect([1, 1, 1])
+        self.ax.set_box_aspect([0.5, 1, 1])
+        self.ax.view_init(elev=30, azim=0)
         
         # Label the axes and set title
         self.ax.set_xlabel('X (km)')
@@ -231,9 +238,9 @@ class environment:
         Plot the current state of the environment.
         """
         self.resetPlot()
+        self.plotEarth()
         self.plotSatellites()
         self.plotTargets()
-        self.plotEarth()
         self.plotCommunication()
         self.plotLegend_Time()
         self.save_envPlot_to_imgs()
@@ -290,6 +297,8 @@ class environment:
         Plot the Earth's surface.
         """
         self.ax.plot_surface(self.x_earth, self.y_earth, self.z_earth, color='k', alpha=0.1)
+        ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
+        self.ax.plot_surface(self.x_earth*0.9, self.y_earth*0.9, self.z_earth*0.9, color = 'white', alpha=1) 
 
 
     def plotCommunication(self):
@@ -339,7 +348,7 @@ class environment:
         """
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
-        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [1/det(P)]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [km]']
 
         # For each target and satellite, plot the estimation error, innovation, and track quality
         for targ in self.targs:
@@ -682,7 +691,7 @@ class environment:
             axes[6 + i].set_xlabel("Time [min]")
             axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
         axes[8].set_xlabel("Time [min]")
-        axes[8].set_ylabel("Track Error")
+        axes[8].set_ylabel("Track Error [km]")
         
         return axes
 
