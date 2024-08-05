@@ -20,17 +20,17 @@ def create_environment():
     reds = reds.reversed()
 
     # Define a random target:
-    # targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(0))
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(0))
     targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(1))
-    # targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(2))
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(2))
     targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(3))
-    # targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(4))
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(4))
     targ6 = target(name = 'Targ6', tqReq = 6, targetID=6, coords = np.array([45,0,0]), heading=0, speed= 10,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(5))
-    # targ7 = target(name = 'Targ7', tqReq = 7, targetID=7, coords = np.array([45,0,0]), heading=0, speed= 5,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(6))
+    targ7 = target(name = 'Targ7', tqReq = 7, targetID=7, coords = np.array([45,0,0]), heading=0, speed= 5,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(6))
     targ8 = target(name = 'Targ8', tqReq = 8, targetID=8, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(7))
-    # targ9 = target(name = 'Targ9', tqReq = 9, targetID=9, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(8))
+    targ9 = target(name = 'Targ9', tqReq = 9, targetID=9, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(8))
     targ10 = target(name = 'Targ10', tqReq = 10, targetID=10, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(9))
-    # targ11 = target(name = 'Targ11', tqReq = 11, targetID=11, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(10))
+    targ11 = target(name = 'Targ11', tqReq = 11, targetID=11, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(10))
     targ12 = target(name = 'Targ12', tqReq = 12, targetID=12, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(11))
     
     targs = [targ1, targ2, targ3, targ4, targ5, targ6, targ7, targ8, targ9, targ10, targ11, targ12]
@@ -348,7 +348,7 @@ if __name__ == "__main__":
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, savePlot = True, saveName = fileName)
+    env.simulate(time_vec, showPlot = True, savePlot = True, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
