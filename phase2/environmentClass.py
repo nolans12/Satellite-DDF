@@ -197,7 +197,7 @@ class environment:
             # For each targetID in satellites measurement history        
             for targetID in sat.measurementHist.keys():
                 # Skip if there are no measurements for this targetID
-                if len(sat.measurementHist[targetID].keys()) == 0:
+                if len(sat.measurementHist[targetID][self.time.value]) == 0:
                     continue
                 
                 # This means satellite has a measurement for this target, now send it to neighbors
@@ -756,30 +756,27 @@ class environment:
             savePlot (bool): Flag indicating whether to save the plot.
             saveName (str): Name for the saved plot file.
         """
-        fig = plt.figure(figsize=(15, 8))
-        
-        # Create a 2x1 grid for the plots
-        # The top row is in-track measurements with explicit in red and implict in blie
-        # The bottom row is cross-track measurements with explicit in red and implict in blie
-        gs = gridspec.GridSpec(2, 1)
-        ax1 = fig.add_subplot(gs[0, 0])
-        ax2 = fig.add_subplot(gs[1, 0])
-        
+    
         # Plot the in-track and cross-track measurements
         for sat in self.sats:
             for neighbor in self.comms.G.neighbors(sat):
                 for targetID in sat.etEstimator.measHist.keys():
+                    fig = plt.figure(figsize=(15, 8))
+                    gs = gridspec.GridSpec(2, 1)
+                    ax1 = fig.add_subplot(gs[0, 0])
+                    ax2 = fig.add_subplot(gs[1, 0])
                     for time in sat.etEstimator.measHist[targetID][sat][neighbor].keys():
-                        alpha, beta = sat.etEstimator.measHist[targetID][sat][neighbor][time]
-                        if not np.isnan(alpha):
-                            ax1.scatter(time, 1, color='r')
-                        else:
-                            ax1.scatter(time, 0, color='b')
-                        
-                        if not np.isnan(beta):
-                            ax2.scatter(time, 1, color='r')
-                        else:
-                            ax2.scatter(time, 0, color='b')
+                        if len(sat.etEstimator.measHist[targetID][sat][neighbor][time]) != 0:
+                            alpha, beta = sat.etEstimator.measHist[targetID][sat][neighbor][time]
+                            if not np.isnan(alpha):
+                                ax1.scatter(time, 1, color='r')
+                            else:
+                                ax1.scatter(time, 0, color='b')
+                            
+                            if not np.isnan(beta):
+                                ax2.scatter(time, 1, color='r')
+                            else:
+                                ax2.scatter(time, 0, color='b')
                             
                 fig.suptitle(f"Satellite Msgs from {sat.name} to {neighbor.name}", fontsize=14)
 
@@ -809,7 +806,6 @@ class environment:
                         plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
                     else:
                         plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
-                plt.close()
                 
                 
                             
@@ -1277,6 +1273,7 @@ class environment:
                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                     et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                     et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
+                    et_measHist = sat.etEstimator.measHist[targ.targetID][sat][sat]
                     #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]
                     
                     
@@ -1290,7 +1287,8 @@ class environment:
                         sat_measHistTimes, sat_measHist, estTimes, estHist, covHist,
                         trackQuality, innovationHist, innovationCovHist, ddf_times,
                         ddf_estHist, ddf_covHist, ddf_trackQuality, ddf_innovation_times,
-                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist
+                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist,
+                        et_measHist
                     )
 
 
@@ -1299,7 +1297,7 @@ class environment:
         sat_measHist, estTimes, estHist, covHist, trackQuality, innovationHist,
         innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackQuality,
         ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
-        et_estHist, et_covHist
+        et_estHist, et_covHist, et_measHist
     ):
         """
         Formats and writes data to a CSV file.
@@ -1328,6 +1326,7 @@ class environment:
         - et_times (dict_keys): ET estimation times.
         - et_estHist (dict): ET estimation history.
         - et_covHist (dict): ET covariance history.
+        - et_measHist (dict): ET measurement history.
 
         Returns:
         None
@@ -1357,7 +1356,7 @@ class environment:
                 'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Quality',
                 'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
-                'ET_Cov_vzvz'
+                'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta'
             ])
 
             # Writing data rows
@@ -1388,6 +1387,7 @@ class environment:
                 if time in et_times:
                     row += format_list(et_estHist[time])
                     row += format_list(np.diag(et_covHist[time]))
+                    #row += format_list(et_measHist[time])
 
                 writer.writerow(row)
                 

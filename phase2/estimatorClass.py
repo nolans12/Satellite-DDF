@@ -493,7 +493,7 @@ class etEstimator(BaseEstimator):
             # Get the targetID
             targetID = target.targetID
             # Did I take a measurement on this target
-            if len(sat.measurementHist[targetID][envTime]) > 0:
+            if len(sat.measurementHist[targetID][envTime]) > 0: ## explicitly update local filter
                 # Get the measurements for this target
                 alpha, beta = sat.measurementHist[targetID][envTime]
                 
@@ -517,14 +517,12 @@ class etEstimator(BaseEstimator):
                     self.covarianceHist[targetID][sat][sat][envTime] = P_prior
                     
                     return # No need to continue if this is the first measurement
-                    
-                # Otherwise, I have a prior estimate and covariance for this target
-                time_prior = max(self.estHist[targetID][sat][sat].keys())
-                est_prior = self.estHist[targetID][sat][sat][time_prior]
-                P_prior = self.covarianceHist[targetID][sat][sat][time_prior]
                 
+                # Otherwise I have an initialized local filter for this target                
                 # Run Prediction Step on this target for local fitler
                 self.pred_EKF(sat, sat, targetID, envTime)
+                est_pred = self.estHist[targetID][sat][sat][envTime]
+                cov_pred = self.covarianceHist[targetID][sat][sat][envTime]
                 
                 # Proccess my measurement in the local filter
                 self.explicit_measurement_update(sat, sat, alpha, 'IT', targetID, envTime)
@@ -568,7 +566,7 @@ class etEstimator(BaseEstimator):
                                                         
                             # Run Prediction Step on this target for common fitler
                             self.pred_EKF(sat, sender, targetID, envTime)
-                            
+    
                             # Proccess the new measurement with the local and common filter
                             alpha, beta = commNode['measurement_data'][time_sent][targetID]['meas'][i]
                             
@@ -576,25 +574,23 @@ class etEstimator(BaseEstimator):
                             if not np.isnan(alpha):
                                 # update local filter
                                 self.explicit_measurement_update(sat, sat, alpha, 'IT', targetID, envTime)
-                                
                                 # update common filter
                                 self.explicit_measurement_update(sat, sender, alpha, 'IT', targetID, envTime)
                             
                             else:
                                 # update both filters
-                                self.implicit_measurement_update(sat, sender, est_prior, P_prior, 'IT', 'both', targetID, envTime) # update my local and common filter
+                                self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'IT', 'both', targetID, envTime) # update my local and common filter
                 
                             # Cross-Track Measurement
                             if not np.isnan(beta):
                                 # update local filter
                                 self.explicit_measurement_update(sat, sat, beta, 'CT', targetID, envTime)
-                                
                                 # update common filter
                                 self.explicit_measurement_update(sat, sender, beta, 'CT', targetID, envTime)
                             
                             else:
                                 # update both filters
-                                self.implicit_measurement_update(sat, sender, est_prior, P_prior, 'CT', 'both', targetID, envTime)
+                                self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'CT', 'both', targetID, envTime)
                             
                     # If I took a measurement, I probably sent it somewhere, so I should update my common filter with the people i sent it to
                     for neighbor in self.neighbors:
@@ -633,6 +629,10 @@ class etEstimator(BaseEstimator):
                                         if np.isnan(alpha) or np.isnan(beta):
                                             
                                             # Run Prediction Step on this target for local fitler
+                                            self.pred_EKF(sat, sat, targetID, envTime)
+                                            est_pred = self.estHist[targetID][sat][neighbor][envTime]
+                                            cov_pred = self.covarianceHist[targetID][sat][neighbor][envTime]
+                                            
                                             self.pred_EKF(sat, neighbor, targetID, envTime) # TODO: if this got updated previously this should propagate nothing
                                             
                                             # Update the common filter with the sent measurement
@@ -640,13 +640,13 @@ class etEstimator(BaseEstimator):
                                                 # In-Track Measurement
                                                 self.explicit_measurement_update(sat, neighbor, alpha, 'IT', targetID, envTime)
                                             else:
-                                                self.implicit_measurement_update(sat, neighbor, est_prior, P_prior, 'IT', 'common', targetID, envTime)
+                                                self.implicit_measurement_update(sat, neighbor, est_pred, cov_pred, 'IT', 'common', targetID, envTime)
                                             
                                             if not np.isnan(beta):
                                                 # Cross-Track Measurement
                                                 self.explicit_measurement_update(sat, neighbor, beta, 'CT', targetID, envTime)
                                             else:
-                                                self.implicit_measurement_update(sat, neighbor, est_prior, P_prior, 'CT', 'common', targetID, envTime)
+                                                self.implicit_measurement_update(sat, neighbor, est_pred, cov_pred, 'CT', 'common', targetID, envTime)
                                         
                                         
                         
@@ -690,15 +690,15 @@ class etEstimator(BaseEstimator):
         
     
         
-    def explicit_measurement_update(self, sat, neighbor, measurement, type, targetID, envTime):
+    def explicit_measurement_update(self, sat, sender, measurement, type, targetID, envTime):
         '''
-        Explicit measurement update function to update the estimate with a measurement.
-        Fuses the local estimate with explicit measurements from a neighbor satellite.
+        Explicit measurement updates  the estimate with a measurement from a sender satellite.
+        Note satellites can send themselves measurements for local filter.
         
         Args:
         - sat (object): Satellite object that is receiving information.
-        - neighbor (object): Neighbor satellite object.
-        - measurements (np.array): Explicit measurements from the neighbor satellite: [alpha, 0] or [0, beta]
+        - sender (object): Sender satellite object that sent information
+        - measurements (np.array): Explicit measurements from the sender satellite: [alpha, 0] or [0, beta]
         - targetID (int): Target ID.
         - envTime (float): Current environment time.
         
@@ -710,40 +710,47 @@ class etEstimator(BaseEstimator):
         elif type == 'CT':
             scalarIdx = 1
         
-        # Previous Estimate and Covariance
-        est_pred = self.estHist[targetID][sat][neighbor][envTime]
-        P_pred = self.covarianceHist[targetID][sat][neighbor][envTime]
+        # The recieving filter most recent Estimate and Covariance
+        est_prev = self.estHist[targetID][sat][sender][envTime]
+        P_prev = self.covarianceHist[targetID][sat][sender][envTime]
         
-        # Prepare for measurements and update the estimate
+        # In Track or Cross Track Measurement actually sent by the sender
         z = measurement
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)
-        H = H[scalarIdx, :] # use relevant row
-        R = sat.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
-            
-        z_pred = np.array(neighbor.sensor.convert_to_bearings(neighbor, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
+        
+        # The measurement I/we think you should have got based on my estimate 
+        z_pred = np.array(sender.sensor.convert_to_bearings(sender, np.array([est_prev[0], est_prev[2], est_prev[4]])))  # Predicted measurements
         z_pred = z_pred[scalarIdx]
         
+        # The uncertaininty in the measurement you should have got based on my/our estimate
+        H = sender.sensor.jacobian_ECI_to_bearings(sender, est_prev)
+        H = H[scalarIdx, :] # use relevant row
+        H = np.reshape(H, (1,6))
+        
+        R = sender.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
+                    
         # Compute innovation             
         innovation = z - z_pred
 
         # Calculate innovation covariance
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+        innovationCov = (H @ P_prev @ H.T + R)**-1
+        #np.dot(H, np.dot(P_pred, H.T)) + R
         
         # Solve for Kalman gain
-        K = np.reshape(P_pred @ H.T * innovationCov**-1, (6,1))
+        K = np.reshape(P_prev @ H.T * innovationCov, (6,1))
                         
         # Correct prediction
-        est = est_pred + np.reshape(K * innovation, (6))
+        est = est_prev + np.reshape(K * innovation, (6))
         
         # Correct covariance # TODO: this fucks cov
-        P = P_pred - K @ np.reshape(H @ P_pred, (1,6)) 
+        P = P_prev - K @ H @ P_prev
+        #np.reshape(H @ P_pred, (1,6)) 
         
         # Save Data into both filters
-        self.estHist[targetID][sat][neighbor][envTime] = est
-        self.covarianceHist[targetID][sat][neighbor][envTime] = P
+        self.estHist[targetID][sat][sender][envTime] = est
+        self.covarianceHist[targetID][sat][sender][envTime] = P
                 
         
-    def implicit_measurement_update(self, sat, neighbor, local_est_prior, local_P_prior, type, update, targetID, envTime):
+    def implicit_measurement_update(self, sat, sender, local_est_pred, local_P_pred, type, update, targetID, envTime):
         """
         Implicit measurement update function to update the estimate without a measurement.
         Fuses the local estimate with implicit information shared from a paired satellite.
@@ -770,28 +777,28 @@ class etEstimator(BaseEstimator):
         local_cov_curr = self.covarianceHist[targetID][sat][sat][local_time]
 
         # Grab the shared best local Estimate and Covariance
-        common_time = max(self.estHist[targetID][sat][neighbor].keys())
-        common_est_curr = self.estHist[targetID][sat][neighbor][common_time]
-        common_cov_curr = self.covarianceHist[targetID][sat][neighbor][common_time]
+        common_time = max(self.estHist[targetID][sat][sender].keys())
+        common_est_curr = self.estHist[targetID][sat][sender][common_time]
         
         # Compute Expected Value of Implicit Measurement
-        mu = np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_curr[0], local_est_curr[2], local_est_curr[4]]))) - np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_prior[0], local_est_prior[2], local_est_prior[4]])))
+        mu = np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_curr[0], local_est_curr[2], local_est_curr[4]]))) - np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_pred[0], local_est_pred[2], local_est_pred[4]])))
         mu = mu[scalarIdx]
         
+        # Compute Alpha
+        alpha = np.array(sat.sensor.convert_to_bearings(sat, np.array([common_est_curr[0], common_est_curr[2], common_est_curr[4]]))) - np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_pred[0], local_est_pred[2], local_est_pred[4]])))
+        alpha = alpha[scalarIdx]
+        
         # Compute the Sensor Jacobian
-        H = sat.sensor.jacobian_ECI_to_bearings(sat, local_est_curr)
+        H = sender.sensor.jacobian_ECI_to_bearings(sender, local_est_curr)
         H = H[scalarIdx, :] # use relevant row
+        H = np.reshape(H, (1,6))
                 
         # Compute Sensor Noise Matrix
-        R = sat.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
+        R = sender.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
                 
         # Define innovation covariance
-        Qe = H @ local_P_prior @ H.T + R 
+        Qe = H @ local_P_pred @ H.T + R         
         
-        # Compute Alpha
-        alpha = np.array(sat.sensor.convert_to_bearings(sat, np.array([common_est_curr[0], common_est_curr[2], common_est_curr[4]]))) - np.array(sat.sensor.convert_to_bearings(sat, np.array([local_est_prior[0], local_est_prior[2], local_est_prior[4]])))
-        alpha = alpha[scalarIdx]
-            
         # Compute Expected Value of Implicit Measurement
         vminus = (-delta + alpha - mu)/np.sqrt(Qe)
         vplus = (delta + alpha - mu)/np.sqrt(Qe)
@@ -811,25 +818,25 @@ class etEstimator(BaseEstimator):
         nu = ((phi1 - phi2)/(Q1 - Q2))**2 - (vminus * phi1 - vplus * phi2) / (Q1 - Q2)
                 
         # Compute Kalman Gain
-        K = local_cov_curr @ H.T * (Qe**-1) # same as Qe
+        K = np.reshape(local_cov_curr @ H.T * (H @ local_cov_curr @ H.T + R)**-1, (6,1))
         
         # Update Estimate
-        est = local_est_curr + K * zbar
+        est = local_est_curr + np.reshape(K * zbar, (6))
         
         # Update Covariance
-        cov = local_cov_curr - nu * local_cov_curr @ H.T * (Qe**-1) * H @ local_cov_curr
+        cov = local_cov_curr - nu * K @ H @ local_cov_curr
     
         # Save Data into both filters
         if update == 'both':
             self.estHist[targetID][sat][sat][envTime] = est
-            self.estHist[targetID][sat][neighbor][envTime] = est
+            self.estHist[targetID][sat][sender][envTime] = est
         
             self.covarianceHist[targetID][sat][sat][envTime] = cov
-            self.covarianceHist[targetID][sat][neighbor][envTime] = cov
+            self.covarianceHist[targetID][sat][sender][envTime] = cov
         
         elif update == 'common':
-            self.estHist[targetID][sat][neighbor][envTime] = est
-            self.covarianceHist[targetID][sat][neighbor][envTime] = cov
+            self.estHist[targetID][sat][sender][envTime] = est
+            self.covarianceHist[targetID][sat][sender][envTime] = cov
 
         
     
@@ -868,10 +875,10 @@ class etEstimator(BaseEstimator):
         send_beta = np.nan
         
         # If the difference between the measurement and the prediction is greater than delta, send the measurement
-        if alpha - meas[0] > self.delta_alpha:
+        if np.abs(alpha - meas[0]) > self.delta_alpha:
             send_alpha = alpha
             
-        if beta - meas[1] > self.delta_beta:
+        if np.abs(beta - meas[1]) > self.delta_beta:
             send_beta = beta
         
         return send_alpha, send_beta
