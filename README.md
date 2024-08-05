@@ -13,7 +13,9 @@ their neighbors for collective estimation.
 
 ## Installation
 ```bash
-# Begin by installing python 3.10, is the version of python that used:
+## Create a folder for the project
+
+## Begin by installing python 3.10 in the folder:
 # for windowsOS:
 https://www.python.org/downloads/release/python-3100/
 # for linux:
@@ -44,14 +46,15 @@ pip list
 # Navigate to the include folder of the virtual environment
 cd .\Include\
 
-# Clone the repository
+## Clone the repository
 git clone https://github.com/nolans12/Satellite-DDF.git
 # Or, put the Satellite-DDF unzipped folder into the include folder
 
 # Navigate into the repository
 cd .\Satellite-DDF\
 
-# Install dependencies
+
+## Install dependencies
 pip install -r requirements.txt
 # This may take a while
 

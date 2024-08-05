@@ -1,7 +1,7 @@
 from import_libraries import *
 
 class target:    
-    def __init__(self, name, tqReq, targetID, coords, heading, speed, color, uncertainty=np.array([0, 0, 0, 0, 0]), climbrate=0, changeAoA=False):
+    def __init__(self, name, targetID, coords, heading, speed, color, uncertainty=np.array([0, 0, 0, 0, 0]), climbrate=0, changeAoA=False, tqReq = 0):
         """Target class that moves linearly around the earth with constant angular velocity.
 
         Args:
