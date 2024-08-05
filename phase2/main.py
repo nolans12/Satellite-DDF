@@ -222,8 +222,8 @@ if __name__ == "__main__":
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(36, 51, 15 + 1) * u.minute
-    fileName = "debug_"
+    time_vec = np.linspace(36, 51, 5 + 1) * u.minute
+    fileName = "debug_5_"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):

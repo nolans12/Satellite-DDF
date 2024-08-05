@@ -782,10 +782,10 @@ class environment:
 
                 # Label the plots
                 ax1.set_xlabel("Time [min]")
-                ax1.set_ylabel("Measurement Type")
+                ax1.set_ylabel("In-Track Measurement")
                 
                 ax2.set_xlabel("Time [min]")
-                ax2.set_ylabel("Measurement Type")
+                ax2.set_ylabel("Cross-Track Measurement")
                 
                 # Create a patch for the legend
                 handles = [
@@ -1273,9 +1273,11 @@ class environment:
                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                     et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                     et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
-                    et_measHist = sat.etEstimator.measHist[targ.targetID][sat][sat]
-                    #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]
                     
+                    for neighbor in self.comms.G.neighbors(sat):
+                        if neighbor != sat:
+                            et_measHist = sat.etEstimator.measHist[targ.targetID][sat][neighbor]
+                  #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]                  
                     
 
                     # File Name
@@ -1335,11 +1337,11 @@ class environment:
 
         def format_list(lst):
             if isinstance(lst, np.ndarray):
-                return [f"{x:.{precision}f}" for x in lst.flatten()]
+                return [f"{x:.{precision}f}" if not np.isnan(x) else "nan" for x in lst.flatten()]
             elif isinstance(lst, int) or isinstance(lst, float):
-                return [f"{float(lst):.{precision}f}"]
+                return [f"{float(lst):.{precision}f}" if not np.isnan(lst) else "nan"]
             else:
-                return [f"{x:.{precision}f}" for x in lst]
+                return [f"{x:.{precision}f}" if not np.isnan(x) else "nan" for x in lst]
 
         # Create a single CSV file for the target
         with open(filename, 'w', newline='') as file:
@@ -1387,7 +1389,7 @@ class environment:
                 if time in et_times:
                     row += format_list(et_estHist[time])
                     row += format_list(np.diag(et_covHist[time]))
-                    #row += format_list(et_measHist[time])
+                    row += format_list(et_measHist[time])
 
                 writer.writerow(row)
                 
