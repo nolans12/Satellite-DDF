@@ -21,7 +21,7 @@ class BaseEstimator:
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
         
-        self.trackQualityHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
+        self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
@@ -57,7 +57,7 @@ class BaseEstimator:
             # TODO: Eventually should initialize the kalman filter with the real of what target was sampled from
             # # If the environment time == 0, initialize the filter with what the target was sampled from
             # if envTime == 0:
-            #     test = 1
+            #     code would go here
 
             # # If the environment time is not 0, just initalize the filter with the true position plus some noise
             # else:
@@ -68,11 +68,11 @@ class BaseEstimator:
             
 
             # Initial covariance matrix
-            P_prior = np.array([[1000, 0, 0, 0, 0, 0],
+            P_prior = np.array([[2500, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
-                                [0, 0, 1000, 0, 0, 0],
+                                [0, 0, 2500, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 1000, 0],
+                                [0, 0, 0, 0, 2500, 0],
                                 [0, 0, 0, 0, 0, 100]])
 
             # Store initial values and return for first iteration
@@ -82,7 +82,7 @@ class BaseEstimator:
             self.innovationCovHist[targetID][envTime] = np.eye(2)
             self.nisHist[targetID][envTime] = 0
             self.neesHist[targetID][envTime] = 0
-            self.trackQualityHist[targetID][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+            self.trackErrorHist[targetID][envTime] = self.calcTrackError(est_prior, P_prior)
             return est_prior
        
         else:
@@ -100,12 +100,13 @@ class BaseEstimator:
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             # Initial covariance matrix
-            P_prior = np.array([[1000, 0, 0, 0, 0, 0],
+            P_prior = np.array([[2500, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
-                                [0, 0, 1000, 0, 0, 0],
+                                [0, 0, 2500, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 1000, 0],
+                                [0, 0, 0, 0, 2500, 0],
                                 [0, 0, 0, 0, 0, 100]])
+
             dt = 0 # Reset the time difference since were just reinitializing at this time
 
         # Predict next state using state transition function
@@ -131,7 +132,7 @@ class BaseEstimator:
         for i, sat in enumerate(sats):
             z[2*i:2*i+2] = np.reshape(measurements[i][:], (2, 1))  # Measurement stack
             H[2*i:2*i+2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)  # Jacobian of the sensor model
-            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * self.R_factor  # Sensor noise matrix scaled by X amount
+            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2  # Sensor noise matrix
             
             z_pred = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
             innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(z_pred, (2, 1))  # Innovations
@@ -155,7 +156,7 @@ class BaseEstimator:
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
         
         # Calculate Track Quaility Metric
-        trackError = self.calcTrackQuailty(est, P)
+        trackError = self.calcTrackError(est, P)
 
         # Save data
         self.estHist[targetID][envTime] = est
@@ -164,7 +165,7 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-        self.trackQualityHist[targetID][envTime] = trackError
+        self.trackErrorHist[targetID][envTime] = trackError
         self.gottenEstimate = True
     
     def state_transition(self, estPrior, dt):
@@ -272,7 +273,7 @@ class BaseEstimator:
         
         return jacobian
 
-    def calcTrackQuailty(self, est, cov):
+    def calcTrackError(self, est, cov):
         """
         Calculate the track quality metric for the current estimate.
 
@@ -364,8 +365,9 @@ class indeptEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-### DDF Estimator Class
-class ddfEstimator(BaseEstimator):
+### CI Estimator Class
+# Always does covariance intersection
+class ciEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         """
         Initialize DDF Estimator object.
@@ -465,8 +467,8 @@ class ddfEstimator(BaseEstimator):
                 self.covarianceHist[targetID][time_sent] = cov_prior
                 
                 # Calculate Track Quaility Metric
-                trackError = self.calcTrackQuailty(est_prior, cov_prior)
-                self.trackQualityHist[targetID][time_sent] = trackError
+                trackError = self.calcTrackError(est_prior, cov_prior)
+                self.trackErrorHist[targetID][time_sent] = trackError
     
     
     def det_of_fused_covariance(self, omega, cov1, cov2):
@@ -486,6 +488,7 @@ class ddfEstimator(BaseEstimator):
         return np.linalg.det(P)
 
 ### Event Triggered Estimator Class
+# This class is not complete and is a work in progress
 class etEstimator(BaseEstimator):
     def __init__(self, targetIDs, targets=None, sat=None, neighbors=None):
         """
