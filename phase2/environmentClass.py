@@ -67,7 +67,7 @@ class environment:
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, showComms = False, saveName=None):
+    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, saveComms = False, saveName=None):
         """
         Simulate the environment over a time range.
         
@@ -108,7 +108,7 @@ class environment:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
 
-        if showComms:
+        if saveComms:
             # Plot the comm results
             self.plot_global_comms(saveName=saveName)
            
@@ -140,6 +140,7 @@ class environment:
                 self.send_estimates()
 
         # Now send measurements for future ET
+        # TODO: could this just be in the et estimator class?
         if self.etEstimator:
             self.send_measurements()
 
