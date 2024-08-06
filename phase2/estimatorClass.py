@@ -507,16 +507,17 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0.05
-        self.delta_beta = 0.05
+        self.delta_alpha = 0
+        self.delta_beta = 0
         
         # R Factor
-        self.R_factor = 100
+        self.R_factor = 1000
 
         # Define history vectors for each extended Kalman filter
         self.estHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.covarianceHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.measHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
+        self.trackErrorHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         
     def update_neighbors(self, neighbors):
         '''
@@ -528,6 +529,7 @@ class etEstimator(BaseEstimator):
             self.estHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.covarianceHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.measHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
+            self.trackErrorHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             
 
     def event_triggered_fusion(self, sat, envTime, commNode):
@@ -570,6 +572,7 @@ class etEstimator(BaseEstimator):
                 # Store initial values and return for first iteration
                 self.estHist[targetID][sat][sat][envTime] = est_prior
                 self.covarianceHist[targetID][sat][sat][envTime] = P_prior
+                self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est_prior, P_prior)
                 
                 return # No need to continue if this is the first measurement
             
@@ -614,6 +617,7 @@ class etEstimator(BaseEstimator):
                             # Store initial values and return for first iteration
                             self.estHist[targetID][sat][sender][time_sent] = est_prior
                             self.covarianceHist[targetID][sat][sender][time_sent] = P_prior
+                            self.trackErrorHist[targetID][sat][sender][time_sent] = self.calcTrackQuailty(est_prior, P_prior)
 
                             return # No need to continue if this is the first shared measurement between both
                         
@@ -634,6 +638,11 @@ class etEstimator(BaseEstimator):
                             self.explicit_measurement_update(sat, sender, beta, 'CT', 'both', targetID, envTime, sharewith=sender) # update our common filter
                         else:
                             self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'CT', 'both', targetID, envTime, sharewith=sender) # update my local and common filter
+                            
+                        # Calculate Common Track Quaility Metric
+                        est = self.estHist[targetID][sat][sender][envTime]
+                        cov = self.covarianceHist[targetID][sat][sender][envTime]
+                        self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est, cov)
 
             ### Update the common filter with all measurements I sent to neighbors ###
             for neighbor in self.neighbors: ## TODO: probably easier to do this
@@ -661,7 +670,8 @@ class etEstimator(BaseEstimator):
                                         # Store initial values and return for first iteration
                                         self.estHist[targetID][sat][neighbor][envTime] = est_prior
                                         self.covarianceHist[targetID][sat][neighbor][envTime] = P_prior
-
+                                        self.trackErrorHist[targetID][sat][neighbor][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+                                        
                                         return # no need to continue if this is the first sent measurement to this neighbor
                                 
                                 # Otherwise I have an initialized common filter with this neighbor that I sent something to
@@ -680,8 +690,17 @@ class etEstimator(BaseEstimator):
                                     self.explicit_measurement_update(sat, sat, beta, 'CT', 'common', targetID, envTime, sharewith=neighbor) # update our common filter
                                 else:
                                     self.implicit_measurement_update(sat, sat, est_pred, cov_pred, 'CT', 'common', targetID, envTime, sharewith=neighbor)
-                                        
-                                        
+                                                           
+                                # Calculate Common Track Quaility Metric
+                                est = self.estHist[targetID][sat][neighbor][envTime]
+                                cov = self.covarianceHist[targetID][sat][neighbor][envTime]
+                                self.trackErrorHist[targetID][sat][neighbor][envTime] = self.calcTrackQuailty(est, cov)
+                                
+            
+            est = self.estHist[targetID][sat][sat][envTime]
+            cov = self.covarianceHist[targetID][sat][sat][envTime]
+            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+
                         
     def pred_EKF(self, sat, sender, targetID, envTime):
         '''
@@ -717,7 +736,7 @@ class etEstimator(BaseEstimator):
         F = super().state_transition_jacobian(est_prior, dt)
         
         # Predict process noise associated with state transition
-        Q = np.diag([50, 1, 50, 1, 50, 1]) # Large # Process noise matrix
+        Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])  # Smaller Q 
 
         # Predict covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q ## TODO check dot products?
@@ -860,7 +879,6 @@ class etEstimator(BaseEstimator):
                                         
         # Compute Expected Variance of Implicit Measurement
         nu = ((phi1 - phi2)/(Q1 - Q2))**2 - (vminus * phi1 - vplus * phi2) / (Q1 - Q2)
-        print("Satellite: ", sat.name, "Nu: ", nu)  
                 
         # Compute Kalman Gain
         K = np.reshape(local_cov_curr @ H.T * (H @ local_cov_curr @ H.T + R)**-1, (6,1))
@@ -927,4 +945,7 @@ class etEstimator(BaseEstimator):
         if np.abs(beta - pred_beta) > self.delta_beta:
             send_beta = beta
         
+        # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
+        # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
+        # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
         return send_alpha, send_beta

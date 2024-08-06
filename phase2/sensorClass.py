@@ -118,6 +118,14 @@ class sensor:
 
         targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens]) # get cross-track component
         cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec)) # calculate cross-track angle
+        
+         # If targVec_inTrack is negative, switch
+        if x_targ_sens < 0:
+            in_track_angle = -in_track_angle
+
+        # If targVec_crossTrack is negative, switch
+        if y_targ_sens < 0:
+            cross_track_angle = -cross_track_angle
 
         in_track_angle_deg = in_track_angle * 180 / jnp.pi # convert to degrees
         cross_track_angle_deg = cross_track_angle * 180 / jnp.pi # convert to degrees

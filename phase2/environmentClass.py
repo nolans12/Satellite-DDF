@@ -61,6 +61,7 @@ class environment:
         self.imgs_cent_GE = defaultdict(lambda: defaultdict(list))
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
         self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
+        self.imgs_cent_ET_GE = defaultdict(lambda: defaultdict(list))
 
 
     def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
@@ -493,20 +494,20 @@ class environment:
                             # Get ET Data
                             et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                             et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
-                            #et_innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sat]
-                            #et_innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sat]
+                            et_trackQualityHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
                             et_times = [time for time in time_vec.value if time in et_estHist]
+                            et_tq_times = [time for time in time_vec.value if time in et_trackQualityHist]
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
                                                     innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
                                                     satColor, linewidth=3.5)
                             
-                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
-                                                    [], [], NISHist, NEESHist, trackQualityHist,
+                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_tq_times, et_estHist, trueHist, et_covHist,
+                                                    [], [], NISHist, NEESHist, et_trackQualityHist,
                                                     '#DC143C', linewidth=2, e = True)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
@@ -628,6 +629,7 @@ class environment:
         """
         if e and not c:  # ET-Measurements vs Central
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
             
         elif c and not e:  # Not central estimator so plot everything
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
@@ -885,8 +887,8 @@ class environment:
         for targ in self.targs:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
-                    for k in range(5):
-                        if k!=4:
+                    for k in range(6):
+                        if k < 3:
                             continue 
                         
                         if k == 0:  # Plot Local Uncertainty Ellipsoid
@@ -1082,15 +1084,66 @@ class environment:
                                             
                                             self.plot_all_labels(ax, targ, sat, sat2, time, error1, error2, et_error)
                                             
-                                            if np.max(eigenvalues1) > np.max(eigenvalues2):
-                                                self.set_axis_limits(ax, est_pos1, np.sqrt(eigenvalues1), margin=50.0)
-                                            else:
-                                                self.set_axis_limits(ax, est_pos2, np.sqrt(eigenvalues2), margin=50.0)
+                                            self.set_axis_limits(ax, et_pos, np.sqrt(et_eigenvalues), margin=50.0)
+                                            
                                                 
                                             img = self.save_GEplot_to_image(fig)
                                             self.imgs_stereo_ET_GE[targ.targetID][sat].append(img)
                                             ax.cla()  # Clear the plot for the next iteration
                                         plt.close(fig)
+                                        
+                        if k == 5: # plot et vs central verification
+                            fig = plt.figure(figsize=(10, 8))
+                            fig.suptitle(f"{targ.name}, {sat.name} and Central ET Gaussian Uncertainty Ellipsoids")
+                            
+                            ax = fig.add_subplot(111, projection='3d')
+                            satColor = sat.color
+                            centralColor = '#228B22'
+                            alpha = 0.3
+                            
+                            et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
+                            central_times = self.centralEstimator.estHist[targ.targetID].keys()
+                            times = [time for time in et_times if time in central_times]
+                            
+                            for time in times:
+                                true_pos = targ.hist[time][[0, 2, 4]]
+                                et_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
+                                central_pos = np.array([self.centralEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                
+                                et_cov = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]
+                                central_cov = self.centralEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                et_eigenvalues, et_eigenvectors = np.linalg.eigh(et_cov)
+                                central_eigenvalues, central_eigenvectors = np.linalg.eigh(central_cov)
+                                
+                                error_et = np.linalg.norm(true_pos - et_pos)
+                                error_central = np.linalg.norm(true_pos - central_pos)
+                                
+                                LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                
+                                self.plot_ellipsoid(ax, et_pos, et_cov, color=satColor, alpha=alpha)
+                                self.plot_ellipsoid(ax, central_pos, central_cov, color=centralColor, alpha=alpha)
+                                
+                                self.plot_estimate(ax, et_pos, true_pos, satColor)
+                                self.plot_estimate(ax, central_pos, true_pos, centralColor)
+                                
+                                self.plot_LOS(ax, et_pos, LOS_vec)
+                                
+                                ax.text2D(0.05, 0.95, f"Time: {time:.2f}, {targ.name}, ET Error {sat.name}: {error_et:.2f} [km], Central Error: {error_central:.2f} [km]", transform=ax.transAxes)
+                                ax.set_xlabel('X')
+                                ax.set_ylabel('Y')
+                                ax.set_zlabel('Z')
+                                ax.view_init(elev=10, azim=30)
+
+                                self.set_axis_limits(ax, et_pos, np.sqrt(et_eigenvalues), margin=50.0)
+                                
+                                img = self.save_GEplot_to_image(fig)
+                                self.imgs_cent_ET_GE[targ.targetID][sat].append(img)
+                                ax.cla()  # Clear the plot for the next iteration
+                            plt.close(fig)
+                                
+                                
+                                
+                            
 
 
     def plot_ellipsoid(self, ax, est_pos, cov_matrix, color, alpha):
@@ -1287,6 +1340,12 @@ class environment:
                         with imageio.get_writer(et_file, mode='I', duration=frame_duration) as writer:
                             for img in self.imgs_stereo_ET_GE[targ.targetID][sat]:
                                 writer.append_data(img)
+                                
+                        cent_et_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_central_ET_GE.gif")
+                        with imageio.get_writer(cent_et_file, mode='I', duration=frame_duration) as writer:
+                            for img in self.imgs_cent_ET_GE[targ.targetID][sat]:
+                                writer.append_data(img)
+                                
   
 ### Data Dump File ###        
     def log_data(self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))):
@@ -1334,6 +1393,8 @@ class environment:
                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                     et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                     et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
+                    et_trackError_times = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat].keys()
+                    et_trackError = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
                     
                     for neighbor in self.comms.G.neighbors(sat):
                         if neighbor != sat:
@@ -1351,7 +1412,7 @@ class environment:
                         trackError, innovationHist, innovationCovHist, ddf_times,
                         ddf_estHist, ddf_covHist, ddf_trackError, ddf_innovation_times,
                         ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist,
-                        et_measHist
+                        et_measHist, et_trackError, et_trackError_times
                     )
 
 
@@ -1360,7 +1421,7 @@ class environment:
         sat_measHist, estTimes, estHist, covHist, trackError, innovationHist,
         innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackError,
         ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
-        et_estHist, et_covHist, et_measHist
+        et_estHist, et_covHist, et_measHist, et_trackError, et_trackError_times
     ):
         """
         Formats and writes data to a CSV file.
@@ -1390,6 +1451,8 @@ class environment:
         - et_estHist (dict): ET estimation history.
         - et_covHist (dict): ET covariance history.
         - et_measHist (dict): ET measurement history.
+        - et_trackError (dict): ET track quality history.
+        - et_trackError_times (dict_keys): ET track quality times.
 
         Returns:
         None
@@ -1419,7 +1482,7 @@ class environment:
                 'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Error',
                 'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
-                'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta'
+                'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta', 'ET_Track Error'
             ])
 
             # Writing data rows
@@ -1451,6 +1514,9 @@ class environment:
                     row += format_list(et_estHist[time])
                     row += format_list(np.diag(et_covHist[time]))
                     row += format_list(et_measHist[time])
+                    
+                if time in et_trackError_times:
+                    row += format_list(et_trackError[time])
 
                 writer.writerow(row)
                 
