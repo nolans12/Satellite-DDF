@@ -64,6 +64,8 @@ class environment:
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
         self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
 
+        self.tempCount = 0
+
 
     def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, showComms = False, saveName=None):
         """
@@ -85,6 +87,8 @@ class environment:
         time_vec = time_vec + self.time
         for t_net in time_vec:
             t_d = t_net - self.time  # Get delta time to propagate, works because propagate func increases time after first itr
+            
+            self.tempCount += 1
             
             # Propagate the satellites and environments position
             self.propagate(t_d)
@@ -132,7 +136,8 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimator:
-            self.send_estimates()
+            if self.tempCount % 4 == 0:
+                self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimator:
@@ -141,7 +146,8 @@ class environment:
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             if self.ciEstimator:
-                sat.ciEstimator.CI(sat, self.comms.G.nodes[sat])
+                if self.tempCount % 4 == 0:
+                    sat.ciEstimator.CI(sat, self.comms.G.nodes[sat])
             if self.etEstimator:
                 sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])
 
@@ -1630,3 +1636,5 @@ class environment:
                     }
 
         return data
+    
+
