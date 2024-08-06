@@ -272,11 +272,11 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 10*4 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "10minTest"
+    fileName = "CI_10mins"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, savePlot = True, saveName = fileName)
+    env.simulate(time_vec, savePlot = True, showSim=True, showComms = True, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)

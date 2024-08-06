@@ -65,7 +65,7 @@ class environment:
         self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
 
 
-    def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
+    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, showComms = False, saveName=None):
         """
         Simulate the environment over a time range.
         
@@ -103,6 +103,10 @@ class environment:
         if savePlot:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
+
+        if showComms:
+            # Plot the comm results
+            self.plot_global_comms(saveName=saveName)
            
         if saveGif:
             # Save the uncertainty ellipse plots
@@ -111,9 +115,6 @@ class environment:
         # Log the Data
         if saveData:
             self.log_data(time_vec, saveName=saveName)
-
-        # TODO:
-        # USE self.comms.comm_data[reciever][sender][time] to make comm plots
 
         return self.collectNISNEESData()  # Return the data collected during the simulation
     
@@ -343,6 +344,7 @@ class environment:
             # do a standard scatter plot for the target
             self.ax.scatter(x, y, z, s=40, color=targ.color, label=targ.name)
 
+
     def plotEarth(self):
         """
         Plot the Earth's surface.
@@ -351,7 +353,6 @@ class environment:
         # ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
         # self.ax.plot_surface(self.x_earth*0.9, self.y_earth*0.9, self.z_earth*0.9, color = 'white', alpha=1) 
     
-
 
     def plotCommunication(self):
         """
@@ -628,7 +629,6 @@ class environment:
                             self.plot_messages(savePlot, saveName)
 
 
-
     def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, label_color, linewidth, c=False, e=False):
         """
         Plot all data.
@@ -690,6 +690,7 @@ class environment:
                     ax[i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     ax[i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
+
     def plot_innovations(self, ax, times, innovationHist, innovationCovHist, label_color, linewidth):
         """
         Plot the innovation in bearings angles.
@@ -715,6 +716,7 @@ class environment:
                     ax[6 + i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     ax[6 + i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
+
     def plot_track_quality(self, ax, times, trackErrorHist, label_color, linewidth):
         """
         Plot the track quality.
@@ -732,6 +734,7 @@ class environment:
             for segment in segments:
                 track_quality = [trackErrorHist[time] for time in segment]
                 ax[8].plot(segment, track_quality, color=label_color, linewidth=linewidth)
+
 
     def segment_data(self, times, max_gap = 30):
         """
@@ -768,6 +771,7 @@ class environment:
         segments.append(current_segment)
         
         return segments
+
 
     def setup_axes(self, fig, state_labels, meas_labels):
         """
@@ -813,6 +817,7 @@ class environment:
         
         return axes
 
+
     def save_plot(self, fig, savePlot, saveName, targ, sat, suffix):
         """
         Save each plot into the "plots" folder with the given suffix.
@@ -834,6 +839,118 @@ class environment:
             else:
                 plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
         plt.close()
+
+
+### Plot communications sent/recieved  
+    def plot_global_comms(self, saveName):
+
+        # Create a figure
+        fig = plt.figure(figsize=(15, 8))
+        fig.suptitle(f"Data Sent and Received by Satellite", fontsize=14) 
+        ax = fig.add_subplot(111)
+
+        # Get the names of satellites:
+        satNames = [sat.name for sat in self.sats]
+
+        # Save previous data, to stack the bars
+        # prev_data = np.zeros(len(satNames))
+        # make prev_data a dictionary
+        prev_data = {sat: 0 for sat in satNames}
+
+        # Loop through all targets, in order listed in the environment
+        # for target_id in self.comms.comm_data:
+        count = 0
+        for targ in self.targs:
+
+            sent_data = defaultdict(dict)
+            rec_data = defaultdict(dict)
+
+            # Get the color for the target:
+            color = targ.color
+
+            # Get the target id
+            target_id = targ.targetID
+
+            # Now check, does that target have any communication data
+            if target_id not in self.comms.comm_data:
+                continue
+
+            count += 1
+
+            for reciever in self.comms.comm_data[target_id]:
+
+                for sender in self.comms.comm_data[target_id][reciever]:
+                    if sender == reciever:
+                        continue
+
+                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+
+                    for time in self.comms.comm_data[target_id][reciever][sender]:
+
+                        # Get the data
+                        data = self.comms.comm_data[target_id][reciever][sender][time]
+
+                        # Count the amount of data receiver by the receiver
+                        if reciever not in rec_data:
+                            rec_data[reciever] = 0
+                        rec_data[reciever] += data
+
+                        # Count the amount of data sent by the sender
+                        if sender not in sent_data:
+                            sent_data[sender] = 0
+                        sent_data[sender] += data
+
+            # Order the data the same way, according to "sats" variable
+            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+
+            # Now plot the data, will make a bar graph with colors of the target
+
+            # If there are keys that dont exist in sent_data, make them and their value 0
+            for key in prev_data.keys():
+                if key not in sent_data:
+                    sent_data[key] = 0
+                if key not in rec_data:
+                    rec_data[key] = 0
+
+            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+
+            # Add text labels for rec_data
+            for i, v in enumerate(list(sent_data.values())):
+                ax.text(i, list(prev_data.values())[i] + v / 2, targ.name, ha='center', va='center', color='black')
+
+            # Add the sent_data values to the prev_data
+            for key in sent_data.keys():
+                prev_data[key] += sent_data[key]
+
+            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+            
+            # Add the rec_data values to the prev_data
+            for key in rec_data.keys():
+                prev_data[key] += rec_data[key]
+
+            if count == 1:
+                # Add legend
+                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+
+        # Add the labels
+        ax.set_ylabel('Data (# of numbers)')
+
+        # Add the x-axis labels
+        ax.set_xticks(np.arange(len(satNames)))
+        ax.set_xticklabels(satNames)
+
+        # Now save the plot
+        if saveName is not None:
+            filePath = os.path.dirname(os.path.realpath(__file__))
+            plotPath = os.path.join(filePath, 'plots')
+            os.makedirs(plotPath, exist_ok=True)
+            plt.savefig(os.path.join(plotPath, f"{saveName}_global_comms.png"), dpi=300)
+        else:
+            filePath = os.path.dirname(os.path.realpath(__file__))
+            plotPath = os.path.join(filePath, 'plots')
+            plt.savefig(os.path.join(plotPath, f"global_comms.png"), dpi=300)
+
 
 
 ### Plot all messages
