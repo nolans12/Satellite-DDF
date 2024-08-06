@@ -271,7 +271,7 @@ if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
     time_vec = np.linspace(36, 51, 15 + 1) * u.minute
-    fileName = "example2"
+    fileName = "example5"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):

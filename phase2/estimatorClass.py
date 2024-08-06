@@ -317,7 +317,7 @@ class centralEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
+        self.R_factor = 100  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
@@ -346,7 +346,7 @@ class indeptEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
-        self.R_factor = 1
+        self.R_factor = 100
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
 
     def EKF(self, sats, measurements, target, envTime):
@@ -375,7 +375,7 @@ class ddfEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
             
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
+        self.R_factor = 100  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
@@ -507,8 +507,11 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0.1
-        self.delta_beta = 0.1
+        self.delta_alpha = 0.05
+        self.delta_beta = 0.05
+        
+        # R Factor
+        self.R_factor = 100
 
         # Define history vectors for each extended Kalman filter
         self.estHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
@@ -701,6 +704,11 @@ class etEstimator(BaseEstimator):
 
         # Calculate time difference since last estimate
         dt = envTime - time_prior
+        
+        if dt == 0:
+            self.estHist[targetID][sat][sender][envTime] = est_prior
+            self.covarianceHist[targetID][sat][sender][envTime] = P_prior
+            return
 
         # Predict next state using state transition function
         est_pred = super().state_transition(est_prior, dt)
@@ -755,7 +763,7 @@ class etEstimator(BaseEstimator):
         H = H[scalarIdx, :] # use relevant row
         H = np.reshape(H, (1,6))
         
-        R = sender.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
+        R = sender.sensor.bearingsError[scalarIdx]**2 * self.R_factor # Sensor noise matrix scaled by 1000x
                     
         # Compute innovation             
         innovation = z - z_pred
@@ -830,7 +838,7 @@ class etEstimator(BaseEstimator):
         H = np.reshape(H, (1,6))
                 
         # Compute Sensor Noise Matrix
-        R = sender.sensor.bearingsError[scalarIdx]**2 * 1000 # Sensor noise matrix scaled by 1000x
+        R = sender.sensor.bearingsError[scalarIdx]**2 * self.R_factor # Sensor noise matrix scaled by 1000x
                 
         # Define innovation covariance
         Qe = H @ local_P_pred @ H.T + R         
@@ -844,14 +852,15 @@ class etEstimator(BaseEstimator):
         phi2 = norm.pdf(vplus)
         
         # Cumulative Density Function
-        Q1 = norm.cdf(vminus)
-        Q2 = norm.cdf(vplus)
+        Q1 = 1 - norm.cdf(vminus)
+        Q2 = 1 - norm.cdf(vplus)
         
         # Compute Expected Value of Measurement
         zbar = (phi1 - phi2)/(Q1 - Q2) * np.sqrt(Qe)
                                         
         # Compute Expected Variance of Implicit Measurement
         nu = ((phi1 - phi2)/(Q1 - Q2))**2 - (vminus * phi1 - vplus * phi2) / (Q1 - Q2)
+        print("Satellite: ", sat.name, "Nu: ", nu)  
                 
         # Compute Kalman Gain
         K = np.reshape(local_cov_curr @ H.T * (H @ local_cov_curr @ H.T + R)**-1, (6,1))
@@ -898,22 +907,24 @@ class etEstimator(BaseEstimator):
         if not self.estHist[targetID][sat][neighbor]:
             return alpha, beta
         
-        # Get most recent common estimate
-        satTime = max(self.estHist[targetID][sat][neighbor].keys())
-        est = sat.etEstimator.estHist[targetID][sat][neighbor][satTime] # reference state
+        # Predict the common estimate to the current time a measurement was taken
+        self.pred_EKF(sat, neighbor, targetID, time)
+        
+        # Get the most recent estimate and covariance
+        pred_est = self.estHist[targetID][sat][neighbor][time]
         
         # Predict the Measurement that the neighbor would think I make
-        meas = sat.sensor.convert_to_bearings(sat, np.array([est[0], est[2], est[4]]))
+        pred_alpha, pred_beta = sat.sensor.convert_to_bearings(sat, np.array([pred_est[0], pred_est[2], pred_est[4]]))
         
         # Is my measurment surprising based on the prediction?
         send_alpha = np.nan
         send_beta = np.nan
         
         # If the difference between the measurement and the prediction is greater than delta, send the measurement
-        if np.abs(alpha - meas[0]) > self.delta_alpha:
+        if np.abs(alpha - pred_alpha) > self.delta_alpha:
             send_alpha = alpha
             
-        if np.abs(beta - meas[1]) > self.delta_beta:
+        if np.abs(beta - pred_beta) > self.delta_beta:
             send_beta = beta
         
         return send_alpha, send_beta

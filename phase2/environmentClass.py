@@ -886,8 +886,9 @@ class environment:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
                     for k in range(5):
-                        if k != 4:
-                            continue
+                        if k!=4:
+                            continue 
+                        
                         if k == 0:  # Plot Local Uncertainty Ellipsoid
                             fig = plt.figure(figsize=(10, 8))
                             ax = fig.add_subplot(111, projection='3d')
@@ -1029,6 +1030,7 @@ class environment:
                                             self.imgs_stereo_GE[targ.targetID][sat].append(img)
                                             ax.cla()  # Clear the plot for the next iteration
                                         plt.close(fig)
+                        
                         if k == 4: # plot stereo with et
                             for sat2 in self.sats:
                                 if sat2 != sat:
