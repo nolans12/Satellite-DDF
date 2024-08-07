@@ -90,9 +90,6 @@ class satellite:
         collectedFlag = 0
         if target.targetID in self.targetIDs:
         # Is the current target one of the ones to track?
-            if target.targetID in self.etEstimator.estHist[target.targetID][self][self]:
-                self.etEstimator.local_et_filter_prediction(self, target, self.time)
-                
             # If so, get the measurement
             measurement = self.sensor.get_measurement(self, target)
             # Make sure its not just a default 0, means target isnt visible
@@ -105,6 +102,16 @@ class satellite:
 
                 # Update the local filters
                 self.update_local_filters(measurement, target, self.time)
+                
+                # If this is first measurement initialize ET filter for this target
+                if not self.etEstimator.estHist[target.targetID][self][self]:
+                    self.etEstimator.initialize_filter(self, target, self.time, sharewith=self)
+                    return
+            
+            if self.etEstimator.estHist[target.targetID][self][self]:
+                # Update the ET filters
+                self.update_et_filters(target, self.time)
+                    
                 
         return collectedFlag
 
@@ -126,14 +133,19 @@ class satellite:
         if self.ddfEstimator:
             self.ddfEstimator.EKF([self], [measurement], target, time)
             
-        # If a ET estimator is present, update the ET filters using a local EKF
-        if self.etEstimator:
-            if not self.etEstimator.estHist[target.targetID][self][self]:
-                self.etEstimator.initialize_filter(self, target, time, sharewith=self)
-            
-            else:
-                self.etEstimator.local_et_filter_prediction(self, target, time)
-                self.etEstimator.local_et_filter_update(self, measurement, target, time)
-                
+    def update_et_filters(self, target, time):
+        """Update the ET filters for the satellite.
+
+        The satellite will update its ET filters using the measurement provided.
+        This will call the ET functions to update the state and covariance estimates based on the measurement.
+
+        Args:
+            target (object): Target object containing targetID and other relevant information.
+            time (float): Current time at which the measurement is taken.
+        """
+        # Update the ET filters using the ET estimator
+        self.etEstimator.local_et_filter_prediction(self, target, time)
+        self.etEstimator.local_et_filter_meas_update(self, target, time)
+           
     def update_et_estimator(self, etEstimator):
         self.etEstimator = etEstimator

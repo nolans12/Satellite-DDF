@@ -169,19 +169,15 @@ class environment:
         self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        self.send_information() # TODO: Send estimates should have a twin function for send ET-Measurements
+        self.send_information(self.targs) # TODO: Send estimates should have a twin function for send ET-Measurements
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
-            
-        for target in self.targs:
-            for sat in self.sats:
-                if target.targetID in sat.targetIDs:
-                    sat.etEstimator.event_triggered_fusion(sat, target, self.time.to_value(), self.comms.G.nodes[sat])    
+            sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])    
 
 
-    def send_information(self):
+    def send_information(self, targs):
         """
         Send the most recent estimates from each satellite to its neighbors.
         """
@@ -208,31 +204,28 @@ class environment:
                         satTime
                     )
             # For each targetID in satellites measurement history        
-            for targetID in sat.measurementHist.keys():
-                # Skip if there are no measurements for this targetID
-                if len(sat.measurementHist[targetID][self.time.value]) == 0:
-                    continue
-                
-                # This means satellite has a measurement for this target, now send it to neighbors
-                for neighbor in self.comms.G.neighbors(sat):
-                    # Get the most recent measurement time
-                    satTime = max(sat.measurementHist[targetID].keys())
-                    
-                    # Create implicit and explicit measurements vector for this neighbor
-                    meas = sat.etEstimator.event_trigger(sat, neighbor, targetID, satTime)
-                    
-                    # Store the measurement I am sending to neighbor
-                    sat.etEstimator.measHist[targetID][sat][neighbor][satTime] = meas
-                    
-                    # Send that to neightbor
-                    self.comms.send_measurements(
-                        sat, 
-                        neighbor, 
-                        meas, 
-                        targetID, 
-                        satTime
-                    )
+            for target in targs:
+                if target.targetID in sat.measurementHist.keys():
+                    for neighbor in self.comms.G.neighbors(sat):
+                        if len(sat.measurementHist[target.targetID].keys()) > 0: # TODO: Check if this is the right condition, index with time
+                            satTime = max(sat.measurementHist[target.targetID].keys())
                             
+                            self.comms.send_measurements(
+                                sat, 
+                                neighbor, 
+                                sat.measurementHist[target.targetID][satTime], 
+                                target.targetID, 
+                                satTime
+                            )
+                            if not sat.etEstimator.estHist[target.targetID][sat][neighbor]:
+                                sat.etEstimator.initialize_filter(sat, target, satTime, sharewith=neighbor)
+                                
+                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
+                                neighbor.etEstimator.initialize_filter(neighbor, target, satTime, sharewith=neighbor)
+                            
+                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
+                                neighbor.etEstimator.initialize_filter(neighbor, target, satTime, sharewith=sat)
+    
 
     def propagate(self, time_step):
         """
@@ -828,55 +821,58 @@ class environment:
     
         # Plot the in-track and cross-track measurements
         for sat in self.sats:
-            for neighbor in self.comms.G.neighbors(sat):
-                for targetID in sat.etEstimator.measHist.keys():
-                    fig = plt.figure(figsize=(15, 8))
-                    gs = gridspec.GridSpec(2, 1)
-                    ax1 = fig.add_subplot(gs[0, 0])
-                    ax2 = fig.add_subplot(gs[1, 0])
-                    for time in sat.etEstimator.measHist[targetID][sat][neighbor].keys():
-                        if len(sat.etEstimator.measHist[targetID][sat][neighbor][time]) != 0:
-                            alpha, beta = sat.etEstimator.measHist[targetID][sat][neighbor][time]
-                            if not np.isnan(alpha):
-                                ax1.scatter(time, 1, color='r')
-                            else:
-                                ax1.scatter(time, 0, color='b')
-                            
-                            if not np.isnan(beta):
-                                ax2.scatter(time, 1, color='r')
-                            else:
-                                ax2.scatter(time, 0, color='b')
-                            
-                fig.suptitle(f"Satellite Msgs from {sat.name} to {neighbor.name}", fontsize=14)
-
-                # Label the plots
-                ax1.set_xlabel("Time [min]")
-                ax1.set_ylabel("In-Track Measurement")
-                
-                ax2.set_xlabel("Time [min]")
-                ax2.set_ylabel("Cross-Track Measurement")
-                
-                # Create a patch for the legend
-                handles = [
-                    Patch(color='r', label=f'{sat.name} Explicit Measurements'),
-                    Patch(color='b', label=f'{sat.name} Implicit Measurements'),
-                ]
+            commNode = self.comms.G.nodes[sat]
+            times = commNode['sent_measurements'].keys()
+            fig = plt.figure(figsize=(15, 8))
+            gs = gridspec.GridSpec(2, 1)
+            ax1 = fig.add_subplot(gs[0, 0])
+            ax2 = fig.add_subplot(gs[1, 0])
+            for time in times:
+                for targetID in commNode['sent_measurements'][time].keys():
+                    for i in range(len(commNode['sent_measurements'][time])): # number of messages on this target?
+                        receiver = commNode['sent_measurements'][time][targetID]['receiver'][i]
+                        alpha, beta = commNode['sent_measurements'][time][targetID]['meas'][i]
+                    
+                        if not np.isnan(alpha):
+                            ax1.scatter(time, 1, color='r')
+                        else:
+                            ax1.scatter(time, 0, color='b')
                         
-                        # Create a legend   
-                fig.legend(handles=handles, loc='lower right', bbox_to_anchor=(1, 0))
-                plt.tight_layout()
-                
-                # Save the plot
-                if savePlot:
-                    filePath = os.path.dirname(os.path.realpath(__file__))
-                    plotPath = os.path.join(filePath, 'plots')
-                    os.makedirs(plotPath, exist_ok=True)
-                    if saveName is None:
-                        plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
-                    else:
-                        plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{neighbor.name}_et_msg.png"), dpi=300)
-                
-    
+                        if not np.isnan(beta):
+                            ax2.scatter(time, 1, color='r')
+                        else:
+                            ax2.scatter(time, 0, color='b')
+                                
+            fig.suptitle(f"Satellite Msgs from {sat.name} to {receiver.name}", fontsize=14)
+
+            # Label the plots
+            ax1.set_xlabel("Time [min]")
+            ax1.set_ylabel("In-Track Measurement")
+            
+            ax2.set_xlabel("Time [min]")
+            ax2.set_ylabel("Cross-Track Measurement")
+            
+            # Create a patch for the legend
+            handles = [
+                Patch(color='r', label=f'{sat.name} Explicit Measurements'),
+                Patch(color='b', label=f'{sat.name} Implicit Measurements'),
+            ]
+                    
+                    # Create a legend   
+            fig.legend(handles=handles, loc='lower right', bbox_to_anchor=(1, 0))
+            plt.tight_layout()
+            
+            # Save the plot
+            if savePlot:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                if saveName is None:
+                    plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{receiver.name}_et_msg.png"), dpi=300)
+                else:
+                    plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{receiver.name}_et_msg.png"), dpi=300)
+                    
+        
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self):
         """
@@ -1400,9 +1396,10 @@ class environment:
                     et_trackError_times = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat].keys()
                     et_trackError = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
                     
-                    for neighbor in self.comms.G.neighbors(sat):
-                        if neighbor != sat:
-                            et_measHist = sat.etEstimator.measHist[targ.targetID][sat][neighbor]
+                    # for neighbor in self.comms.G.neighbors(sat):
+                    #     if neighbor != sat:
+                    #         et_measHist = self.comms.G.neighbors(sat).
+                    #        sat.etEstimator.measHist[targ.targetID][sat][neighbor]
                   #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]                  
                     
 
@@ -1415,8 +1412,7 @@ class environment:
                         sat_measHistTimes, sat_measHist, estTimes, estHist, covHist,
                         trackError, innovationHist, innovationCovHist, ddf_times,
                         ddf_estHist, ddf_covHist, ddf_trackError, ddf_innovation_times,
-                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist,
-                        et_measHist, et_trackError, et_trackError_times
+                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError, et_trackError_times
                     )
 
 
@@ -1425,7 +1421,7 @@ class environment:
         sat_measHist, estTimes, estHist, covHist, trackError, innovationHist,
         innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackError,
         ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
-        et_estHist, et_covHist, et_measHist, et_trackError, et_trackError_times
+        et_estHist, et_covHist, et_trackError, et_trackError_times
     ):
         """
         Formats and writes data to a CSV file.
@@ -1517,7 +1513,7 @@ class environment:
                 if time in et_times:
                     row += format_list(et_estHist[time])
                     row += format_list(np.diag(et_covHist[time]))
-                    row += format_list(et_measHist[time])
+                    #row += format_list(et_measHist[time])
                     
                 if time in et_trackError_times:
                     row += format_list(et_trackError[time])
