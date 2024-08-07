@@ -657,7 +657,7 @@ class etEstimator(BaseEstimator):
         '''
         targetID = target.targetID
         
-        if len(sat.measurementHist[targetID]) == 0:
+        if len(sat.measurementHist[targetID][envTime]) == 0:
             return
         
         alpha, beta = sat.measurementHist[targetID][envTime]

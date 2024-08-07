@@ -162,6 +162,8 @@ class environment:
         """
         Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
         """
+        envTime = self.time.to_value()
+        
         # Collect all measurements
         collectedFlag, measurements = self.collect_all_measurements()
 
@@ -169,15 +171,15 @@ class environment:
         self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        self.send_information(self.targs) # TODO: Send estimates should have a twin function for send ET-Measurements
+        self.send_information(self.targs, envTime) # TODO: Send estimates should have a twin function for send ET-Measurements
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
-            sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])    
+            sat.etEstimator.event_triggered_fusion(sat, envTime, self.comms.G.nodes[sat])    
 
 
-    def send_information(self, targs):
+    def send_information(self, targs, envTime):
         """
         Send the most recent estimates from each satellite to its neighbors.
         """
@@ -206,25 +208,25 @@ class environment:
             # For each targetID in satellites measurement history        
             for target in targs:
                 if target.targetID in sat.measurementHist.keys():
-                    for neighbor in self.comms.G.neighbors(sat):
-                        if len(sat.measurementHist[target.targetID].keys()) > 0: # TODO: Check if this is the right condition, index with time
-                            satTime = max(sat.measurementHist[target.targetID].keys())
+                    if len(sat.measurementHist[target.targetID][envTime]) > 0:
+                        for neighbor in self.comms.G.neighbors(sat):
                             
+                            meas = sat.etEstimator.event_trigger(sat, neighbor, target.targetID, envTime)
                             self.comms.send_measurements(
                                 sat, 
                                 neighbor, 
-                                sat.measurementHist[target.targetID][satTime], 
+                                meas, 
                                 target.targetID, 
                                 satTime
                             )
                             if not sat.etEstimator.estHist[target.targetID][sat][neighbor]:
-                                sat.etEstimator.initialize_filter(sat, target, satTime, sharewith=neighbor)
+                                sat.etEstimator.initialize_filter(sat, target, envTime, sharewith=neighbor)
                                 
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
-                                neighbor.etEstimator.initialize_filter(neighbor, target, satTime, sharewith=neighbor)
+                                neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=neighbor)
                             
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
-                                neighbor.etEstimator.initialize_filter(neighbor, target, satTime, sharewith=sat)
+                                neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=sat)
     
 
     def propagate(self, time_step):
@@ -818,21 +820,22 @@ class environment:
             savePlot (bool): Flag indicating whether to save the plot.
             saveName (str): Name for the saved plot file.
         """
-    
-        # Plot the in-track and cross-track measurements
+        
         for sat in self.sats:
+            # Get the Communication Node
             commNode = self.comms.G.nodes[sat]
-            times = commNode['sent_measurements'].keys()
+            times = list(commNode['received_measurements'].keys())
+            targetIDs = list(commNode['received_measurements'][times[0]].keys())
+            sender = commNode['received_measurements'][times[0]][targetIDs[0]]['sender'][0]
             fig = plt.figure(figsize=(15, 8))
             gs = gridspec.GridSpec(2, 1)
             ax1 = fig.add_subplot(gs[0, 0])
             ax2 = fig.add_subplot(gs[1, 0])
+            
             for time in times:
-                for targetID in commNode['sent_measurements'][time].keys():
-                    for i in range(len(commNode['sent_measurements'][time])): # number of messages on this target?
-                        receiver = commNode['sent_measurements'][time][targetID]['receiver'][i]
-                        alpha, beta = commNode['sent_measurements'][time][targetID]['meas'][i]
-                    
+                for targetID in targetIDs:
+                    for i in range(len(commNode['received_measurements'][time][targetID]['meas'])):
+                        alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
                         if not np.isnan(alpha):
                             ax1.scatter(time, 1, color='r')
                         else:
@@ -842,8 +845,8 @@ class environment:
                             ax2.scatter(time, 1, color='r')
                         else:
                             ax2.scatter(time, 0, color='b')
-                                
-            fig.suptitle(f"Satellite Msgs from {sat.name} to {receiver.name}", fontsize=14)
+            
+            fig.suptitle(f"Satellite Msgs from {sender.name} to {sat.name}", fontsize=14)
 
             # Label the plots
             ax1.set_xlabel("Time [min]")
@@ -868,10 +871,10 @@ class environment:
                 plotPath = os.path.join(filePath, 'plots')
                 os.makedirs(plotPath, exist_ok=True)
                 if saveName is None:
-                    plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{receiver.name}_et_msg.png"), dpi=300)
+                    plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{sender.name}_et_msg.png"), dpi=300)
                 else:
-                    plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{receiver.name}_et_msg.png"), dpi=300)
-                    
+                    plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{sender.name}_et_msg.png"), dpi=300)
+            plt.close()            
         
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self):
