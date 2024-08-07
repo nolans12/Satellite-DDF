@@ -90,6 +90,9 @@ class satellite:
         collectedFlag = 0
         if target.targetID in self.targetIDs:
         # Is the current target one of the ones to track?
+            if target.targetID in self.etEstimator.estHist[target.targetID][self][self]:
+                self.etEstimator.local_et_filter_prediction(self, target, self.time)
+                
             # If so, get the measurement
             measurement = self.sensor.get_measurement(self, target)
             # Make sure its not just a default 0, means target isnt visible
@@ -123,5 +126,14 @@ class satellite:
         if self.ddfEstimator:
             self.ddfEstimator.EKF([self], [measurement], target, time)
             
+        # If a ET estimator is present, update the ET filters using a local EKF
+        if self.etEstimator:
+            if not self.etEstimator.estHist[target.targetID][self][self]:
+                self.etEstimator.initialize_filter(self, target, time, sharewith=self)
+            
+            else:
+                self.etEstimator.local_et_filter_prediction(self, target, time)
+                self.etEstimator.local_et_filter_update(self, measurement, target, time)
+                
     def update_et_estimator(self, etEstimator):
         self.etEstimator = etEstimator

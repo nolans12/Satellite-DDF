@@ -22,7 +22,7 @@ class comms:
 
         # Add nodes with a dict for queued data (list of arrays)
         for sat in sats:
-            self.G.add_node(sat, queued_data={}, measurement_data={})
+            self.G.add_node(sat, queued_data={}, received_measurements={}, sent_measurements={})
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -90,16 +90,26 @@ class comms:
                 return
             
             # Initialize the time key in the receiver's measurement data if not present
-            if time not in self.G.nodes[receiver]['measurement_data']:
-                self.G.nodes[receiver]['measurement_data'][time] = {}
+            if time not in self.G.nodes[receiver]['received_measurements']:
+                self.G.nodes[receiver]['received_measurements'][time] = {}
             
             # Initialize the target_id key in the measurement data if not present
-            if target_id not in self.G.nodes[receiver]['measurement_data'][time]:
-                self.G.nodes[receiver]['measurement_data'][time][target_id] = {'meas': [], 'sender': []}
+            if target_id not in self.G.nodes[receiver]['received_measurements'][time]:
+                self.G.nodes[receiver]['received_measurements'][time][target_id] = {'meas': [], 'sender': []}
 
             # Add the measurement vector to the receiver's measurement data at the specified target_id and time
-            self.G.nodes[receiver]['measurement_data'][time][target_id]['meas'].append(meas_vector)
-            self.G.nodes[receiver]['measurement_data'][time][target_id]['sender'].append(sender)
+            self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(meas_vector)
+            self.G.nodes[receiver]['received_measurements'][time][target_id]['sender'].append(sender)
+            
+            # Add the measurement vector to the senders sent measurements at the specified target_id and time
+            if time not in self.G.nodes[sender]['sent_measurements']:
+                self.G.nodes[sender]['sent_measurements'][time] = {}
+            
+            if target_id not in self.G.nodes[sender]['sent_measurements'][time]:
+                self.G.nodes[sender]['sent_measurements'][time][target_id] = {'meas': [], 'receiver': []}
+                
+            self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
+            self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
 
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.

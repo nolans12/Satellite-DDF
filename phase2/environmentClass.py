@@ -174,7 +174,11 @@ class environment:
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             sat.ddfEstimator.CI(sat, self.comms.G.nodes[sat])
-            sat.etEstimator.event_triggered_fusion(sat, self.time.to_value() ,self.comms.G.nodes[sat])
+            
+        for target in self.targs:
+            for sat in self.sats:
+                if target.targetID in sat.targetIDs:
+                    sat.etEstimator.event_triggered_fusion(sat, target, self.time.to_value(), self.comms.G.nodes[sat])    
 
 
     def send_information(self):
