@@ -24,25 +24,8 @@ class comms:
             self.G.add_node(sat, queued_data={}, measurement_data={})
             
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        # Format wil be [reciever][sender][targetID][time] = number of data points
-        # self.comm_data = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-
-
-        class NestedDict(dict):
-            def __missing__(self, key):
-                value = self[key] = NestedDict()
-                return value
-
-            def __call__(self):
-                return 0
-
-        self.comm_data = NestedDict()
-
-        # # Define a function to create a defaultdict
-        # def create_defaultdict():
-        #     return defaultdict(create_defaultdict)
-        
-        # self.comm_data = defaultdict(create_defaultdict)
+        self.total_comm_data = NestedDict()
+        self.used_comm_data = NestedDict()
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -87,8 +70,7 @@ class comms:
         self.G.nodes[receiver]['queued_data'][time][target_id]['cov'].append(cov_meas)
         self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
 
-        # Now update the comm_data dictionary, to keep track of the amount of data sent/recieved between satellites
-        self.comm_data[target_id][receiver.name][sender.name][time] = est_meas.size + cov_meas.size
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size + cov_meas.size
 
 
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
@@ -125,8 +107,7 @@ class comms:
         self.G.nodes[receiver]['measurement_data'][time][target_id]['meas'].append(meas_vector)
         self.G.nodes[receiver]['measurement_data'][time][target_id]['sender'].append(sender)
 
-        # Now update the comm_data dictionary, to keep track of the amount of data sent/recieved between satellites
-        self.comm_data[target_id][receiver][sender][time] = meas_vector.size
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size
 
 
     def make_edges(self, sats):

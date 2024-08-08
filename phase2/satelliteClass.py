@@ -93,9 +93,6 @@ class satellite:
             # If so, get the measurement
             measurement = self.sensor.get_measurement(self, target)
 
-            # print the measurement and the satellite that took the measuremnet:
-            print("Satellite: ", self.name)
-            print("Measurement: ", measurement)
             # Make sure its not just a default 0, means target isnt visible
             if not isinstance(measurement, int):
             # If target is visible, save relavent data

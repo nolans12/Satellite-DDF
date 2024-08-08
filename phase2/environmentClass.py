@@ -19,6 +19,10 @@ class environment:
         
         # Define the communication network
         self.comms = comms
+
+        # Define variables to track the comms
+        self.comms.total_comm_data = NestedDict()
+        self.used_comm_data = NestedDict()
         
         # Initialize time parameter to 0
         self.time = 0
@@ -88,8 +92,6 @@ class environment:
         for t_net in time_vec:
             t_d = t_net - self.time  # Get delta time to propagate, works because propagate func increases time after first itr
             
-            self.tempCount += 1
-            
             # Propagate the satellites and environments position
             self.propagate(t_d)
 
@@ -111,6 +113,7 @@ class environment:
         if saveComms:
             # Plot the comm results
             self.plot_global_comms(saveName=saveName)
+            self.plot_used_comms(saveName=saveName)
            
         if saveGif:
             # Save the uncertainty ellipse plots
@@ -136,19 +139,16 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimator:
-            if self.tempCount % 4 == 0:
-                self.send_estimates()
+            self.send_estimates()
 
         # Now send measurements for future ET
-        # TODO: could this just be in the et estimator class?
         if self.etEstimator:
             self.send_measurements()
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
             if self.ciEstimator:
-                if self.tempCount % 4 == 0:
-                    sat.ciEstimator.CI(sat, self.comms.G.nodes[sat])
+                sat.ciEstimator.CI(sat, self.comms)
             if self.etEstimator:
                 sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])
 
@@ -170,12 +170,15 @@ class environment:
                     # Get the most recent estimate time
                     satTime = max(sat.ciEstimator.estHist[targetID].keys())
 
+                    est = sat.ciEstimator.estHist[targetID][satTime]
+                    cov = sat.ciEstimator.covarianceHist[targetID][satTime]
+
                     # Send most recent estimate to neighbor
                     self.comms.send_estimate(
                         sat, 
                         neighbor, 
-                        sat.ciEstimator.estHist[targetID][satTime], 
-                        sat.ciEstimator.covarianceHist[targetID][satTime], 
+                        est,
+                        cov,
                         targetID, 
                         satTime
                     )
@@ -442,10 +445,13 @@ class environment:
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
+                            innovation_times = [time for time in time_vec.value if time in innovationHist]
+                            nisnees_times = [time for time in time_vec.value if time in NISHist]
+                            trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                             
                             # Plot the 3x3 Grid of Data
-                            self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, 
+                            self.plot_estimator_data(fig, axes, times, innovation_times, nisnees_times, trackError_times, estHist, trueHist, covHist, 
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targ.tqReq, 
                                                     satColor, linewidth=2.5)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
@@ -458,11 +464,12 @@ class environment:
                                 
                                 # Get the valid times for data
                                 times = [time for time in time_vec.value if time in estHist]
+                                trackError_times = [time for time in time_vec.value if time in trackErrorHist] 
                                 
                                 # Plot the 3x3 Grid of Data
-                                self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
+                                self.plot_estimator_data(fig, axes, times, [], [], trackError_times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, targ.tqReq, '#228B22', linewidth=1.5, c=True)
 
                             # Create a Patch for Legend
                             handles = [
@@ -490,7 +497,7 @@ class environment:
                             self.plot_estimator_data(fig, axes, ddf_times, ddf_innovation_times, ddf_NISNEES_times, 
                                                     ddf_trackError_times, ddf_estHist, trueHist, ddf_covHist, 
                                                     ddf_innovationHist, ddf_innovationCovHist, ddf_NISHist, ddf_NEESHist, 
-                                                    ddf_trackErrorHist, '#DC143C', linewidth=2.5)
+                                                    ddf_trackErrorHist, targ.tqReq, '#DC143C', linewidth=2.5)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the Data
@@ -502,11 +509,12 @@ class environment:
                                 
                                 # Get the valid times for data
                                 times = [time for time in time_vec.value if time in estHist]
+                                trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                                 
                                 # Plot the 3x3 Grid of Data
-                                self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
+                                self.plot_estimator_data(fig, axes, times, [], [], trackError_times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, targ.tqReq, '#228B22', linewidth=1.5, c=True)
                             
                             # Create Patch for Legend
                             handles = [
@@ -532,15 +540,19 @@ class environment:
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
+                            innovation_times = [time for time in time_vec.value if time in innovationHist]
+                            nisnees_times = [time for time in time_vec.value if time in NISHist]
+                            trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                             et_times = [time for time in time_vec.value if time in et_estHist]
+                            trackError_et_times = [time for time in time_vec.value if time in et_estHist]
                             
                             # Plot the 3x3 Grid of Data
-                            self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist,
+                            self.plot_estimator_data(fig, axes, times, innovation_times, nisnees_times, trackError_times, estHist, trueHist, covHist,
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targ.tqReq,
                                                     satColor, linewidth=3.5)
                             
-                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_times, et_estHist, trueHist, et_covHist,
-                                                    [], [], NISHist, NEESHist, trackErrorHist,
+                            self.plot_estimator_data(fig, axes, et_times, et_times, et_times, trackError_et_times, et_estHist, trueHist, et_covHist,
+                                                    [], [], NISHist, NEESHist, trackErrorHist, targ.tqReq,
                                                     '#DC143C', linewidth=2, e = True)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
@@ -553,11 +565,12 @@ class environment:
                                 
                                 # Get the valid times
                                 times = [time for time in time_vec.value if time in estHist]
+                                trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                                 
                                 # Plot the 3x3 Grid of Data
-                                self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
+                                self.plot_estimator_data(fig, axes, times, [], [], trackError_times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, targ.tqReq, '#228B22', linewidth=1.5, c=True)
 
                             # Create a patch for the legend
                             handles = [
@@ -587,19 +600,22 @@ class environment:
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
+                            innovation_times = [time for time in time_vec.value if time in innovationHist]
+                            nisnees_times = [time for time in time_vec.value if time in NISHist]
+                            trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                             ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                             ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
                             ddf_NISNEES_times = [time for time in time_vec.value if time in ddf_NISHist]
                             ddf_trackError_times = [time for time in time_vec.value if time in ddf_trackErrorHist]
                             
                             # Plot the 3x3 Grid of Data
-                            self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, 
+                            self.plot_estimator_data(fig, axes, times, innovation_times, nisnees_times, trackError_times, estHist, trueHist, covHist, 
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targ.tqReq,
                                                     satColor, linewidth=2.5)
                             self.plot_estimator_data(fig, axes, ddf_times, ddf_innovation_times, ddf_NISNEES_times, 
                                                     ddf_trackError_times, ddf_estHist, trueHist, ddf_covHist, 
                                                     ddf_innovationHist, ddf_innovationCovHist, ddf_NISHist, ddf_NEESHist, 
-                                                    ddf_trackErrorHist, '#DC143C', linewidth=2.0)
+                                                    ddf_trackErrorHist, targ.tqReq, '#DC143C', linewidth=2.0, ci=True)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -611,11 +627,12 @@ class environment:
                                 
                                 # Get the valid times
                                 times = [time for time in time_vec.value if time in estHist]
+                                trackError_times = [time for time in time_vec.value if time in trackErrorHist]
                                 
                                 # Plot the 3x3 Grid of Data
-                                self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
+                                self.plot_estimator_data(fig, axes, times, [], [], trackError_times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, targ.tqReq, '#228B22', linewidth=1.5, c=True)
 
                             # Create a patch for the legend
                             handles = [
@@ -636,7 +653,7 @@ class environment:
                             self.plot_messages(savePlot, saveName)
 
 
-    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, label_color, linewidth, c=False, e=False):
+    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targQuality, label_color, linewidth, c=False, ci=False, e=False):
         """
         Plot all data.
 
@@ -664,12 +681,12 @@ class environment:
             
         elif c and not e:  # Not central estimator so plot everything
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
-            self.plot_track_quality(axes, tqTimes, trackErrorHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackErrorHist, targQuality, label_color, linewidth)
         
         else:  # Central estimator doesn't have innovation data
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
             self.plot_innovations(axes, innTimes, innovationHist, innovationCovHist, label_color, linewidth)
-            self.plot_track_quality(axes, tqTimes, trackErrorHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackErrorHist, targQuality, label_color, linewidth, ci = ci)
 
             
     def plot_errors(self, ax, times, estHist, trueHist, covHist, label_color, linewidth):
@@ -724,7 +741,7 @@ class environment:
                     ax[6 + i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
 
-    def plot_track_quality(self, ax, times, trackErrorHist, label_color, linewidth):
+    def plot_track_quality(self, ax, times, trackErrorHist, targQuality, label_color, linewidth, ci=False):
         """
         Plot the track quality.
 
@@ -736,12 +753,25 @@ class environment:
             linewidth (float): Width of the plot lines.
         """
         if times:
+            nonEmptyTime = []
             segments = self.segment_data(times)
         
             for segment in segments:
-                track_quality = [trackErrorHist[time] for time in segment]
-                ax[8].plot(segment, track_quality, color=label_color, linewidth=linewidth)
+                # Figure out, does this segment have a real data point in every time step
+                new_time = []
+                for time in segment:
+                    if not not trackErrorHist[time]:
+                        new_time.append(time)
+                        nonEmptyTime.append(time)
 
+                track_quality = [trackErrorHist[time] for time in new_time]
+                ax[8].plot(new_time, track_quality, color=label_color, linewidth=linewidth)
+
+            if ci:
+                # Finally plot a dashed line for the targetPriority
+                ax[8].axhline(y=targQuality*50 + 50, color='k', linestyle='dashed', linewidth=1.5)
+                # Add a text label on the above right side of the dashed line
+                ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
     def segment_data(self, times, max_gap = 30):
         """
@@ -853,7 +883,7 @@ class environment:
 
         # Create a figure
         fig = plt.figure(figsize=(15, 8))
-        fig.suptitle(f"Data Sent and Received by Satellite", fontsize=14) 
+        fig.suptitle(f"TOTAL Data Sent and Received by Satellites", fontsize=14) 
         ax = fig.add_subplot(111)
 
         # Get the names of satellites:
@@ -865,7 +895,7 @@ class environment:
         prev_data = {sat: 0 for sat in satNames}
 
         # Loop through all targets, in order listed in the environment
-        # for target_id in self.comms.comm_data:
+        # for target_id in self.comms.total_comm_data:
         count = 0
         for targ in self.targs:
 
@@ -879,23 +909,23 @@ class environment:
             target_id = targ.targetID
 
             # Now check, does that target have any communication data
-            if target_id not in self.comms.comm_data:
+            if target_id not in self.comms.total_comm_data:
                 continue
 
             count += 1
 
-            for reciever in self.comms.comm_data[target_id]:
+            for reciever in self.comms.total_comm_data[target_id]:
 
-                for sender in self.comms.comm_data[target_id][reciever]:
+                for sender in self.comms.total_comm_data[target_id][reciever]:
                     if sender == reciever:
                         continue
 
                     # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
 
-                    for time in self.comms.comm_data[target_id][reciever][sender]:
+                    for time in self.comms.total_comm_data[target_id][reciever][sender]:
 
                         # Get the data
-                        data = self.comms.comm_data[target_id][reciever][sender][time]
+                        data = self.comms.total_comm_data[target_id][reciever][sender][time]
 
                         # Count the amount of data receiver by the receiver
                         if reciever not in rec_data:
@@ -907,12 +937,6 @@ class environment:
                             sent_data[sender] = 0
                         sent_data[sender] += data
 
-            # Order the data the same way, according to "sats" variable
-            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
-            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
-
-            # Now plot the data, will make a bar graph with colors of the target
-
             # If there are keys that dont exist in sent_data, make them and their value 0
             for key in prev_data.keys():
                 if key not in sent_data:
@@ -920,11 +944,15 @@ class environment:
                 if key not in rec_data:
                     rec_data[key] = 0
 
+            # Order the data the same way, according to "sats" variable
+            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+
             p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
 
-            # Add text labels for rec_data
+            # Add text labels to show which target is which.
             for i, v in enumerate(list(sent_data.values())):
-                ax.text(i, list(prev_data.values())[i] + v / 2, targ.name, ha='center', va='center', color='black')
+                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
 
             # Add the sent_data values to the prev_data
             for key in sent_data.keys():
@@ -941,7 +969,7 @@ class environment:
                 ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
 
         # Add the labels
-        ax.set_ylabel('Data (# of numbers)')
+        ax.set_ylabel('Total Data Sent/Recieved (# of numbers)')
 
         # Add the x-axis labels
         ax.set_xticks(np.arange(len(satNames)))
@@ -952,13 +980,118 @@ class environment:
             filePath = os.path.dirname(os.path.realpath(__file__))
             plotPath = os.path.join(filePath, 'plots')
             os.makedirs(plotPath, exist_ok=True)
-            plt.savefig(os.path.join(plotPath, f"{saveName}_global_comms.png"), dpi=300)
+            plt.savefig(os.path.join(plotPath, f"{saveName}_total_comms.png"), dpi=300)
         else:
             filePath = os.path.dirname(os.path.realpath(__file__))
             plotPath = os.path.join(filePath, 'plots')
-            plt.savefig(os.path.join(plotPath, f"global_comms.png"), dpi=300)
+            plt.savefig(os.path.join(plotPath, f"total_comms.png"), dpi=300)
 
+    def plot_used_comms(self, saveName):
 
+        # Create a figure
+        fig = plt.figure(figsize=(15, 8))
+        fig.suptitle(f"USED Data Sent and Received by Satellites", fontsize=14) 
+        ax = fig.add_subplot(111)
+
+        # Get the names of satellites:
+        satNames = [sat.name for sat in self.sats]
+
+        # Save previous data, to stack the bars
+        # prev_data = np.zeros(len(satNames))
+        # make prev_data a dictionary
+        prev_data = {sat: 0 for sat in satNames}
+
+        # Loop through all targets, in order listed in the environment
+        # for target_id in self.comms.total_comm_data:
+        count = 0
+        for targ in self.targs:
+
+            sent_data = defaultdict(dict)
+            rec_data = defaultdict(dict)
+
+            # Get the color for the target:
+            color = targ.color
+
+            # Get the target id
+            target_id = targ.targetID
+
+            # Now check, does that target have any communication data
+            if target_id not in self.comms.used_comm_data:
+                continue
+
+            count += 1
+
+            for reciever in self.comms.used_comm_data[target_id]:
+
+                for sender in self.comms.used_comm_data[target_id][reciever]:
+                    if sender == reciever:
+                        continue
+
+                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+
+                    for time in self.comms.used_comm_data[target_id][reciever][sender]:
+
+                        # Get the data
+                        data = self.comms.used_comm_data[target_id][reciever][sender][time]
+
+                        # Count the amount of data receiver by the receiver
+                        if reciever not in rec_data:
+                            rec_data[reciever] = 0
+                        rec_data[reciever] += data
+
+                        # Count the amount of data sent by the sender
+                        if sender not in sent_data:
+                            sent_data[sender] = 0
+                        sent_data[sender] += data
+
+            # If there are keys that dont exist in sent_data, make them and their value 0
+            for key in prev_data.keys():
+                if key not in sent_data:
+                    sent_data[key] = 0
+                if key not in rec_data:
+                    rec_data[key] = 0
+
+            # Order the data the same way, according to "sats" variable
+            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+
+            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+
+            # Add text labels to show which target is which.
+            for i, v in enumerate(list(sent_data.values())):
+                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
+
+            # Add the sent_data values to the prev_data
+            for key in sent_data.keys():
+                prev_data[key] += sent_data[key]
+
+            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+
+            # Add the rec_data values to the prev_data
+            for key in rec_data.keys():
+                prev_data[key] += rec_data[key]
+
+            if count == 1:
+                # Add legend
+                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+
+        # Add the labels
+        ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
+
+        # Add the x-axis labels
+        ax.set_xticks(np.arange(len(satNames)))
+        ax.set_xticklabels(satNames)
+
+        # Now save the plot
+        if saveName is not None:
+            filePath = os.path.dirname(os.path.realpath(__file__))
+            plotPath = os.path.join(filePath, 'plots')
+            os.makedirs(plotPath, exist_ok=True)
+            plt.savefig(os.path.join(plotPath, f"{saveName}_used_comms.png"), dpi=300)
+        else:
+            filePath = os.path.dirname(os.path.realpath(__file__))
+            plotPath = os.path.join(filePath, 'plots')
+            plt.savefig(os.path.join(plotPath, f"used_comms.png"), dpi=300)
 
 ### Plot all messages
     def plot_messages(self, savePlot, saveName):

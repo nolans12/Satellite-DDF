@@ -126,9 +126,9 @@ class sensor:
 
         # Do a sign check for cross-track angle
         # If targVec_crossTrack is negative, switch
-        if y_targ_sens > 0:
+        if y_targ_sens < 0:
             cross_track_angle = -cross_track_angle
-   
+
 
         in_track_angle_deg = in_track_angle * 180 / jnp.pi # convert to degrees
         cross_track_angle_deg = cross_track_angle * 180 / jnp.pi # convert to degrees
