@@ -507,8 +507,8 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0.1
-        self.delta_beta = 0.1
+        self.delta_alpha = 0
+        self.delta_beta = 0
         
         # R Factor
         self.R_factor = 100
@@ -610,6 +610,9 @@ class etEstimator(BaseEstimator):
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][sender]) == 1:
                     return 
                 
+                if envTime > 35.0 and envTime < 40.0:
+                    self.synchronize_filters(sat, sender, targetID, envTime)
+                    return
                 
                 # Grab the most recent local prediction for the target
                 est_pred = self.estPredHist[targetID][sat][sat][envTime]
@@ -922,7 +925,7 @@ class etEstimator(BaseEstimator):
         # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
         # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
         # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
-        return send_alpha, 
+        return send_alpha, send_beta
     
     
     def synchronize_filters(self, sat, neighbor, targetID, envTime):

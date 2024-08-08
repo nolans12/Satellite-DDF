@@ -548,11 +548,14 @@ class environment:
                                     times = [time for time in time_vec.value if time in estHist]
                                     common_times = [time for time in time_vec.value if time in common_estHist]
                                     
-                                    self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
+                                    trackError_times = [time for time in time_vec.value if time in trackErrorHist]
+                                    common_trackError_times = [time for time in time_vec.value if time in common_trackErrorHist]
+                                    
+                                    self.plot_estimator_data(fig, axes, times, times, times, trackError_times, estHist, trueHist, covHist, 
                                                             [], [], NISHist, NEESHist, trackErrorHist, satColor, linewidth=2.5, e = True)
                                     
-                                    self.plot_estimator_data(fig, axes, common_times, common_times, common_times, common_times, common_estHist, trueHist, common_covHist,
-                                                            [], [], NISHist, NEESHist, common_trackErrorHist, '#DC143C', linewidth=2.0, e = True)
+                                    self.plot_estimator_data(fig, axes, common_times, common_times, common_times, common_trackError_times, common_estHist, trueHist, common_covHist,
+                                                            [], [], NISHist, NEESHist, common_trackErrorHist, '#DC143C', linewidth=2.5, e = True)
                                     
                                     handles = [
                                         Patch(color=satColor, label=f'Local ET Estimator'),
@@ -854,6 +857,8 @@ class environment:
         for sat in self.sats:
             # Get the Communication Node
             commNode = self.comms.G.nodes[sat]
+            if not commNode['received_measurements']:
+                return
             times = list(commNode['received_measurements'].keys())
             targetIDs = list(commNode['received_measurements'][times[0]].keys())
             sender = commNode['received_measurements'][times[0]][targetIDs[0]]['sender'][0]

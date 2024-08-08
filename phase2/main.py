@@ -270,8 +270,8 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(0, 100, 200 + 1) * u.minute
-    fileName = "longSim"
+    time_vec = np.linspace(0, 60, 60 + 1) * u.minute
+    fileName = "debug3"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
