@@ -21,7 +21,7 @@ class BaseEstimator:
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
         
-        self.trackQualityHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
+        self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
@@ -82,7 +82,7 @@ class BaseEstimator:
             self.innovationCovHist[targetID][envTime] = np.eye(2)
             self.nisHist[targetID][envTime] = 0
             self.neesHist[targetID][envTime] = 0
-            self.trackQualityHist[targetID][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+            self.trackErrorHist[targetID][envTime] = self.calcTrackQuailty(est_prior, P_prior)
             return est_prior
        
         else:
@@ -164,7 +164,7 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-        self.trackQualityHist[targetID][envTime] = trackError
+        self.trackErrorHist[targetID][envTime] = trackError
         self.gottenEstimate = True
     
     def state_transition(self, estPrior, dt):
@@ -426,6 +426,7 @@ class ddfEstimator(BaseEstimator):
                     # If not, use the sent estimate and covariance to initialize
                     self.estHist[targetID][time_sent] = est_sent
                     self.covarianceHist[targetID][time_sent] = cov_sent
+                    self.trackErrorHist[targetID][time_sent] = self.calcTrackQuailty(est_sent, cov_sent)
                     continue
 
                 # If satellite has an estimate and covariance for this target already, check if we should CI
@@ -466,7 +467,7 @@ class ddfEstimator(BaseEstimator):
                 
                 # Calculate Track Quaility Metric
                 trackError = self.calcTrackQuailty(est_prior, cov_prior)
-                self.trackQualityHist[targetID][time_sent] = trackError
+                self.trackErrorHist[targetID][time_sent] = trackError
     
     
     def det_of_fused_covariance(self, omega, cov1, cov2):
@@ -650,10 +651,13 @@ class etEstimator(BaseEstimator):
         targetID = target.targetID                
         # Run Prediction Step on this target for local fitler
         self.pred_EKF(sat, sat, targetID, envTime) # updates estHist and covarianceHist
+        est = self.estHist[targetID][sat][sat][envTime]
+        cov = self.covarianceHist[targetID][sat][sat][envTime]
         
         # Store the prediction
-        self.estPredHist[targetID][self.sat][sat][envTime] = self.estHist[targetID][sat][sat][envTime]
-        self.covPredHist[targetID][self.sat][sat][envTime] = self.covarianceHist[targetID][sat][sat][envTime]
+        self.estPredHist[targetID][self.sat][sat][envTime] = est
+        self.covPredHist[targetID][self.sat][sat][envTime] = cov
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
         
         
     def local_et_filter_meas_update(self, sat, target, envTime):

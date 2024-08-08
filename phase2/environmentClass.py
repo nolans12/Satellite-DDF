@@ -367,8 +367,218 @@ class environment:
         self.imgs.append(img)
 
 
-### Estimation Errors and Track Error Plots ###
     def plot_estimator_results(self, time_vec, savePlot, saveName):
+        """
+        For each satellite and target plot the time history for all onboard kalman filters
+        """
+        
+        plt.close('all')
+        plt.close('all')
+        state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [km]']        
+        suffix_vec = ['local', 'ddf', 'et', 'shared', 'common', 'et_both']
+        title_vec = ['Local vs Central', 'DDF vs Central', 'ET vs Central', 'ET Local vs ET Common', 'Common ET vs Common ET', 'ET Local vs ET Local']
+        title_vec = [title + " Estimator Results" for title in title_vec]
+        
+        # For Each Target
+        for targ in self.targs:
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:                                        
+                    # Set up colors
+                    satColor = sat.color
+                    ddfColor = '#DC143C' # Crimson
+                    local_et_color = '#ff33f9' # Hot Pink
+                    common_et_color = '#4033ff' # Blue
+                    sat2_et_color = '#ff8433' # Orange
+                    sat2_common_et_color = '#216529' # Lime Green
+                    centralColor = '#228B22' # Forest Green
+                    
+                    trueHist = targ.hist
+                    for plotNum in range(6):
+                        fig = plt.figure(figsize=(15, 8))
+                        fig.suptitle(f"{targ.name}, {sat.name} {title_vec[plotNum]}", fontsize=14)
+                        axes = self.setup_axes(fig, state_labels, meas_labels)
+                        
+                        if plotNum == 0:
+                            # First Plot: Local vs Central
+                            times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(sat, targ, time_vec,'local')
+                            central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'central')
+                            
+                            # Local
+                            self.plot_errors(axes, times, estHist, trueHist, covHist, label_color=satColor, linewidth=2.5)
+                            self.plot_innovations(axes, times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, times, trackErrorHist, label_color=satColor, linewidth=2.5)
+                            
+                            # Central
+                            self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
+                            
+                            handles = [
+                                Patch(color=satColor, label=f'{sat.name} Indept. Estimator'),
+                                Patch(color=centralColor, label=f'Central Estimator')
+                            ]
+                        
+                        elif plotNum == 1:
+                            # Second Plot: DDF vs Central
+                            ddf_times, ddf_estHist, ddf_covHist, ddf_innovationHist, ddf_innovationCovHist, ddf_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'ddf')
+                            central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'central')
+
+                            # DDF
+                            self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=2.5)
+                            #self.plot_innovations(axes, ddf_times, ddf_innovationHist, ddf_innovationCovHist, label_color=ddfColor, linewidth=2.5)
+                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist, label_color=ddfColor, linewidth=2.5)
+                            
+                            # Central
+                            self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
+                            
+                            handles = [
+                                Patch(color=ddfColor, label=f'{sat.name} DDF Estimator'),
+                                Patch(color=centralColor, label=f'Central Estimator')
+                            ]
+                            
+                        elif plotNum == 2:
+                            
+                            # Third Plot is ET vs Central
+                            et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                            central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'central')
+                            
+                            # ET
+                            self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                            
+                            # Central
+                            self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
+                            
+                            handles = [
+                                Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                Patch(color=centralColor, label=f'Central Estimator')
+                            ]
+                            
+                        elif plotNum > 2: # We want to plot the common information with this satellite
+                            for sat2 in self.sats:
+                                if sat != sat2:
+                                    fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name}, {title_vec[plotNum]}", fontsize=14)
+                                    if plotNum == 3:
+                                        # ET Local and Common for each neighbor
+                                        et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                                        common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
+
+                                        # ET
+                                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
+                                        self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                                        
+                                        # Common ET
+                                        self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=1.5)
+                                        self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=1.5)
+                                        
+                                        handles = [
+                                            Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                            Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator')
+                                        ]
+                                        
+                                    elif plotNum == 4:
+                                        # Both Common Informatin Filters
+                                        common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
+                                        common_et_times2, common_et_estHist2, common_et_covHist2, common_et_innovationHist2, common_et_innovationCovHist2, common_et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
+                                        
+                                        # Common ET
+                                        self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=2.5)
+                                        self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=2.5)
+                                        
+                                        # Common ET 2
+                                        self.plot_errors(axes, common_et_times2, common_et_estHist2, trueHist, common_et_covHist2, label_color=sat2_common_et_color, linewidth=2.5)
+                                        self.plot_track_error(axes, common_et_times2, common_et_trackErrorHist2, label_color=sat2_common_et_color, linewidth=2.5)
+                                        
+                                        handles = [
+                                            Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator'),
+                                            Patch(color=sat2_common_et_color, label=f'{sat2.name}, {sat.name} Common ET Estimator')
+                                        ]
+                                        
+                                    elif plotNum == 5:
+                                        # Plot both et-local filters
+                                        et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                                        et_times2, et_estHist2, et_covHist2, et_innovationHist2, et_innovationCovHist2, et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
+                                        
+                                        # ET
+                                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
+                                        self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                                        
+                                        # ET 2
+                                        self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2_et_color, linewidth=2.5)
+                                        self.plot_track_error(axes, et_times2, et_trackErrorHist2, label_color=sat2_et_color, linewidth=2.5)
+                                        
+                                        handles = [
+                                            Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                            Patch(color=sat2_et_color, label=f'{sat2.name} ET Estimator')
+                                        ]
+                                    
+                        fig.legend(handles=handles, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
+                        plt.tight_layout()
+                        
+                        # Save the Plot with respective suffix
+                        self.save_plot(fig, savePlot, saveName, targ, sat, suffix_vec[plotNum])
+                                        
+
+    def getEstimationHistory(self, sat, targ, time_vec, estimatorType, sharewith=None):
+        """
+        Get the estimation history for a given satellite, target, and estimator type.
+        
+        Args:
+        - sat: satellite object.
+        - targ: target object.
+        - estimatorType: string indicating the type of estimator.
+        
+        Returns:
+        - estHist: dictionary of estimation history.
+        - covHist: dictionary of covariance history.
+        - innovationHist: dictionary of innovation history.
+        - innovationCovHist: dictionary of innovation covariance history.
+        - trackErrorHist: dictionary of track quality history.
+        """
+        times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = {}, {}, {}, {}, {}, {}
+        
+        if estimatorType == 'central':
+            times = [time for time in time_vec.value if time in self.centralEstimator.estHist[targ.targetID]]
+            estHist = self.centralEstimator.estHist[targ.targetID]
+            covHist = self.centralEstimator.covarianceHist[targ.targetID]
+            #innovationHist = self.centralEstimator.innovationHist[targ.targetID]
+            #innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
+            trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
+        
+        elif estimatorType == 'ddf':
+            times = [time for time in time_vec.value if time in sat.ddfEstimator.estHist[targ.targetID]]
+            estHist = sat.ddfEstimator.estHist[targ.targetID]
+            covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
+            innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
+            innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
+            trackErrorHist = sat.ddfEstimator.trackErrorHist[targ.targetID]
+        
+        elif estimatorType == 'et':
+            times = [time for time in time_vec.value if time in sat.etEstimator.estHist[targ.targetID][sat][sharewith]]
+            estHist = sat.etEstimator.estHist[targ.targetID][sat][sharewith]
+            covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sharewith]
+            #innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sharewith]
+            #innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sharewith]
+            trackErrorHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sharewith]
+        
+        elif estimatorType == 'local':
+            times = [time for time in time_vec.value if time in sat.indeptEstimator.estHist[targ.targetID]]
+            estHist = sat.indeptEstimator.estHist[targ.targetID]
+            covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
+            innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
+            innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
+            trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
+            
+        return times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist
+        
+                    
+        
+        
+
+### Estimation Errors and Track Error Plots ###
+    def plot_estimator_results2(self, time_vec, savePlot, saveName):
         """
         Create three types of plots: Local vs Central, DDF vs Central, and Local vs DDF vs Central.
 
@@ -404,14 +614,14 @@ class environment:
                             innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
                             NISHist = sat.indeptEstimator.nisHist[targ.targetID]
                             NEESHist = sat.indeptEstimator.neesHist[targ.targetID]
-                            trackQualityHist = sat.indeptEstimator.trackQualityHist[targ.targetID]
+                            trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, 
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, 
                                                     satColor, linewidth=2.5)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
@@ -420,7 +630,7 @@ class environment:
                                 covHist = self.centralEstimator.covarianceHist[targ.targetID]
                                 innovationHist = self.centralEstimator.innovationHist[targ.targetID]
                                 innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                                trackQualityHist = self.centralEstimator.trackQualityHist[targ.targetID]
+                                trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
                                 
                                 # Get the valid times for data
                                 times = [time for time in time_vec.value if time in estHist]
@@ -428,7 +638,7 @@ class environment:
                                 # Plot the 3x3 Grid of Data
                                 self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackQualityHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
 
                             # Create a Patch for Legend
                             handles = [
@@ -444,19 +654,19 @@ class environment:
                             ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                             ddf_NISHist = sat.ddfEstimator.nisHist[targ.targetID]
                             ddf_NEESHist = sat.ddfEstimator.neesHist[targ.targetID]
-                            ddf_trackQualityHist = sat.ddfEstimator.trackQualityHist[targ.targetID]
+                            ddf_trackErrorHist = sat.ddfEstimator.trackErrorHist[targ.targetID]
 
                             # Get the valid times for data
                             ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                             ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
                             ddf_NISNEES_times = [time for time in time_vec.value if time in ddf_NISHist]
-                            ddf_trackError_times = [time for time in time_vec.value if time in ddf_trackQualityHist]
+                            ddf_trackError_times = [time for time in time_vec.value if time in ddf_trackErrorHist]
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, ddf_times, ddf_innovation_times, ddf_NISNEES_times, 
                                                     ddf_trackError_times, ddf_estHist, trueHist, ddf_covHist, 
                                                     ddf_innovationHist, ddf_innovationCovHist, ddf_NISHist, ddf_NEESHist, 
-                                                    ddf_trackQualityHist, '#DC143C', linewidth=2.5)
+                                                    ddf_trackErrorHist, '#DC143C', linewidth=2.5)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the Data
@@ -464,7 +674,7 @@ class environment:
                                 covHist = self.centralEstimator.covarianceHist[targ.targetID]
                                 innovationHist = self.centralEstimator.innovationHist[targ.targetID]
                                 innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                                trackQualityHist = self.centralEstimator.trackQualityHist[targ.targetID]
+                                trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
                                 
                                 # Get the valid times for data
                                 times = [time for time in time_vec.value if time in estHist]
@@ -472,7 +682,7 @@ class environment:
                                 # Plot the 3x3 Grid of Data
                                 self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackQualityHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
                             
                             # Create Patch for Legend
                             handles = [
@@ -488,25 +698,25 @@ class environment:
                             innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
                             NISHist = sat.indeptEstimator.nisHist[targ.targetID]
                             NEESHist = sat.indeptEstimator.neesHist[targ.targetID]
-                            trackQualityHist = sat.indeptEstimator.trackQualityHist[targ.targetID]
+                            trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
                             
                             # Get ET Data
                             et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                             et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
-                            et_trackQualityHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
+                            et_trackErrorHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
                             et_times = [time for time in time_vec.value if time in et_estHist]
-                            et_tq_times = [time for time in time_vec.value if time in et_trackQualityHist]
+                            et_tq_times = [time for time in time_vec.value if time in et_trackErrorHist]
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist,
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist,
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist,
                                                     satColor, linewidth=3.5)
                             
                             self.plot_estimator_data(fig, axes, et_times, et_times, et_times, et_tq_times, et_estHist, trueHist, et_covHist,
-                                                    [], [], NISHist, NEESHist, et_trackQualityHist,
+                                                    [], [], NISHist, NEESHist, et_trackErrorHist,
                                                     '#DC143C', linewidth=2, e = True)
                             
                             if self.centralEstimator:  # If central estimator is used, plot the data
@@ -515,7 +725,7 @@ class environment:
                                 covHist = self.centralEstimator.covarianceHist[targ.targetID]
                                 innovationHist = self.centralEstimator.innovationHist[targ.targetID]
                                 innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                                trackQualityHist = self.centralEstimator.trackQualityHist[targ.targetID]
+                                trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
                                 
                                 # Get the valid times
                                 times = [time for time in time_vec.value if time in estHist]
@@ -523,7 +733,7 @@ class environment:
                                 # Plot the 3x3 Grid of Data
                                 self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackQualityHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
 
                             # Create a patch for the legend
                             handles = [
@@ -571,7 +781,7 @@ class environment:
                             innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
                             NISHist = sat.indeptEstimator.nisHist[targ.targetID]
                             NEESHist = sat.indeptEstimator.neesHist[targ.targetID]
-                            trackQualityHist = sat.indeptEstimator.trackQualityHist[targ.targetID]
+                            trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
                             
                             # Get the DDF Data
                             ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
@@ -580,23 +790,23 @@ class environment:
                             ddf_innovationCovHist = sat.ddfEstimator.innovationCovHist[targ.targetID]
                             ddf_NISHist = sat.ddfEstimator.nisHist[targ.targetID]
                             ddf_NEESHist = sat.ddfEstimator.neesHist[targ.targetID]
-                            ddf_trackQualityHist = sat.ddfEstimator.trackQualityHist[targ.targetID]
+                            ddf_trackErrorHist = sat.ddfEstimator.trackErrorHist[targ.targetID]
                             
                             # Get the valid times for data
                             times = [time for time in time_vec.value if time in estHist]
                             ddf_times = [time for time in time_vec.value if time in ddf_estHist]
                             ddf_innovation_times = [time for time in time_vec.value if time in ddf_innovationHist]
                             ddf_NISNEES_times = [time for time in time_vec.value if time in ddf_NISHist]
-                            ddf_trackError_times = [time for time in time_vec.value if time in ddf_trackQualityHist]
+                            ddf_trackError_times = [time for time in time_vec.value if time in ddf_trackErrorHist]
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, 
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, 
                                                     satColor, linewidth=2.5)
                             self.plot_estimator_data(fig, axes, ddf_times, ddf_innovation_times, ddf_NISNEES_times, 
                                                     ddf_trackError_times, ddf_estHist, trueHist, ddf_covHist, 
                                                     ddf_innovationHist, ddf_innovationCovHist, ddf_NISHist, ddf_NEESHist, 
-                                                    ddf_trackQualityHist, '#DC143C', linewidth=2.0)
+                                                    ddf_trackErrorHist, '#DC143C', linewidth=2.0)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -604,7 +814,7 @@ class environment:
                                 covHist = self.centralEstimator.covarianceHist[targ.targetID]
                                 innovationHist = self.centralEstimator.innovationHist[targ.targetID]
                                 innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-                                trackQualityHist = self.centralEstimator.trackQualityHist[targ.targetID]
+                                trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
                                 
                                 # Get the valid times
                                 times = [time for time in time_vec.value if time in estHist]
@@ -612,7 +822,7 @@ class environment:
                                 # Plot the 3x3 Grid of Data
                                 self.plot_estimator_data(fig, axes, times, [], [], times, estHist, trueHist, covHist, 
                                                         innovationHist, innovationCovHist, NISHist, NEESHist, 
-                                                        trackQualityHist, '#228B22', linewidth=1.5, c=True)
+                                                        trackErrorHist, '#228B22', linewidth=1.5, c=True)
 
                             # Create a patch for the legend
                             handles = [
@@ -636,7 +846,7 @@ class environment:
 
 
 
-    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackQualityHist, label_color, linewidth, c=False, e=False):
+    def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, label_color, linewidth, c=False, e=False):
         """
         Plot all data.
 
@@ -654,23 +864,23 @@ class environment:
             innovationCovHist (dict): Dictionary of innovation covariance histories.
             NISHist (dict): Dictionary of NIS histories.
             NEESHist (dict): Dictionary of NEES histories.
-            trackQualityHist (dict): Dictionary of track quality histories.
+            trackErrorHist (dict): Dictionary of track quality histories.
             label_color (str): Color for the plot.
             linewidth (float): Width of the plot lines.
             c (bool): Flag indicating whether it is a central estimator.
         """
         if e and not c:  # ET-Measurements vs Central
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
-            self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackErrorHist, label_color, linewidth)
             
         elif c and not e:  # Not central estimator so plot everything
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
-            self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackErrorHist, label_color, linewidth)
         
         else:  # Central estimator doesn't have innovation data
             self.plot_errors(axes, estTimes, estHist, trueHist, covHist, label_color, linewidth)
             self.plot_innovations(axes, innTimes, innovationHist, innovationCovHist, label_color, linewidth)
-            self.plot_track_quality(axes, tqTimes, trackQualityHist, label_color, linewidth)
+            self.plot_track_quality(axes, tqTimes, trackErrorHist, label_color, linewidth)
 
             
     def plot_errors(self, ax, times, estHist, trueHist, covHist, label_color, linewidth):
@@ -723,14 +933,14 @@ class environment:
                     ax[6 + i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     ax[6 + i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
-    def plot_track_quality(self, ax, times, trackQualityHist, label_color, linewidth):
+    def plot_track_error(self, ax, times, trackErrorHist, label_color, linewidth):
         """
         Plot the track quality.
 
         Args:
             ax (matplotlib.axes.Axes): The axes on which to plot.
             times (list): List of times for the track quality.
-            trackQualityHist (dict): Dictionary of track quality histories.
+            trackErrorHist (dict): Dictionary of track quality histories.
             label_color (str): Color for the plot.
             linewidth (float): Width of the plot lines.
         """
@@ -738,7 +948,7 @@ class environment:
             segments = self.segment_data(times)
         
             for segment in segments:
-                track_quality = [trackQualityHist[time] for time in segment]
+                track_quality = [trackErrorHist[time] for time in segment]
                 ax[8].plot(segment, track_quality, color=label_color, linewidth=linewidth)
 
     def segment_data(self, times, max_gap = 30):
@@ -820,6 +1030,7 @@ class environment:
         axes[8].set_ylabel("Track Error [km]")
         
         return axes
+
 
     def save_plot(self, fig, savePlot, saveName, targ, sat, suffix):
         """
@@ -1081,7 +1292,7 @@ class environment:
                                         ax = fig.add_subplot(111, projection='3d')
                                         sat1Color = sat.color
                                         sat2Color = sat2.color
-                                        etColor = '#DC143C'
+                                        local_et_color = '#DC143C'
                                         alpha = 0.3
 
                                         sat1_times = sat.indeptEstimator.estHist[targ.targetID].keys()
@@ -1111,11 +1322,11 @@ class environment:
                                             
                                             self.plot_ellipsoid(ax, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
                                             self.plot_ellipsoid(ax, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
-                                            self.plot_ellipsoid(ax, et_pos, et_cov, color=etColor, alpha=alpha)
+                                            self.plot_ellipsoid(ax, et_pos, et_cov, color=local_et_color, alpha=alpha)
                                             
                                             self.plot_estimate(ax, est_pos1, true_pos, sat1Color)
                                             self.plot_estimate(ax, est_pos2, true_pos, sat2Color)
-                                            self.plot_estimate(ax, et_pos, true_pos, etColor)
+                                            self.plot_estimate(ax, et_pos, true_pos, local_et_color)
                                             
                                             self.plot_LOS(ax, est_pos1, LOS_vec1)
                                             self.plot_LOS(ax, est_pos2, LOS_vec2)
@@ -1415,14 +1626,14 @@ class environment:
                     estTimes = sat.indeptEstimator.estHist[targ.targetID].keys()
                     estHist = sat.indeptEstimator.estHist[targ.targetID]
                     covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
-                    trackError = sat.indeptEstimator.trackQualityHist[targ.targetID]
+                    trackError = sat.indeptEstimator.trackErrorHist[targ.targetID]
                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
 
                     ddf_times = sat.ddfEstimator.estHist[targ.targetID].keys()
                     ddf_estHist = sat.ddfEstimator.estHist[targ.targetID]
                     ddf_covHist = sat.ddfEstimator.covarianceHist[targ.targetID]
-                    ddf_trackError = sat.ddfEstimator.trackQualityHist[targ.targetID]
+                    ddf_trackError = sat.ddfEstimator.trackErrorHist[targ.targetID]
 
                     ddf_innovation_times = sat.ddfEstimator.innovationHist[targ.targetID].keys()
                     ddf_innovationHist = sat.ddfEstimator.innovationHist[targ.targetID]
@@ -1438,7 +1649,7 @@ class environment:
                     #     if neighbor != sat:
                     #         et_measHist = self.comms.G.neighbors(sat).
                     #        sat.etEstimator.measHist[targ.targetID][sat][neighbor]
-                  #et_trackQuality = self.etEstimator.trackQualityHist[targ.targetID][sat][sat]                  
+                  #et_trackQuality = self.etEstimator.trackErrorHist[targ.targetID][sat][sat]                  
                     
 
                     # File Name

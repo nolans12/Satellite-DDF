@@ -271,7 +271,7 @@ if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
     time_vec = np.linspace(0, 60, 60 + 1) * u.minute
-    fileName = "debug3"
+    fileName = "plot1_"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
@@ -279,7 +279,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_mono()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=True, saveData=True, saveName=fileName, showSim=False)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=True, saveName=fileName, showSim=False)
         
         env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 1)
         env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 1)
