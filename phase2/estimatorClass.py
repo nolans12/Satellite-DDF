@@ -507,8 +507,8 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0
-        self.delta_beta = 0
+        self.delta_alpha = 0.1
+        self.delta_beta = 0.1
         
         # R Factor
         self.R_factor = 100
@@ -610,6 +610,7 @@ class etEstimator(BaseEstimator):
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][sender]) == 1:
                     return 
                 
+                
                 # Grab the most recent local prediction for the target
                 est_pred = self.estPredHist[targetID][sat][sat][envTime]
                 cov_pred = self.covPredHist[targetID][sat][sat][envTime]
@@ -629,6 +630,12 @@ class etEstimator(BaseEstimator):
                     self.explicit_measurement_update(sat, sender, beta, 'CT', 'both', targetID, envTime, sharewith=sender) # update our common filter
                 else:
                     self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'CT', 'both', targetID, envTime, sharewith=sender) # update my local and common filter
+                
+                # Calculate Local Track Quaility Metric
+                est = self.estHist[targetID][sat][sat][envTime]
+                cov = self.covarianceHist[targetID][sat][sat][envTime]
+                self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+                
                     
                 # Calculate Common Track Quaility Metric
                 est = self.estHist[targetID][sat][sender][envTime]
@@ -665,6 +672,11 @@ class etEstimator(BaseEstimator):
         # Proccess my measurement in the local filter
         self.explicit_measurement_update(sat, sat, alpha, 'IT', 'both', targetID, envTime, sharewith=sat) 
         self.explicit_measurement_update(sat, sat, beta, 'CT', 'both', targetID, envTime, sharewith=sat)
+        
+         # Calculate Local Track Quaility Metric
+        est = self.estHist[targetID][sat][sat][envTime]
+        cov = self.covarianceHist[targetID][sat][sat][envTime]
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
                   
                               
     def pred_EKF(self, sat, sender, targetID, envTime):
@@ -910,4 +922,57 @@ class etEstimator(BaseEstimator):
         # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
         # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
         # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
-        return send_alpha, send_beta
+        return send_alpha, 
+    
+    
+    def synchronize_filters(self, sat, neighbor, targetID, envTime):
+        """
+        Synchronize the local and common filters between two agents.
+
+        Args:
+        - sat (object): Satellite object that is receiving information.
+        - neighbor (object): Neighbor satellite object.
+        - targetID (int): Target ID.
+        - envTime (float): Current environment time.
+        """
+        ### Try just synchronizing the common information filters
+        
+        # Sat common information filter with neighbor
+        time12 = max(self.estHist[targetID][sat][neighbor].keys())
+        est12 = self.estHist[targetID][sat][neighbor][time12]
+        cov12 = self.covarianceHist[targetID][sat][neighbor][time12]
+        
+        # Neighbor common information filter with sat
+        time21 = max(neighbor.etEstimator.estHist[targetID][neighbor][sat].keys())
+        est21 = neighbor.etEstimator.estHist[targetID][neighbor][sat][time21]
+        cov21 = neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][time21]
+        
+        omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov12, cov21), bounds=[(0, 1)]).x
+        cov_fused = np.linalg.inv(omega_opt * np.linalg.inv(cov12) + (1 - omega_opt) * np.linalg.inv(cov21))
+        est_fused = cov_fused @ (omega_opt * np.linalg.inv(cov12) @ est12 + (1 - omega_opt) * np.linalg.inv(cov21) @ est21)
+        
+        # Save the synchronized filter
+        self.estHist[targetID][sat][neighbor][envTime] = est_fused
+        self.covarianceHist[targetID][sat][neighbor][envTime] = cov_fused
+        
+        # Neighbor common information filter with sat
+        neighbor.etEstimator.estHist[targetID][neighbor][sat][envTime] = est_fused
+        neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][envTime] = cov_fused
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega (float): Weight of the first covariance matrix.
+            cov1 (np.ndarray): Covariance matrix of the first estimate.
+            cov2 (np.ndarray): Covariance matrix of the second estimate.
+
+        Returns:
+            float: Determinant of the fused covariance matrix.
+        """
+        omega = omega[0]  # Ensure omega is a scalar
+        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        return np.linalg.det(P)
+        
+        

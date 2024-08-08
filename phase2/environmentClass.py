@@ -385,8 +385,8 @@ class environment:
         for targ in self.targs:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
-                    for k in range(4):
-
+                    for k in range(5):
+                        
                         # Create a figure
                         fig = plt.figure(figsize=(15, 8))
                         fig.suptitle(f"{targ.name}, {sat.name} Estimation Error and Innovation Plots", fontsize=14)
@@ -530,9 +530,37 @@ class environment:
                                 Patch(color=satColor, label=f'{sat.name} Indept. Estimator'),
                                 Patch(color='#DC143C', label=f'{sat.name} ET Estimator'),
                                 Patch(color='#228B22', label=f'Central Estimator')
-                            ]        
+                            ]
+                            
+                        elif k == 3: # Plot Common Information Filters
+                            for sat2 in self.sats:
+                                if sat != sat2:
+                                    # Plot Pairwise Common Information Filters
+                                    # Get the Data
+                                    estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
+                                    common_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat2]
+                                    covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
+                                    common_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat2]
+                                    trackErrorHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
+                                    common_trackErrorHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat2]
+                                    
+                                    # Get the valid times for data
+                                    times = [time for time in time_vec.value if time in estHist]
+                                    common_times = [time for time in time_vec.value if time in common_estHist]
+                                    
+                                    self.plot_estimator_data(fig, axes, times, times, times, times, estHist, trueHist, covHist, 
+                                                            [], [], NISHist, NEESHist, trackErrorHist, satColor, linewidth=2.5, e = True)
+                                    
+                                    self.plot_estimator_data(fig, axes, common_times, common_times, common_times, common_times, common_estHist, trueHist, common_covHist,
+                                                            [], [], NISHist, NEESHist, common_trackErrorHist, '#DC143C', linewidth=2.0, e = True)
+                                    
+                                    handles = [
+                                        Patch(color=satColor, label=f'Local ET Estimator'),
+                                        Patch(color='#DC143C', label=f'Common ET Estimator')
+                                    ]
+                                    
 
-                        elif k == 3:  # Local vs DDF vs Central
+                        elif k == 4:  # Local vs DDF vs Central
                             # Get the Local Data
                             estHist = sat.indeptEstimator.estHist[targ.targetID]
                             covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
@@ -595,11 +623,13 @@ class environment:
                         plt.tight_layout()
                         
                         # Save the Plot with respective suffix
-                        suffix = ['indept', 'ddf', 'et', 'both'][k]
+                        suffix = ['indept', 'ddf', 'et', 'common', 'both'][k]
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
                         
                         if k == 2:
                             self.plot_messages(savePlot, saveName)
+                            
+                        
 
 
 
@@ -837,14 +867,14 @@ class environment:
                     for i in range(len(commNode['received_measurements'][time][targetID]['meas'])):
                         alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
                         if not np.isnan(alpha):
-                            ax1.scatter(time, 1, color='r')
+                            ax1.scatter(time, 1, color='r', marker='x')
                         else:
-                            ax1.scatter(time, 0, color='b')
+                            ax1.scatter(time, 0, color='b', marker='x')
                         
                         if not np.isnan(beta):
-                            ax2.scatter(time, 1, color='r')
+                            ax2.scatter(time, 1, color='r',  marker='x')
                         else:
-                            ax2.scatter(time, 0, color='b')
+                            ax2.scatter(time, 0, color='b',  marker='x')
             
             fig.suptitle(f"Satellite Msgs from {sender.name} to {sat.name}", fontsize=14)
 
