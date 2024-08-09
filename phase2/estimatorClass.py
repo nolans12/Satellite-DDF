@@ -444,7 +444,7 @@ class ciEstimator(BaseEstimator):
                             doCI = True # If we dont have a trackErrorHist yet, we dont have an initalized filter, initalize the filter with the one from CI, so do CI!
                         else:
                             # If the trackErrorHist is less than the threshold, we dont need to do any CI
-                            if self.trackErrorHist[i][time_prior] < i*50 + 50: # THIS SHOULD ALWAYS EXIST I BELIEVE
+                            if self.trackErrorHist[i][time_prior] < i*50 + 50: 
                                 doCI = False
                         
                         if doCI:
