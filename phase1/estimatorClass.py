@@ -20,6 +20,8 @@ class BaseEstimator:
 
         self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
         self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
+        
+        self.trackQualityHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
@@ -69,6 +71,7 @@ class BaseEstimator:
             self.innovationCovHist[targetID][envTime] = np.eye(2)
             self.nisHist[targetID][envTime] = 0
             self.neesHist[targetID][envTime] = 0
+            self.trackQualityHist[targetID][envTime] = 0
             return est_prior
        
         else:
@@ -124,6 +127,9 @@ class BaseEstimator:
         error = est - true  # Error
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))  # NEES
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
+        
+        # Calculate Track Quaility Metric
+        trackQuality = self.calcTrackQuailty(est, P)
 
         # Save data
         self.estHist[targetID][envTime] = est
@@ -132,6 +138,7 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
+        self.trackQualityHist[targetID][envTime] = trackQuality
         self.gottenEstimate = True
     
     def state_transition(self, estPrior, dt):
@@ -239,6 +246,22 @@ class BaseEstimator:
         
         return jacobian
 
+    
+    def calcTrackQuailty(self, est, cov):
+        """
+        Calculate the track quality metric for the current estimate.
+
+        Args:
+        - est (array-like): Current estimate for the target ECI state = [x, vx, y, vy, z, vz].
+        - cov (array-like): Current covariance matrix for the target ECI state.
+
+        Returns:
+        - float: Track quality metric.
+        """
+        # Calculate the track quality metric
+        trackQuality = 1 / np.linalg.det(cov)
+        
+        return trackQuality
 
 ### Central Estimator Class
 class centralEstimator(BaseEstimator):

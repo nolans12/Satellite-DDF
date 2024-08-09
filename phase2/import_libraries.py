@@ -22,6 +22,7 @@ from sympy import Matrix, symbols, lambdify, Subs, Derivative, Function
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Patch
 from scipy.spatial import Delaunay
+from scipy.stats import norm
 import matplotlib.cm as cm  # Import colormap module
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -29,3 +30,12 @@ from scipy.spatial.transform import Rotation as R
 from scipy.linalg import block_diag
 from scipy.optimize import minimize
 from collections import defaultdict
+import pickle
+
+class NestedDict(dict):
+    def __missing__(self, key):
+        value = self[key] = NestedDict()
+        return value
+
+    def __call__(self):
+        return 0
