@@ -70,7 +70,7 @@ def create_environment():
 def create_environment_mono():
 
     # Define a sensor model:
-    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.002, 0.002])) # 1/100% error
+    sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.02, 0.02])) # .1% error
     #sens = sensor(name = 'Sensor', fov = 20, bearingsError = np.array([0.2, 0.2])) # 1% error
 
     # Define targets for the satellites to track:
@@ -270,8 +270,8 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(0, 60, 60 + 1) * u.minute
-    fileName = "plot1_"
+    time_vec = np.linspace(0, 65, 65 + 1) * u.minute
+    fileName = "delta1_sim"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
@@ -279,10 +279,10 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_mono()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=True, saveName=fileName, showSim=False)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=True, saveData=True, saveName=fileName, showSim=False)
         
-        env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 1)
-        env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 1)
+        env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 2)
+        env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 2)
 
     plot_NEES_NIS(simData, fileName)
 

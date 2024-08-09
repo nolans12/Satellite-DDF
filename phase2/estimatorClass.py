@@ -508,8 +508,8 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0
-        self.delta_beta = 0
+        self.delta_alpha = 0.1
+        self.delta_beta = 0.1
         
         # R Factor
         self.R_factor = 100
