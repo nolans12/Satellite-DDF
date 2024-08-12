@@ -114,7 +114,6 @@ class environment:
             # Plot the comm results
             self.plot_global_comms(saveName=saveName)
             self.plot_used_comms(saveName=saveName)
-            self.plot_local_comms(saveName=saveName)
            
         if saveGif:
             # Save the uncertainty ellipse plots
@@ -400,7 +399,7 @@ class environment:
         self.imgs.append(img)
 
 
-### Estimation Errors and Track Uncertainty Plots ###
+### Estimation Errors and Track Error Plots ###
     def plot_estimator_results(self, time_vec, savePlot, saveName):
         """
         Create three types of plots: Local vs Central, DDF vs Central, and Local vs DDF vs Central.
@@ -412,7 +411,7 @@ class environment:
         """
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
-        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainty [km]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [km]']
 
         # For each target and satellite, plot the estimation error, innovation, and track quality
         for targ in self.targs:
@@ -774,7 +773,7 @@ class environment:
                 # Add a text label on the above right side of the dashed line
                 ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
-    def segment_data(self, times, max_gap = 1/6):
+    def segment_data(self, times, max_gap = 30):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -851,7 +850,7 @@ class environment:
             axes[6 + i].set_xlabel("Time [min]")
             axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
         axes[8].set_xlabel("Time [min]")
-        axes[8].set_ylabel("Track Uncertainty [km]")
+        axes[8].set_ylabel("Track Error [km]")
         
         return axes
 
@@ -879,8 +878,7 @@ class environment:
         plt.close()
 
 
-### Plot communications sent/recieved 
-    # This function will plot the total data sent and received by each satellite
+### Plot communications sent/recieved  
     def plot_global_comms(self, saveName):
 
         # Create a figure
@@ -988,7 +986,6 @@ class environment:
             plotPath = os.path.join(filePath, 'plots')
             plt.savefig(os.path.join(plotPath, f"total_comms.png"), dpi=300)
 
-    # Plot the comms that are actually used by CI
     def plot_used_comms(self, saveName):
 
         # Create a figure
@@ -1096,10 +1093,6 @@ class environment:
             plotPath = os.path.join(filePath, 'plots')
             plt.savefig(os.path.join(plotPath, f"used_comms.png"), dpi=300)
 
-    # Plot the comms sent/receieved by each satellite, paired with the track uncertainty
-    def plot_local_comms(self, saveName):
-        test = 1
-        
 ### Plot all messages
     def plot_messages(self, savePlot, saveName):
         """
@@ -1701,10 +1694,10 @@ class environment:
                 'Time', 'x_sat', 'y_sat', 'z_sat',
                 'True_x', 'True_vx', 'True_y', 'True_vy', 'True_z', 'True_vz',
                 'InTrackAngle', 'CrossTrackAngle', 'Est_x', 'Est_vx', 'Est_y', 'Est_vy', 'Est_z', 'Est_vz',
-                'Cov_xx', 'Cov_vxvx', 'Cov_yy', 'Cov_vyvy', 'Cov_zz', 'Cov_vzvz', 'Track Uncertainty',
+                'Cov_xx', 'Cov_vxvx', 'Cov_yy', 'Cov_vyvy', 'Cov_zz', 'Cov_vzvz', 'Track Error',
                 'Innovation_ITA', 'Innovation_CTA', 'InnovationCov_ITA', 'InnovationCov_CTA',
                 'DDF_Est_x', 'DDF_Est_vx', 'DDF_Est_y', 'DDF_Est_vy', 'DDF_Est_z', 'DDF_Est_vz',
-                'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Uncertainty',
+                'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Error',
                 'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
                 'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta'
