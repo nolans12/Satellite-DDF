@@ -264,10 +264,10 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
+    time_vec = np.linspace(0, 5, 5*2 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "tqSim_higherSegment"
+    fileName = "test"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
