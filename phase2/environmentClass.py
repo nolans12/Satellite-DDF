@@ -773,7 +773,7 @@ class environment:
                 # Add a text label on the above right side of the dashed line
                 ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
-    def segment_data(self, times, max_gap = 30):
+    def segment_data(self, times, max_gap = 1/6):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.

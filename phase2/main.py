@@ -25,14 +25,7 @@ def create_environment():
     targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(2))
     targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(3))
     targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(4))
-    # targ6 = target(name = 'Targ6', tqReq = 6, targetID=6, coords = np.array([45,0,0]), heading=0, speed= 10,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(5))
-    # targ7 = target(name = 'Targ7', tqReq = 7, targetID=7, coords = np.array([45,0,0]), heading=0, speed= 5,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(6))
-    # targ8 = target(name = 'Targ8', tqReq = 8, targetID=8, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(7))
-    # targ9 = target(name = 'Targ9', tqReq = 9, targetID=9, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(8))
-    # targ10 = target(name = 'Targ10', tqReq = 10, targetID=10, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(9))
-    # targ11 = target(name = 'Targ11', tqReq = 11, targetID=11, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(10))
-    # targ12 = target(name = 'Targ12', tqReq = 12, targetID=12, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(11))
-    
+
     targs = [targ1, targ2, targ3, targ4, targ5]
 
     # Define the satellite structure:
@@ -42,7 +35,7 @@ def create_environment():
     sens3 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.05, 115 * 0.05])) # 5% error on FOV bearings
     sens4 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1])) # 10% error on FOV bearings
 
-    targetIDs = [1,2,3,4,5,6,7,8,9,10,11,12]
+    targetIDs = [1,2,3,4,5]
 
     local = indeptEstimator(targetIDs = targetIDs)
 
@@ -274,7 +267,7 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "tqSim"
+    fileName = "tqSim_higherSegment"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
