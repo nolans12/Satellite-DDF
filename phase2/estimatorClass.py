@@ -63,7 +63,7 @@ class BaseEstimator:
             # else:
             # Initialize with true position plus noise
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             
 
@@ -97,7 +97,7 @@ class BaseEstimator:
         ### Also reset the filter if its been a certain amount of time since the last estimate
         if dt > 30: 
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
-            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+            prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             # Initial covariance matrix
             P_prior = np.array([[1000, 0, 0, 0, 0, 0],
@@ -520,6 +520,7 @@ class etEstimator(BaseEstimator):
         self.covarianceHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.covPredHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.trackErrorHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
+        self.synchronizeFlag = {targetID: {self.sat: {neighbor: False for neighbor in self.neighbors}} for targetID in self.targetIDs}
         
     def update_neighbors(self, neighbors):
         '''
@@ -533,6 +534,7 @@ class etEstimator(BaseEstimator):
             self.covarianceHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.covPredHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.trackErrorHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
+            self.synchronizeFlag[targetID][self.sat] = {neighbor: False for neighbor in self.neighbors}
             
     
     def event_triggered_fusion(self, sat, envTime, commNode):
@@ -548,7 +550,7 @@ class etEstimator(BaseEstimator):
     # If no prior estimate exists, initialize with true position plus noise
         targetID = target.targetID
         prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
-        prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 5, 3)
+        prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
         est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
                              
         # Initial covariance matrix
@@ -611,9 +613,13 @@ class etEstimator(BaseEstimator):
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][sender]) == 1:
                     return 
                 
-                if envTime > 35.0 and envTime < 40.0:
+                if self.synchronizeFlag[targetID][sat][sender] == True: ## TODO: If any of the last 5 
                     self.synchronize_filters(sat, sender, targetID, envTime)
                     return
+                
+                # if envTime > 35.0 and envTime < 40.0:
+                #     self.synchronize_filters(sat, sender, targetID, envTime)
+                #     return
                 
                 # Grab the most recent local prediction for the target
                 est_pred = self.estPredHist[targetID][sat][sat][envTime]
@@ -711,6 +717,7 @@ class etEstimator(BaseEstimator):
         if dt == 0:
             self.estHist[targetID][sat][sender][envTime] = est_prior
             self.covarianceHist[targetID][sat][sender][envTime] = P_prior
+            self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est_prior, P_prior)
             return
 
         # Predict next state using state transition function
@@ -728,6 +735,7 @@ class etEstimator(BaseEstimator):
         # Store the prediction
         self.estHist[targetID][sat][sender][envTime] = est_pred
         self.covarianceHist[targetID][sat][sender][envTime] = P_pred
+        self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est_pred, P_pred)
         
          
     def explicit_measurement_update(self, sat, sender, measurement, type, update, targetID, envTime, sharewith):
@@ -787,13 +795,17 @@ class etEstimator(BaseEstimator):
         # Save Data into both filters
         if update == 'both':
             self.estHist[targetID][sat][sat][envTime] = est
-            self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sat][envTime] = P
+            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, P)
+            
+            self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = P
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)
             
         elif update == 'common':
             self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = P
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)
                 
         
     def implicit_measurement_update(self, sat, sender, local_est_pred, local_P_pred, type, update, targetID, envTime, sharewith):
@@ -875,13 +887,18 @@ class etEstimator(BaseEstimator):
         # Save Data into both filters
         if update == 'both':
             self.estHist[targetID][sat][sat][envTime] = est
-            self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sat][envTime] = cov
+            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+
+            self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = cov
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, cov)
         
         elif update == 'common':
             self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = cov
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, cov)
+
         
     
     def event_trigger(self, sat, neighbor, targetID, time):
@@ -958,13 +975,25 @@ class etEstimator(BaseEstimator):
         cov_fused = np.linalg.inv(omega_opt * np.linalg.inv(cov12) + (1 - omega_opt) * np.linalg.inv(cov21))
         est_fused = cov_fused @ (omega_opt * np.linalg.inv(cov12) @ est12 + (1 - omega_opt) * np.linalg.inv(cov21) @ est21)
         
+        # Save the local filter
+        self.estHist[targetID][sat][sat][envTime] = est_fused
+        self.covarianceHist[targetID][sat][sat][envTime] = cov_fused
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        
         # Save the synchronized filter
         self.estHist[targetID][sat][neighbor][envTime] = est_fused
         self.covarianceHist[targetID][sat][neighbor][envTime] = cov_fused
+        self.trackErrorHist[targetID][sat][neighbor][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        
+        # Save the neighbor filter
+        neighbor.etEstimator.estHist[targetID][neighbor][neighbor][envTime] = est_fused
+        neighbor.etEstimator.covarianceHist[targetID][neighbor][neighbor][envTime] = cov_fused
+        neighbor.etEstimator.trackErrorHist[targetID][neighbor][neighbor][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
         
         # Neighbor common information filter with sat
         neighbor.etEstimator.estHist[targetID][neighbor][sat][envTime] = est_fused
         neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][envTime] = cov_fused
+        neighbor.etEstimator.trackErrorHist[targetID][neighbor][sat][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
 
     def det_of_fused_covariance(self, omega, cov1, cov2):
         """

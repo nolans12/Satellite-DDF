@@ -33,12 +33,13 @@ class environment:
         # self.ax.set_box_aspect([1, 1, 1])
 
         # If you want to do standard case:
-        self.ax.set_xlim([2000, 8000])
-        self.ax.set_ylim([-6000, 6000])
-        self.ax.set_zlim([2000, 8000])
+        self.ax.set_xlim([-8000, 8000])
+        self.ax.set_ylim([-8000, 8000])
+        self.ax.set_zlim([-8000, 8000])
         self.ax.view_init(elev=30, azim=0)
+        
         # auto scale the axis to be equal
-        self.ax.set_box_aspect([0.5, 1, 0.5])
+        #self.ax.set_box_aspect([0.5, 1, 0.5])
         
         # Label the axes and set title
         self.ax.set_xlabel('X (km)')
@@ -110,6 +111,7 @@ class environment:
         # Log the Data
         if saveData:
             self.log_data(time_vec, saveName=saveName)
+            self.log_comms_data(time_vec, saveName=saveName)
 
         return self.collectNISNEESData()  # Return the data collected during the simulation
     
@@ -222,12 +224,29 @@ class environment:
                             if not sat.etEstimator.estHist[target.targetID][sat][neighbor]:
                                 sat.etEstimator.initialize_filter(sat, target, envTime, sharewith=neighbor)
                                 
+                            elif sat.etEstimator.estHist[target.targetID][sat][neighbor]:
+                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
+                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor] == True
+                                else:
+                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor] == False
+                                                            
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=neighbor)
+                                
+                            elif neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
+                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][neighbor] == True
+                                else:
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][neighbor] == False
                             
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=sat)
-    
+                                
+                            elif neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
+                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat] == True
+                                else:
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat] == False    
 
     def propagate(self, time_step):
         """
@@ -356,8 +375,24 @@ class environment:
         by_label = dict(zip(labels, handles))
         self.ax.legend(by_label.values(), by_label.keys())
         self.ax.text2D(0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes)
+        self.calcViewingAngle()
+
     
+    def calcViewingAngle(self):
+        '''
+        Calculate the viewing angle for the 3D plot in MonoTrack Case
+        '''
+        monoTarg = self.targs[0]
+        x, y, z = monoTarg.pos
+        range = jnp.sqrt(x**2 + y**2 + z**2)
+        
+        elevation = jnp.arcsin(z / range)
+        azimuth = jnp.arctan2(y, x) * 180 / jnp.pi
+        
+        self.ax.view_init(elev=30, azim=azimuth)
     
+        
+
     def save_envPlot_to_imgs(self):
         ios = io.BytesIO()
         self.fig.savefig(ios, format='raw')
@@ -394,7 +429,7 @@ class environment:
                     centralColor = '#228B22' # Forest Green
                     
                     trueHist = targ.hist
-                    for plotNum in range(6):
+                    for plotNum in range(3):
                         fig = plt.figure(figsize=(15, 8))
                         fig.suptitle(f"{targ.name}, {sat.name} {title_vec[plotNum]}", fontsize=14)
                         axes = self.setup_axes(fig, state_labels, meas_labels)
@@ -455,71 +490,80 @@ class environment:
                                 Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
                                 Patch(color=centralColor, label=f'Central Estimator')
                             ]
-                            
-                        elif plotNum > 2: # We want to plot the common information with this satellite
-                            for sat2 in self.sats:
-                                if sat != sat2:
-                                    fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name}, {title_vec[plotNum]}", fontsize=14)
-                                    if plotNum == 3:
-                                        # ET Local and Common for each neighbor
-                                        et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                                        common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
-
-                                        # ET
-                                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
-                                        self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
-                                        
-                                        # Common ET
-                                        self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=1.5)
-                                        self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=1.5)
-                                        
-                                        handles = [
-                                            Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
-                                            Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator')
-                                        ]
-                                        
-                                    elif plotNum == 4:
-                                        # Both Common Informatin Filters
-                                        common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
-                                        common_et_times2, common_et_estHist2, common_et_covHist2, common_et_innovationHist2, common_et_innovationCovHist2, common_et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
-                                        
-                                        # Common ET
-                                        self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=2.5)
-                                        self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=2.5)
-                                        
-                                        # Common ET 2
-                                        self.plot_errors(axes, common_et_times2, common_et_estHist2, trueHist, common_et_covHist2, label_color=sat2_common_et_color, linewidth=2.5)
-                                        self.plot_track_error(axes, common_et_times2, common_et_trackErrorHist2, label_color=sat2_common_et_color, linewidth=2.5)
-                                        
-                                        handles = [
-                                            Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator'),
-                                            Patch(color=sat2_common_et_color, label=f'{sat2.name}, {sat.name} Common ET Estimator')
-                                        ]
-                                        
-                                    elif plotNum == 5:
-                                        # Plot both et-local filters
-                                        et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                                        et_times2, et_estHist2, et_covHist2, et_innovationHist2, et_innovationCovHist2, et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
-                                        
-                                        # ET
-                                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
-                                        self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
-                                        
-                                        # ET 2
-                                        self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2_et_color, linewidth=2.5)
-                                        self.plot_track_error(axes, et_times2, et_trackErrorHist2, label_color=sat2_et_color, linewidth=2.5)
-                                        
-                                        handles = [
-                                            Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
-                                            Patch(color=sat2_et_color, label=f'{sat2.name} ET Estimator')
-                                        ]
-                                        
-                                    
+                        
                         fig.legend(handles=handles, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
                         plt.tight_layout()
-                        
+                            
                         # Save the Plot with respective suffix
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix_vec[plotNum])
+                        
+                    for plotNum in range(3, 6):
+                        for sat2 in self.sats:
+                            if sat != sat2:
+                                fig = plt.figure(figsize=(15, 8))
+                                fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name}, {title_vec[plotNum]}", fontsize=14)
+                                axes = self.setup_axes(fig, state_labels, meas_labels)
+
+                                if plotNum == 3:
+                                    # ET Local and Common for each neighbor
+                                    et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                                    common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
+                                    # ET
+                                    self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
+                                    self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                                    
+                                    # Common ET
+                                    self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=1.5)
+                                    self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=1.5)
+                                    
+                                    handles = [
+                                        Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                        Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator')
+                                    ]
+                                    
+                                elif plotNum == 4:
+                                    # Both Common Informatin Filters
+                                    common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
+                                    common_et_times2, common_et_estHist2, common_et_covHist2, common_et_innovationHist2, common_et_innovationCovHist2, common_et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
+                                    
+                                    # Common ET
+                                    self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=2.5)
+                                    self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=2.5)
+                                    
+                                    # Common ET 2
+                                    self.plot_errors(axes, common_et_times2, common_et_estHist2, trueHist, common_et_covHist2, label_color=sat2_common_et_color, linewidth=2.5)
+                                    self.plot_track_error(axes, common_et_times2, common_et_trackErrorHist2, label_color=sat2_common_et_color, linewidth=2.5)
+                                    
+                                    handles = [
+                                        Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator'),
+                                        Patch(color=sat2_common_et_color, label=f'{sat2.name}, {sat.name} Common ET Estimator')
+                                    ]
+                                    
+                                elif plotNum == 5:
+                                    # Plot both et-local filters
+                                    et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                                    et_times2, et_estHist2, et_covHist2, et_innovationHist2, et_innovationCovHist2, et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
+                                    
+                                    # ET
+                                    self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
+                                    self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                                    
+                                    # ET 2
+                                    self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2_et_color, linewidth=2.5)
+                                    self.plot_track_error(axes, et_times2, et_trackErrorHist2, label_color=sat2_et_color, linewidth=2.5)
+                                    
+                                    handles = [
+                                        Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                        Patch(color=sat2_et_color, label=f'{sat2.name} ET Estimator')
+                                    ]
+                                    
+                                
+                                fig.legend(handles=handles, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
+                                plt.tight_layout()
+                                
+                                # Save the Plot with respective suffix
+                                currSuffix = f"{sat2.name}_" + suffix_vec[plotNum]
+                                self.save_plot(fig, savePlot, saveName, targ, sat, currSuffix)
                                         
 
     def getEstimationHistory(self, sat, targ, time_vec, estimatorType, sharewith=None):
@@ -1334,16 +1378,8 @@ class environment:
                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                     et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
                     et_covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sat]
-                    et_trackError_times = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat].keys()
                     et_trackError = sat.etEstimator.trackErrorHist[targ.targetID][sat][sat]
                     
-                    # for neighbor in self.comms.G.neighbors(sat):
-                    #     if neighbor != sat:
-                    #         et_measHist = self.comms.G.neighbors(sat).
-                    #        sat.etEstimator.measHist[targ.targetID][sat][neighbor]
-                  #et_trackQuality = self.etEstimator.trackErrorHist[targ.targetID][sat][sat]                  
-                    
-
                     # File Name
                     filename = f"{filePath}/data/{saveName}_{targ.name}_{sat.name}.csv"
 
@@ -1353,7 +1389,7 @@ class environment:
                         sat_measHistTimes, sat_measHist, estTimes, estHist, covHist,
                         trackError, innovationHist, innovationCovHist, ddf_times,
                         ddf_estHist, ddf_covHist, ddf_trackError, ddf_innovation_times,
-                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError, et_trackError_times
+                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError
                     )
 
 
@@ -1362,7 +1398,7 @@ class environment:
         sat_measHist, estTimes, estHist, covHist, trackError, innovationHist,
         innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackError,
         ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
-        et_estHist, et_covHist, et_trackError, et_trackError_times
+        et_estHist, et_covHist, et_trackError
     ):
         """
         Formats and writes data to a CSV file.
@@ -1393,7 +1429,6 @@ class environment:
         - et_covHist (dict): ET covariance history.
         - et_measHist (dict): ET measurement history.
         - et_trackError (dict): ET track quality history.
-        - et_trackError_times (dict_keys): ET track quality times.
 
         Returns:
         None
@@ -1423,7 +1458,7 @@ class environment:
                 'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Error',
                 'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
-                'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta', 'ET_Track Error'
+                'ET_Cov_vzvz', 'ET_Track Error'
             ])
 
             # Writing data rows
@@ -1454,14 +1489,59 @@ class environment:
                 if time in et_times:
                     row += format_list(et_estHist[time])
                     row += format_list(np.diag(et_covHist[time]))
-                    #row += format_list(et_measHist[time])
-                    
-                if time in et_trackError_times:
                     row += format_list(et_trackError[time])
 
                 writer.writerow(row)
                 
+
+    def log_comms_data(self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))):
+        for sat in self.sats:
+            for targ in self.targs:
+                if targ.targetID in sat.targetIDs:
+                    commNode = self.comms.G.nodes[sat]
+                    filename = f"{filePath}/data/{saveName}_{targ.name}_{sat.name}_comm.csv"
+                    self.format_comms_data(filename, time_vec.value, sat, commNode, targ.targetID)
+                    
+    def format_comms_data(self, filename, time_vec, sat, commNode, targetID):
+        precision = 3
+        def format_list(lst):
+            if isinstance(lst, np.ndarray):
+                return [f"{x:.{precision}f}" if not np.isnan(x) else "nan" for x in lst.flatten()]
+            elif isinstance(lst, int) or isinstance(lst, float):
+                return [f"{float(lst):.{precision}f}" if not np.isnan(lst) else "nan"]
+            else:
+                return [f"{x:.{precision}f}" if not np.isnan(x) else "nan" for x in lst]
+        
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            
+            writer.writerow([
+                'Time', 'Satellite', 'Target', 'Sender', "Received Alpha", "Received Beta", "Receiver", "Sent Alpha", "Sent Beta"])
+            
+            times = [time for time in time_vec]
+            timeReceived = [time for time in commNode['received_measurements'].keys()]
+            timesSent = [time for time in commNode['sent_measurements'].keys()]
+            
+            for time in times:
+                row = [f"{time:.{precision}f}"]
+                row += [sat.name]
+                row += [f"Targ{targetID}"]
                 
+                if time in timeReceived:
+                    for i in range(len(commNode['received_measurements'][time])):
+                        row += [commNode['received_measurements'][time][targetID]['sender'][i].name]#format_list(commNode['received_measurements'][time][targetID]['sender'][i])
+                        row += format_list(commNode['received_measurements'][time][targetID]['meas'][i])
+                else:
+                    row += ['', '', '']
+                    
+                if time in timesSent:
+                    for i in range(len(commNode['sent_measurements'][time])):
+                        row +=  [commNode['sent_measurements'][time][targetID]['receiver'][i].name]#format_list(commNode['sent_measurements'][time][targetID]['receiver'][i])
+                        row += format_list(commNode['sent_measurements'][time][targetID]['meas'][i])
+                else:
+                    row += ['', '', '']
+                writer.writerow(row)
+
     def collectNISNEESData(self):
         """
         Collects NEES and NIS data for the simulation in an easy-to-read format.

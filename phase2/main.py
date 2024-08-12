@@ -106,10 +106,10 @@ def create_environment_mono():
     # POLAR ORBIT SATELLITE
     sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = -45, color=blue_shades[0])
 
-    # INCLINATION 50 SATELLITE
-    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = -135, argp = 0, nu = 90, color=yellow_shades[0])
+    # INCLINATION 50 SATELLITE=90
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = 45, argp = 0, nu = -90, color=yellow_shades[0])
     
-    sats = [sat1, sat2]#, sat3]
+    sats = [sat1, sat2, sat3]
 
     # Make the targets have some uncertainty in their initial state
     # At M = 4.7, hypersonic
@@ -270,8 +270,8 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(0, 65, 65 + 1) * u.minute
-    fileName = "delta1_sim"
+    time_vec = np.linspace(0, 120, 60 + 1) * u.minute
+    fileName = "three_satellites_"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
@@ -279,7 +279,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_mono()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=True, saveData=True, saveName=fileName, showSim=False)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=True, saveName=fileName, showSim=False)
         
         env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 2)
         env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 2)
