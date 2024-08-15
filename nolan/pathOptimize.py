@@ -110,12 +110,6 @@ path_selection_vars = pulp.LpVariable.dicts(
     "path_selection", [(path, targetID) for path in all_paths for targetID in track_uncertainty[path[0]].keys()], 0, 1, pulp.LpBinary
 )
 
-# # Create binary decision variables to track if a receiver has already received information about a targetID from a specific source
-# # 1 if the receiver sat has already received information about targetID from that satellite, 0 otherwise
-# information_vars = pulp.LpVariable.dicts(
-#     "information", [(source, receiver, targetID) for source in g.nodes() for receiver in g.nodes() for targetID in track_uncertainty[source].keys()], 0, 1, pulp.LpBinary
-# )
-
 #### OBJECTIVE FUNCTION
 
 ## Maximize the total goodness across all paths, considering the goodness of all links
