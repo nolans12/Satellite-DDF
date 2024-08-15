@@ -11,20 +11,22 @@ g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
 
 # Add node attributes for trackUncertainty
 track_uncertainty = {
-    "Sat1a": {1: 90, 2: 115, 3: 120, 4: 120, 5: 120},
+    "Sat1a": {1: 50, 2: 50, 3: 50, 4: 50, 5: 50},
     "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
     "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
-    "Sat2b": {1: 50, 2: 275, 3: 280, 4: 280, 5: 290}
+    "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290}
 }
 
 nx.set_node_attributes(g, track_uncertainty, 'trackUncertainty')
 
+edgeBandwidth = 60
+
 # Add directed edges with bandwidth constraints of 90
 edges_with_bandwidth = [
-    ("Sat1a", "Sat1b", 90), ("Sat1a", "Sat2a", 90), ("Sat1a", "Sat2b", 90),
-    ("Sat1b", "Sat1a", 90), ("Sat1b", "Sat2a", 90), ("Sat1b", "Sat2b", 90),
-    ("Sat2a", "Sat1a", 90), ("Sat2a", "Sat1b", 90), ("Sat2a", "Sat2b", 90),
-    ("Sat2b", "Sat1a", 90), ("Sat2b", "Sat1b", 90), ("Sat2b", "Sat2a", 90)
+    ("Sat1a", "Sat1b", edgeBandwidth), ("Sat1a", "Sat2a", edgeBandwidth), ("Sat1a", "Sat2b", edgeBandwidth),
+    ("Sat1b", "Sat1a", edgeBandwidth), ("Sat1b", "Sat2a", edgeBandwidth), ("Sat1b", "Sat2b", edgeBandwidth),
+    ("Sat2a", "Sat1a", edgeBandwidth), ("Sat2a", "Sat1b", edgeBandwidth), ("Sat2a", "Sat2b", edgeBandwidth),
+    ("Sat2b", "Sat1a", edgeBandwidth), ("Sat2b", "Sat1b", edgeBandwidth), ("Sat2b", "Sat2a", edgeBandwidth)
 ]
 g.add_weighted_edges_from(edges_with_bandwidth, weight='bandwidth')
 
@@ -121,4 +123,24 @@ print("Selected pairs:")
 for (s, t, targetID) in selected_pairs:
     print(f"{s} -> {t} for targetID {targetID}")
 
+# Print hte total goodness value
+total_goodness = sum(
+    goodness_dict[(s, t, targetID)]
+    for (s, t, targetID) in selected_pairs
+)
 
+print(f"Total goodness: {total_goodness}")
+
+# Now sum up the total bandwidth usage
+total_bandwidth_usage = sum(
+    fixed_bandwidth_consumption
+    for (s, t, _) in selected_pairs
+)
+
+print(f"Total bandwidth usage: {total_bandwidth_usage}")
+# Also figure out how much bandwidth is left
+total_bandwidth = sum(
+    g[u][v]['bandwidth']
+    for (u, v) in g.edges()
+)
+print(f"Total bandwidth available: {total_bandwidth}")

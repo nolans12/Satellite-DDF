@@ -13,15 +13,15 @@ g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
 
 # Add node attributes for trackUncertainty
 track_uncertainty = {
-    "Sat1a": {1: 90, 2: 115, 3: 120, 4: 120, 5: 120},
+    "Sat1a": {1: 50, 2: 50, 3: 50, 4: 50, 5: 50},
     "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
     "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
-    "Sat2b": {1: 50, 2: 275, 3: 280, 4: 280, 5: 290}
+    "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290}
 }
 
 nx.set_node_attributes(g, track_uncertainty, 'trackUncertainty')
 
-edgeBandwidth = 90
+edgeBandwidth = 60
 
 # Add directed edges with bandwidth constraints of 90
 edges_with_bandwidth = [
@@ -86,7 +86,7 @@ for source in g.nodes():
 
 # Now goal is to find the set of paths that maximize the total goodness, while also respecting the bandwidth constraints
 
-# Generate all possible paths up to a reasonable length (e.g., max 3 hops)
+# Generate all possible non cyclic paths up to a reasonable length (e.g., max 3 hops)
 def generate_all_paths(graph, max_hops):
     paths = []
     for source in graph.nodes():
@@ -96,7 +96,7 @@ def generate_all_paths(graph, max_hops):
                     paths.append(tuple(path))
     return paths
 
-all_paths = generate_all_paths(g, 3)
+all_paths = generate_all_paths(g, 4)
 
 # Create binary decision variables for each path combination
 path_selection_vars = pulp.LpVariable.dicts(
@@ -117,7 +117,7 @@ fixed_bandwidth_consumption = 30
 # Objective: Maximize the total goodness across all paths, considering the goodness of all links
 prob += pulp.lpSum([
     sum(
-        goodness(path[i], path[i+1], track_uncertainty, targetID) * path_selection_vars[(path, targetID)]
+        goodness(path[0], path[i+1], track_uncertainty, targetID) * path_selection_vars[(path, targetID)]
         for i in range(len(path) - 1)
     )
     for path in all_paths for targetID in track_uncertainty[path[0]].keys()
@@ -146,6 +146,13 @@ for edge in g.edges():
         f"Bandwidth_constraint_{edge}"
     )
 
+# # Ensure the total bandwidth consumption does not exceed the bandwidth constraints
+# for (s, t, _) in goodness_dict:
+#     prob += pulp.lpSum(
+#         selection_vars[(s, t, targetID)] * fixed_bandwidth_consumption
+#         for targetID in track_uncertainty[s]
+#     ) <= g[s][t]["bandwidth"]
+
 # Solve the problem
 prob.solve()
 
@@ -161,10 +168,33 @@ print("Selected paths:")
 for (path, targetID) in selected_paths:
     # also print the total goodness of the selected paths
     total_goodness = sum(
-        goodness(path[i], path[i+1], track_uncertainty, targetID)
+        goodness(path[0], path[i+1], track_uncertainty, targetID)
         for i in range(len(path) - 1)
     )
     print(f"{path} for targetID {targetID}, total goodness: {total_goodness}")
 
 
-test = 1
+# Print the total goodness of all paths:
+total_goodness = sum(
+    sum(
+        goodness(path[0], path[i+1], track_uncertainty, targetID)
+        for i in range(len(path) - 1)
+    )
+    for (path, targetID) in selected_paths
+)
+print(f"Total goodness: {total_goodness}")
+
+# Now take the select paths, and count the total bandwidth usage across all links in the graph, and print them
+total_bandwidth_usage = sum(
+    fixed_bandwidth_consumption
+    for (path, targetID) in selected_paths
+    for i in range(len(path) - 1)
+)
+
+print(f"Total bandwidth usage: {total_bandwidth_usage}")
+# Also figure out how much bandwidth is left
+total_bandwidth = sum(
+    g[u][v]['bandwidth']
+    for (u, v) in g.edges()
+)
+print(f"Total bandwidth available: {total_bandwidth}")
