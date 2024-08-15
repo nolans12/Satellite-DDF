@@ -4,7 +4,7 @@ class comms:
     """
     Communication network class.
     """
-    def __init__(self, sats, maxNeighbors, maxRange, minRange, dataRate=0, displayStruct=False):
+    def __init__(self, sats, maxNeighbors, maxRange, minRange, maxBandwidth = 100000000, dataRate=0, displayStruct=False):
         """Initialize the communications network.
                 Using networkx, a python library, to create a graph of the satellites and their connections.
 
@@ -21,8 +21,11 @@ class comms:
 
         # Add nodes with a dict for queued data (list of arrays)
         for sat in sats:
-            self.G.add_node(sat, queued_data={}, measurement_data={})
+            self.G.add_node(sat, estimate_data={}, measurement_data={})
             
+
+        self.maxBandwidth = maxBandwidth
+    
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
         self.total_comm_data = NestedDict()
         self.used_comm_data = NestedDict()
@@ -57,20 +60,29 @@ class comms:
         if not self.G.has_edge(sender, receiver):
             return 
         
+        # Before we decide if we want to send the estimate, need to make sure it wont violate the bandwidth constraints
+        # Check if the bandwidth is available
+        if self.G.edges[sender, receiver]['usedBandwidth'] + est_meas.size*2 + cov_meas.size/2 > self.G.edges[sender, receiver]['maxBandwidth']:
+            # print(f"Bandwidth exceeded between {sender.name} and {receiver.name} with current bandwith of {self.G.edges[sender, receiver]['usedBandwidth']} and max bandwidth of {self.G.edges[sender, receiver]['maxBandwidth']}")
+            return
+        else:
+            # Update the used bandwidth
+            self.G.edges[sender, receiver]['usedBandwidth'] += est_meas.size*2 + cov_meas.size/2
+        
         # Initialize the target_id key in the receiver's queued data if not present
-        if time not in self.G.nodes[receiver]['queued_data']:
-            self.G.nodes[receiver]['queued_data'][time] = {}
+        if time not in self.G.nodes[receiver]['estimate_data']:
+            self.G.nodes[receiver]['estimate_data'][time] = {}
         
         # Initialize the time key in the target_id's queued data if not present
-        if target_id not in self.G.nodes[receiver]['queued_data'][time]:
-            self.G.nodes[receiver]['queued_data'][time][target_id] = {'est': [], 'cov': [], 'sender': []}
+        if target_id not in self.G.nodes[receiver]['estimate_data'][time]:
+            self.G.nodes[receiver]['estimate_data'][time][target_id] = {'est': [], 'cov': [], 'sender': []}
 
         # Add the estimate to the receiver's queued data at the specified target_id and time
-        self.G.nodes[receiver]['queued_data'][time][target_id]['est'].append(est_meas)
-        self.G.nodes[receiver]['queued_data'][time][target_id]['cov'].append(cov_meas)
-        self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['est'].append(est_meas)
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['cov'].append(cov_meas)
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['sender'].append(sender.name)
 
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size + cov_meas.size
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
 
 
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
@@ -151,6 +163,12 @@ class comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
+
+        # Finally, make the edges have a max bandwidth and current bandwidth
+        for edge in self.G.edges:
+            self.G.edges[edge]['maxBandwidth'] = self.maxBandwidth
+            self.G.edges[edge]['usedBandwidth'] = 0
+        
 
     def intersect_earth(self, sat1, sat2):
         """Check if the Earth is blocking the two satellites using line-sphere intersection.

@@ -79,7 +79,7 @@ class satellite:
         """Collect measurements from the sensor for a specified target and update local filters.
                 The satellite will use its sensor class to collect a measurement on the target.
                 It then stores the measurement in its measurement history and updates its local filters.
-                Updating hte local filters calls the EKF functions to update the state and covariance estimates based on the measurement.
+                Updating the local filters calls the EKF functions to update the state and covariance estimates based on the measurement.
 
         Args:
             target (object): Target object containing targetID and other relevant information.
@@ -88,22 +88,21 @@ class satellite:
             int: Flag indicating whether measurements were successfully collected (1) or not (0).
         """
         collectedFlag = 0
-        if target.targetID in self.targetIDs:
-        # Is the current target one of the ones to track?
-            # If so, get the measurement
-            measurement = self.sensor.get_measurement(self, target)
 
-            # Make sure its not just a default 0, means target isnt visible
-            if not isinstance(measurement, int):
-            # If target is visible, save relavent data
-                collectedFlag = 1
+        # If so, get the measurement
+        measurement = self.sensor.get_measurement(self, target)
 
-                # Save the measurement
-                self.measurementHist[target.targetID][self.time] = measurement
+        # Make sure its not just a default 0, means target isnt visible
+        if not isinstance(measurement, int):
+        # If target is visible, save relavent data
+            collectedFlag = 1
 
-                # Update the local filters
-                self.update_local_filters(measurement, target, self.time)
-                
+            # Save the measurement
+            self.measurementHist[target.targetID][self.time] = measurement
+
+            # Update the local filters
+            self.update_local_filters(measurement, target, self.time)
+            
         return collectedFlag
 
     def update_local_filters(self, measurement, target, time):

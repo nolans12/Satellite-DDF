@@ -71,14 +71,14 @@ class environment:
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, saveComms = False, saveName=None):
+    def simulate(self, time_vec, pause_step=0.1, showSim=False, plotEstimators=False, plotComms = False, saveGif=False, saveData=False, saveName=None):
         """
         Simulate the environment over a time range.
         
         Args:
         - time_vec: numpy array of time steps with poliastro units associated.
         - pause_step: time to pause between each step if displaying as animation (default: 0.1).
-        - savePlot: boolean, if True will save plots (default: False).
+        - plotEstimators: boolean, if True will save plots (default: False).
         - saveData: boolean, if True will save data (default: False).
         - saveName: optional name for saving plots and data (default: None).
         - showSim: boolean, if True will display the plot as an animation (default: False).
@@ -98,22 +98,24 @@ class environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
-            if savePlot:
+            if plotEstimators:
                 # Update the plot environment
                 self.plot()
 
                 if showSim:
+                    # Display the plot
                     plt.pause(pause_step)
                     plt.draw()
 
-        if savePlot:
+        if plotEstimators:
             # Plot the results of the simulation.
-            self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
+            self.plot_estimator_results(time_vec, plotEstimators=plotEstimators, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
 
-        if saveComms:
+        if plotComms:
             # Plot the comm results
             self.plot_global_comms(saveName=saveName)
             self.plot_used_comms(saveName=saveName)
+            self.plot_local_comms(saveName=saveName)
            
         if saveGif:
             # Save the uncertainty ellipse plots
@@ -288,9 +290,9 @@ class environment:
             # Store the history of sat time and xyz position
             sat.orbitHist[sat.time] = sat.orbit.r.value
 
-            # Update the communication network for the new sat positions
-            self.comms.make_edges(self.sats)
-        
+        # Update the communication network for the new sat positions
+        self.comms.make_edges(self.sats)
+            
         
 ### 3D Dynamic Environment Plot ###
     def plot(self):
@@ -400,13 +402,13 @@ class environment:
 
 
 ### Estimation Errors and Track Error Plots ###
-    def plot_estimator_results(self, time_vec, savePlot, saveName):
+    def plot_estimator_results(self, time_vec, plotEstimators, saveName):
         """
         Create three types of plots: Local vs Central, DDF vs Central, and Local vs DDF vs Central.
 
         Args:
             time_vec (list): List of time values.
-            savePlot (bool): Flag indicating whether to save the plot.
+            plotEstimators (bool): Flag indicating whether to save the plot.
             saveName (str): Name for the saved plot file.
         """
         plt.close('all')
@@ -647,10 +649,10 @@ class environment:
                         
                         # Save the Plot with respective suffix
                         suffix = ['indept', 'ddf', 'et', 'ci'][k]
-                        self.save_plot(fig, savePlot, saveName, targ, sat, suffix)
+                        self.save_plot(fig, plotEstimators, saveName, targ, sat, suffix)
                         
                         if k == 2:
-                            self.plot_messages(savePlot, saveName)
+                            self.plot_messages(plotEstimators, saveName)
 
 
     def plot_estimator_data(self, fig, axes, estTimes, innTimes, nnTimes, tqTimes, estHist, trueHist, covHist, innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targQuality, label_color, linewidth, c=False, ci=False, e=False):
@@ -773,7 +775,8 @@ class environment:
                 # Add a text label on the above right side of the dashed line
                 ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
-    def segment_data(self, times, max_gap = 30):
+
+    def segment_data(self, times, max_gap = 1/6):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -855,19 +858,19 @@ class environment:
         return axes
 
 
-    def save_plot(self, fig, savePlot, saveName, targ, sat, suffix):
+    def save_plot(self, fig, plotEstimators, saveName, targ, sat, suffix):
         """
         Save each plot into the "plots" folder with the given suffix.
 
         Args:
             fig (matplotlib.figure.Figure): The figure to save.
-            savePlot (bool): Flag indicating whether to save the plot.
+            plotEstimators (bool): Flag indicating whether to save the plot.
             saveName (str): Name for the saved plot file.
             targ (Target): Target object.
             sat (Satellite): Satellite object.
             suffix (str): Suffix for the saved plot file name.
         """
-        if savePlot:
+        if plotEstimators:
             filePath = os.path.dirname(os.path.realpath(__file__))
             plotPath = os.path.join(filePath, 'plots')
             os.makedirs(plotPath, exist_ok=True)
@@ -879,6 +882,7 @@ class environment:
 
 
 ### Plot communications sent/recieved  
+    # Plot the total data sent and received by satellites
     def plot_global_comms(self, saveName):
 
         # Create a figure
@@ -986,6 +990,7 @@ class environment:
             plotPath = os.path.join(filePath, 'plots')
             plt.savefig(os.path.join(plotPath, f"total_comms.png"), dpi=300)
 
+    # Plots the actual data amount used by the satellites
     def plot_used_comms(self, saveName):
 
         # Create a figure
@@ -1093,13 +1098,144 @@ class environment:
             plotPath = os.path.join(filePath, 'plots')
             plt.savefig(os.path.join(plotPath, f"used_comms.png"), dpi=300)
 
+    # Sub plots for each satellite showing the track uncertainty for each target and then the comms sent/recieved about each target vs time
+    def plot_local_comms(self, saveName):
+
+        # For each satellite make a plot:
+        for sat in self.sats:
+            
+            # Create the figure and subplot:
+            fig = plt.figure(figsize=(15, 8))
+
+            fig.suptitle(f"CI DDF, Track Uncertainty and Data Received by {sat.name}", fontsize=14)
+            gs = gridspec.GridSpec(2, 1)
+            ax1 = fig.add_subplot(gs[0, 0])
+            # Add a subplot title
+            ax1.set_title(f"Track Uncertainty for {sat.name}")
+            ax1.set_ylabel('Track Uncertainty [km]')
+
+            ax2 = fig.add_subplot(gs[1, 0])
+            # Add a subplot title
+            ax2.set_title(f"Data Received by {sat.name}")
+            ax2.set_ylabel('Data Sent/Recieved (# of numbers)')
+            ax2.set_xlabel('Time [min]')
+
+            # Now, at the bottom of the plot, add the legends
+            handles = []
+            for targ in self.targs:
+                handles.append(Patch(color=targ.color, label=f"{targ.name}"))
+            for tempSat in self.sats:
+                handles.append(Patch(color=tempSat.color, label=f"{tempSat.name}"))
+
+            # Create a legend
+            fig.legend(handles=handles, loc='lower right', ncol=2, bbox_to_anchor=(1, 0))
+
+            nonEmptyTime = []
+
+            # Now do plots for the first subplot, we will be plotting track uncertainty for each target
+            for targ in self.targs:
+
+                # Get the uncertainty data
+                trackUncertainty = sat.ciEstimator.trackErrorHist[targ.targetID]
+
+                # Get the times for the track_uncertainty
+                times = [time for time in trackUncertainty.keys()]
+                # segments = self.segment_data(times, max_gap = 1/6)
+                segments = self.segment_data(times)
+
+                for segment in segments:
+                    # Does the semgnet have a real data point in eveyr time step?
+                    newTime = []
+                    for time in segment:
+                        if not not trackUncertainty[time]:
+                            newTime.append(time)
+                            nonEmptyTime.append(time)
+
+                    trackVec = [trackUncertainty[time] for time in newTime]
+                    ax1.plot(newTime, trackVec, color=targ.color, linewidth=1.5)
+
+            # Now for each target make the dashed lines for the target quality
+            for targ in self.targs:
+
+                # Now plot a dashed line for the targetPriority
+                ax1.axhline(y=targ.tqReq*50 + 50, color=targ.color, linestyle='dashed', linewidth=1.5)
+                # Add a text label on the above right side of the dashed line
+                ax1.text(min(nonEmptyTime), targ.tqReq*50 + 50 + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+
+
+            # Now do the 2nd subplot, bar plot showing the data sent/recieved by each satellite about each target
+
+            # Save previous data, to stack the bars
+            prevData = defaultdict(dict)
+
+            nonEmptyTime = list(set(nonEmptyTime)) # also make it assending
+            nonEmptyTime.sort()
+
+            # also now use a specified order of sats
+            satNames = [sat.name for sat in self.sats]
+
+            # Use the nonEmptyTime to get the minimum difference between time steps
+            differences = [j - i for i, j in zip(nonEmptyTime[:-1], nonEmptyTime[1:])]
+            min_diff = min(differences)
+
+            # Make nonEmptyTimes the keys of prevData
+            for time in nonEmptyTime:
+                prevData[time] = 0
+
+            for targ in self.targs:
+
+                # Check if the target has any communication data
+                if targ.targetID not in self.comms.used_comm_data:
+                    continue
+
+                for sender in satNames:
+                    if sender == sat:
+                        continue
+
+                    # So now, we have a satellite, the reciever, recieving information about targetID from sender
+                    # We want to count, how much information did the reciever recieve from the sender in a time history and plot that on a bar chart
+
+                    data = self.comms.used_comm_data[targ.targetID][sat.name][sender]
+
+                    # Check, does any of the data contain [] or None? If so, make it a 0
+                    for key in data:
+                        if not data[key]:
+                            data[key] = 0
+
+                    # Now make sure any data that exists in prevData, exists in data
+                    for key in prevData.keys():
+                        if key not in data:
+                            data[key] = 0
+
+                    # Get the values from the data:
+                    values = [data[time] for time in nonEmptyTime]
+
+                    # Get the color of the sender
+                    sender = [s for s in self.sats if s.name == sender][0]
+
+                    # Now do a bar plot with the data
+                    ax2.bar(nonEmptyTime, values, bottom=list(prevData.values()), color=targ.color, hatch = '//', edgecolor = sender.color, linewidth = 0, width = min_diff)
+
+                    # Add the values to the prevData
+                    for key in data.keys():
+                        prevData[key] += data[key]
+
+            # Save the plot
+            if saveName is not None:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                plt.savefig(os.path.join(plotPath, f"{saveName}_{sat.name}_track_uncertainty.png"), dpi=300)
+
+            # plt.close(fig)
+
 ### Plot all messages
-    def plot_messages(self, savePlot, saveName):
+    def plot_messages(self, plotEstimators, saveName):
         """
         Plot all messages sent between satellites.
 
         Args:
-            savePlot (bool): Flag indicating whether to save the plot.
+            plotEstimators (bool): Flag indicating whether to save the plot.
             saveName (str): Name for the saved plot file.
         """
     
@@ -1144,7 +1280,7 @@ class environment:
                 plt.tight_layout()
                 
                 # Save the plot
-                if savePlot:
+                if plotEstimators:
                     filePath = os.path.dirname(os.path.realpath(__file__))
                     plotPath = os.path.join(filePath, 'plots')
                     os.makedirs(plotPath, exist_ok=True)

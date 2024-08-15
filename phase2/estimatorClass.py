@@ -366,6 +366,9 @@ class ciEstimator(BaseEstimator):
         - targetIDs (list): List of target IDs to track.
         """
         super().__init__(targetIDs)
+
+        # Make a dicitonary of targetIDs with booleans keys, represents needing help on estimating a target
+        self.needHelp = {targetID: False for targetID in targetIDs}
             
         self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
@@ -383,7 +386,27 @@ class ciEstimator(BaseEstimator):
         Returns:
         - np.array: Estimated state after filtering.
         """
-        return super().EKF(sats, measurements, target, envTime)
+
+        # Perform EKF for each satellite
+        super().EKF(sats, measurements, target, envTime)
+
+        # Now check, does this satellite need help estimating the target?
+            
+        # Get the most recent estimate and covariance
+        time = max(self.estHist[target.targetID].keys())
+
+        # Check, does the track error exist?
+        if not self.trackErrorHist[target.targetID][time]:
+            return
+
+        # If the track error is outside the bounds, set needHelp to True
+        if self.trackErrorHist[target.targetID][time] > target.targetID*50 + 50:
+            self.needHelp[target.targetID] = True
+        else:
+            self.needHelp[target.targetID] = False
+            
+
+        return 
 
     def CI(self, sat, comms):
         """
@@ -402,20 +425,20 @@ class ciEstimator(BaseEstimator):
         commNode = comms.G.nodes[sat]
 
         # Check if there is any information in the queue:
-        if len(commNode['queued_data']) == 0:
+        if len(commNode['estimate_data']) == 0:
             return
 
         # There is information in the queue, get the newest info
-        time_sent = max(commNode['queued_data'].keys())
+        time_sent = max(commNode['estimate_data'].keys())
 
         # Check all the targets in the queue
-        for targetID in commNode['queued_data'][time_sent].keys():
+        for targetID in commNode['estimate_data'][time_sent].keys():
 
             # For each target, loop through all the estimates and covariances
-            for i in range(len(commNode['queued_data'][time_sent][targetID]['est'])):
-                senderName = commNode['queued_data'][time_sent][targetID]['sender'][i]
-                est_sent = commNode['queued_data'][time_sent][targetID]['est'][i]
-                cov_sent = commNode['queued_data'][time_sent][targetID]['cov'][i]
+            for i in range(len(commNode['estimate_data'][time_sent][targetID]['est'])):
+                senderName = commNode['estimate_data'][time_sent][targetID]['sender'][i]
+                est_sent = commNode['estimate_data'][time_sent][targetID]['est'][i]
+                cov_sent = commNode['estimate_data'][time_sent][targetID]['cov'][i]
 
                 # Check if satellite has an estimate and covariance for this target already
                 if not self.estHist[targetID] and not self.covarianceHist[targetID]:
@@ -431,60 +454,42 @@ class ciEstimator(BaseEstimator):
                 if time_sent < time_prior:
                     continue
 
-                # TODO: THIS IS ONLY TEMP TO VISUALIZE RESULTS
-                #### CHECK, IS MY MOST RECENT TRACK ERROR OUTSIDE THE SPECIFIED BOUNDS?
-                # If the track error is outside the bounds, discard the sent estimate
-                for i in range(1,6):
-                    if i == targetID:
+                # If the trackErrorHist is greater than the threshold, we need to do CI
+                if self.needHelp[targetID]:
+                    # We will now use the estimate and covariance that were sent, so we should store this
+                    comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size + cov_sent.size
 
-                        doCI = True
+                    # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
+                    if time_sent - time_prior > 5:
+                        self.estHist[targetID][time_sent] = est_sent
+                        self.covarianceHist[targetID][time_sent] = cov_sent
+                        continue
 
-                        # First, check does trackErrorHist have a value at that time?
-                        if not self.trackErrorHist[i][time_prior]:
-                            doCI = True # If we dont have a trackErrorHist yet, we dont have an initalized filter, initalize the filter with the one from CI, so do CI!
-                        else:
-                            # If the trackErrorHist is less than the threshold, we dont need to do any CI
-                            if self.trackErrorHist[i][time_prior] < i*50 + 50: 
-                                doCI = False
-                        
-                        if doCI:
+                    # Else, let's do CI
+                    est_prior = self.estHist[targetID][time_prior]
+                    cov_prior = self.covarianceHist[targetID][time_prior]
 
-                            # If the trackErrorHist is greater than the threshold, we need to do CI
-                            
-                            # We will now use the estimate and covariance that were sent, so we should store this
-                            comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size + cov_sent.size
+                    # Propagate the prior estimate and covariance to the new time
+                    dt = time_sent - time_prior
+                    est_prior = self.state_transition(est_prior, dt)
+                    F = self.state_transition_jacobian(est_prior, dt)
+                    cov_prior = np.dot(F, np.dot(cov_prior, F.T))
 
-                            # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
-                            if time_sent - time_prior > 5:
-                                self.estHist[targetID][time_sent] = est_sent
-                                self.covarianceHist[targetID][time_sent] = cov_sent
-                                continue
+                    # Minimize the covariance determinant
+                    omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
 
-                            # Else, let's do CI
-                            est_prior = self.estHist[targetID][time_prior]
-                            cov_prior = self.covarianceHist[targetID][time_prior]
+                    # Compute the fused covariance
+                    cov1 = cov_prior
+                    cov2 = cov_sent
+                    cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
+                    est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
 
-                            # Propagate the prior estimate and covariance to the new time
-                            dt = time_sent - time_prior
-                            est_prior = self.state_transition(est_prior, dt)
-                            F = self.state_transition_jacobian(est_prior, dt)
-                            cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+                    # Save the fused estimate and covariance
+                    self.estHist[targetID][time_sent] = est_prior
+                    self.covarianceHist[targetID][time_sent] = cov_prior
 
-                            # Minimize the covariance determinant
-                            omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
-
-                            # Compute the fused covariance
-                            cov1 = cov_prior
-                            cov2 = cov_sent
-                            cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
-                            est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
-
-                            # Save the fused estimate and covariance
-                            self.estHist[targetID][time_sent] = est_prior
-                            self.covarianceHist[targetID][time_sent] = cov_prior
-
-                            # Calculate the track error metric
-                            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(cov_prior)
+                    # Calculate the track error metric
+                    self.trackErrorHist[targetID][time_sent] = self.calcTrackError(cov_prior)
 
     
     
