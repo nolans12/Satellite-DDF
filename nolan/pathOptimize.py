@@ -110,17 +110,39 @@ path_selection_vars = pulp.LpVariable.dicts(
     "path_selection", [(path, targetID) for path in all_paths for targetID in track_uncertainty[path[0]].keys()], 0, 1, pulp.LpBinary
 )
 
+
 #### OBJECTIVE FUNCTION
 
-## Maximize the total goodness across all paths, considering the goodness of all links
-prob += pulp.lpSum([
-    sum(
-        # Important to note: taking goodness from first sat to all other nodes, because assume information only coming from one source
-        goodness(path[0], path[i+1], track_uncertainty, targetID) * path_selection_vars[(path, targetID)] 
-        for i in range(len(path) - 1)
-    )
-    for path in all_paths for targetID in track_uncertainty[path[0]].keys()
-])
+## Define the objective function, total sum of goodness across all paths
+# Initalize a linear expression that will be used as the objective
+total_goodness_expression = pulp.LpAffineExpression()
+
+for path in all_paths: # Loop through all paths possible
+
+    for targetID in track_uncertainty[path[0]].keys(): # Loop through all targetIDs that a path could be talking about
+
+        # Initalize a linear expression that will define the goodness of a path in talking about a targetID
+        path_goodness = pulp.LpAffineExpression() 
+
+        # Loop through the links of the path
+        for i in range(len(path) - 1):
+
+            # Get the goodness of a link in the path on the specified targetID
+            edge_goodness = goodness(path[0], path[i+1], track_uncertainty, targetID)
+        
+            # Add the edge goodness to the path goodness
+            path_goodness += edge_goodness
+
+        # Thus we are left with a value for the goodness of the path in talking about targetID
+        # But, we dont know if we are going to take that path, thats up to the optimizer
+        # So make it a binary expression, so that if the path is selected,
+        # the path_goodness will be added to the total_goodness_expression. 
+        # Otherwsie if the path isn't selected, the path_goodness will be 0
+        total_goodness_expression += path_goodness * path_selection_vars[(path, targetID)]
+
+# Add the total goodness expression to the linear programming problem as the objective function
+prob += total_goodness_expression, "Total_Goodness_Objective"
+
 
 #### CONSTRAINTS
 
@@ -185,8 +207,12 @@ for source in g.nodes(): # Loop over all source nodes possible
                 # ensuring the total number of paths selected that contain that isn't greater than 1
                 prob += path_count <= 1, f"Single_path_for_target_{source}_{receiver}_{targetID}"
 
-# Solve the problem
+
+#### Solve the problem
 prob.solve()
+
+
+#### Extract and interpret results
 
 # Output the results, paths selected
 selected_paths = [
