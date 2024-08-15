@@ -11,7 +11,7 @@ g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
 
 # Add node attributes for trackUncertainty
 track_uncertainty = {
-    "Sat1a": {1: 110, 2: 115, 3: 120, 4: 120, 5: 120},
+    "Sat1a": {1: 90, 2: 115, 3: 120, 4: 120, 5: 120},
     "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
     "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
     "Sat2b": {1: 50, 2: 275, 3: 280, 4: 280, 5: 290}
@@ -53,19 +53,23 @@ def goodness(s, t, targetID):
 
     """THIS SIMPLY PRIORITIZES DOING THE BEST TRACK UPDATES POSSIBLE, NOT PRIORITIZING TARGETS"""
 
-
     # Check if the track uncertainty for the source and target nodes is available
     if s not in track_uncertainty or t not in track_uncertainty:
         return 0
 
-    uncertainty_s = track_uncertainty[s][targetID]
-    uncertainty_t = track_uncertainty[t][targetID]
+    sourceTrackUncertainty = track_uncertainty[s][targetID]
+    recieverTrackUncertainty = track_uncertainty[t][targetID]
 
-    # Also check, if the track uncertainty for the source is higher than target, we shouldnt share
-    # if uncertainty_s > uncertainty_t:
-    #     return 0
+    # Check, if the sats track uncertainty on that targetID needs help or not
+    if recieverTrackUncertainty < (50 + 50*targetID):
+        return 0
+   
+    # Else, calculate the goodness, + if the source is better, 0 if the sat is better
+    if recieverTrackUncertainty - sourceTrackUncertainty < 0:
+        return 0 # Source has higher uncertaninty than sat, no benefit
     
-    return uncertainty_t - uncertainty_s
+    # Else, add the goodness to the total goodness, taking the difference in track uncertainty
+    return recieverTrackUncertainty - sourceTrackUncertainty
 
 # Define a dictionary to store the goodness values
 goodness_dict = {}
