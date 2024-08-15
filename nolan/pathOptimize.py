@@ -65,10 +65,10 @@ def goodness(source, reciever, track_uncertainty, targetID):
         return 0
    
     # Else, calculate the goodness, + if the source is better, 0 if the sat is better
-    if recieverTrackUncertainty - sourceTrackUncertainty < 0:
-        return 0 # Source has higher uncertaninty than sat, no benefit
+    if recieverTrackUncertainty - sourceTrackUncertainty < 0: 
+        return 0 # EX: If i have uncertainty of 200 and share it with a sat with 100, theres no benefit to sharing that
     
-    # Else, add the goodness to the total goodness, taking the difference in track uncertainty
+    # Else, return the goodness of the link, difference between the two track uncertainties
     return recieverTrackUncertainty - sourceTrackUncertainty
 
 # Define a dictionary to store the goodness values
@@ -80,11 +80,11 @@ for source in g.nodes():
         if source == reciever:
             continue
         for targetID in track_uncertainty[source].keys():
-            # Calculate the goodness of the path
+            # Calculate the goodness of the link
             goodness_dict[(source, reciever, targetID)] = goodness(source, reciever, track_uncertainty, targetID)
 
 
-# Now goal is to find the set of paths that maximize the total goodness, while also respecting the bandwidth constraints
+# Now goal is to find the set of paths that maximize the total goodness, while also respecting the bandwidth constraints and not double counting, farying information is allowed
 
 # Generate all possible non cyclic paths up to a reasonable length (e.g., max 3 hops)
 def generate_all_paths(graph, max_hops):
@@ -98,60 +98,98 @@ def generate_all_paths(graph, max_hops):
 
 all_paths = generate_all_paths(g, 4)
 
-# Create binary decision variables for each path combination
-path_selection_vars = pulp.LpVariable.dicts(
-    "path_selection", [(path, targetID) for path in all_paths for targetID in track_uncertainty[path[0]].keys()], 0, 1, pulp.LpBinary
-)
-
-# Create binary decision variables to track if a receiver has already received information about a targetID from a specific source
-information_vars = pulp.LpVariable.dicts(
-    "information", [(source, receiver, targetID) for source in g.nodes() for receiver in g.nodes() for targetID in track_uncertainty[source].keys()], 0, 1, pulp.LpBinary
-)
+# Define the fixed bandwidth consumption per data transfer
+fixed_bandwidth_consumption = 30
 
 # Define the optimization problem
 prob = pulp.LpProblem("Path_Optimization", pulp.LpMaximize)
 
-# Define the fixed bandwidth consumption per data transfer
-fixed_bandwidth_consumption = 30
+# Create binary decision variables for each path combination
+# 1 if the path is selected, 0 otherwise
+path_selection_vars = pulp.LpVariable.dicts(
+    "path_selection", [(path, targetID) for path in all_paths for targetID in track_uncertainty[path[0]].keys()], 0, 1, pulp.LpBinary
+)
 
-# Objective: Maximize the total goodness across all paths, considering the goodness of all links
+# # Create binary decision variables to track if a receiver has already received information about a targetID from a specific source
+# # 1 if the receiver sat has already received information about targetID from that satellite, 0 otherwise
+# information_vars = pulp.LpVariable.dicts(
+#     "information", [(source, receiver, targetID) for source in g.nodes() for receiver in g.nodes() for targetID in track_uncertainty[source].keys()], 0, 1, pulp.LpBinary
+# )
+
+#### OBJECTIVE FUNCTION
+
+## Maximize the total goodness across all paths, considering the goodness of all links
 prob += pulp.lpSum([
     sum(
-        goodness(path[0], path[i+1], track_uncertainty, targetID) * path_selection_vars[(path, targetID)]
+        # Important to note: taking goodness from first sat to all other nodes, because assume information only coming from one source
+        goodness(path[0], path[i+1], track_uncertainty, targetID) * path_selection_vars[(path, targetID)] 
         for i in range(len(path) - 1)
     )
     for path in all_paths for targetID in track_uncertainty[path[0]].keys()
 ])
 
-# Constraints to ensure that a receiver only receives information from a source once per targetID
-for source in g.nodes():
-    for targetID in track_uncertainty[source].keys():
-        for receiver in g.nodes():
-            if receiver != source:
-                prob += pulp.lpSum(
-                    path_selection_vars[(path, targetID)]
-                    for path in all_paths
-                    if path[0] == source and receiver in path
-                ) <= 1, f"Single_path_for_target_{source}_{receiver}_{targetID}"
+#### CONSTRAINTS
 
-# Ensure the total bandwidth consumption does not exceed the bandwidth constraints
-for edge in g.edges():
-    u, v = edge  # unpack the edge
-    prob += (
-        pulp.lpSum(
-            path_selection_vars[(path, targetID)] * fixed_bandwidth_consumption
-            for (path, targetID) in path_selection_vars
-            if any((path[i], path[i+1]) == edge for i in range(len(path) - 1))
-        ) <= g[u][v]['bandwidth'],
-        f"Bandwidth_constraint_{edge}"
-    )
+## Ensure the total bandwidth consumption across a link does not exceed the bandwidth constraints
+for edge in g.edges(): # Loop through all edges possible
+    u, v = edge  # Unpack the edge
 
-# # Ensure the total bandwidth consumption does not exceed the bandwidth constraints
-# for (s, t, _) in goodness_dict:
-#     prob += pulp.lpSum(
-#         selection_vars[(s, t, targetID)] * fixed_bandwidth_consumption
-#         for targetID in track_uncertainty[s]
-#     ) <= g[s][t]["bandwidth"]
+    # Create a list to accumulate the terms for the total bandwidth usage on this edge
+    bandwidth_usage_terms = []
+    
+    # Iterate over all possible paths
+    for (path, targetID) in path_selection_vars:
+
+        # Check if the current path includes the edge in question
+        if any((path[i], path[i+1]) == edge for i in range(len(path) - 1)):
+
+            # Now path_selection_vars is a binary expression/condition will either be 0 or 1
+            # Thus, the following term essentially accounts for the bandwidth usage on this edge, if its used
+            bandwidth_usage = path_selection_vars[(path, targetID)] * fixed_bandwidth_consumption
+
+            # Add the term to the list
+            bandwidth_usage_terms.append(bandwidth_usage)
+    
+    # Sum all the expressions in the list to get the total bandwidth usage on this edge
+    total_bandwidth_usage = pulp.lpSum(bandwidth_usage_terms)
+
+    # Add the constraint to the linear programming problem
+    # The constraint indicates that the total bandwidth usage on this edge should not exceed the bandwidth constraint
+    # This constraint will be added for all edges in the graph after the loop
+    prob += total_bandwidth_usage <= g[u][v]['bandwidth'], f"Bandwidth_constraint_{edge}"
+    
+
+## Ensure the reward for sharing information about a targetID from source node to another node is not double counted
+for source in g.nodes(): # Loop over all source nodes possible
+
+    for receiver in g.nodes(): # Loop over all receiver nodes possible
+
+        # If the receiver is not the source node, we can add a constraint
+        if receiver != source:
+                
+            # Loop over all targetIDs source and reciever could be talking about
+            for targetID in track_uncertainty[source].keys():
+
+                # Initalize a linear expression that will be used as a constraint
+                # This expression is exclusivly for source -> reciever about targetID, gets reinitalized every time
+                path_count = pulp.LpAffineExpression()
+
+                # Now we want to add the constraint that no more than 1 
+                # source -> reciever about targetID is selected
+
+                # So we will count the number of paths that could be selected that are source -> reciever about targetID
+                for path in all_paths:
+
+                    # Check if the path starts at the source and contains the receiver
+                    if path[0] == source and receiver in path:
+
+                        # Add the path selection variable to the path sum if its selected and talking about the targetID
+                        path_count += path_selection_vars[(path, targetID)]
+                
+                # Add a constraint to ensure the path sum is at most 1
+                # Thus, there will be a constraint for every source -> reciever about targetID combo, 
+                # ensuring the total number of paths selected that contain that isn't greater than 1
+                prob += path_count <= 1, f"Single_path_for_target_{source}_{receiver}_{targetID}"
 
 # Solve the problem
 prob.solve()
@@ -172,7 +210,6 @@ for (path, targetID) in selected_paths:
         for i in range(len(path) - 1)
     )
     print(f"{path} for targetID {targetID}, total goodness: {total_goodness}")
-
 
 # Print the total goodness of all paths:
 total_goodness = sum(
@@ -198,3 +235,4 @@ total_bandwidth = sum(
     for (u, v) in g.edges()
 )
 print(f"Total bandwidth available: {total_bandwidth}")
+
