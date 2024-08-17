@@ -141,6 +141,7 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimator:
+            # self.send_estimates_optimize()
             self.send_estimates()
 
         # Now send measurements for future ET
@@ -153,6 +154,16 @@ class environment:
                 sat.ciEstimator.CI(sat, self.comms)
             if self.etEstimator:
                 sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])
+
+
+    def send_estimates_optimize(self):
+        """
+        Uses mixed interger linear programming to optimize the communication network for the CI estimator.
+        Will loop at track uncertainty for each sat - targ pair (assume global information)
+        Then use the communication contraints to optimize the network
+        Choosing which satellites should communicaiton with whom.
+        """
+        test = 1
 
 
     def send_estimates(self):
@@ -776,7 +787,7 @@ class environment:
                 ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
 
-    def segment_data(self, times, max_gap = 1/6):
+    def segment_data(self, times, max_gap = 1/2):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -793,6 +804,9 @@ class environment:
         # Initialize the list to store segments
         segments = []
         
+        if not times:
+            return segments
+
         # Start the first segment with the first time point
         current_segment = [times[0]]
         

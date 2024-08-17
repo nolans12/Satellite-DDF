@@ -259,14 +259,14 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
+    time_vec = np.linspace(0, 2, 2*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
     fileName = "test"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = False, saveName = fileName)
+    env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = True, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)

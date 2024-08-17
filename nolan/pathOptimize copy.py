@@ -4,44 +4,54 @@ import pulp
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+import random
 
 # Declare a directed satellite graph structure
 g = nx.DiGraph()
 
-# Add nodes: Sat1a, Sat1b, Sat2a, Sat2b to the graph
-g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
+# Add 15 Satellite nodes to the graph:
+# Titles Sat1 - Sat15
+g.add_nodes_from(["Sat1", "Sat2", "Sat3", "Sat4", "Sat5", "Sat6", "Sat7", "Sat8", "Sat9", "Sat10", "Sat11", "Sat12", "Sat13", "Sat14", "Sat15"])
 
 # Add node attributes for trackUncertainty
-track_uncertainty = {
-    "Sat1a": {1:  80, 2:  90, 3:  90, 4:  90, 5:  90},
-    "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
-    "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
-    "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290}
-}
-
+# Define some arbintary values between 50-400 for each
+track_uncertainty = {}
+for i in range(1, 16):
+    sat = "Sat" + str(i)
+    track_uncertainty[sat] = {j: random.randint(50, 400) for j in range(1, 6)}
+                    
 nx.set_node_attributes(g, track_uncertainty, 'trackUncertainty')
 
-edgeBandwidth = 60
+edgeBandwidth = 120
 
-# Add directed edges with bandwidth constraints 
-edges_with_bandwidth = [
-    ("Sat1a", "Sat1b", edgeBandwidth), ("Sat1a", "Sat2a", edgeBandwidth), ("Sat1a", "Sat2b", edgeBandwidth),
-    ("Sat1b", "Sat1a", edgeBandwidth), ("Sat1b", "Sat2a", edgeBandwidth), ("Sat1b", "Sat2b", edgeBandwidth),
-    ("Sat2a", "Sat1a", edgeBandwidth), ("Sat2a", "Sat1b", edgeBandwidth), ("Sat2a", "Sat2b", edgeBandwidth),
-    ("Sat2b", "Sat1a", edgeBandwidth), ("Sat2b", "Sat1b", edgeBandwidth), ("Sat2b", "Sat2a", edgeBandwidth)
-]
-# edges_with_bandwidth = [
-#     ("Sat1a", "Sat1b", edgeBandwidth), ("Sat1a", "Sat2a", edgeBandwidth), 
-#     ("Sat1b", "Sat1a", edgeBandwidth), ("Sat1b", "Sat2a", edgeBandwidth), ("Sat1b", "Sat2b", edgeBandwidth),
-#     ("Sat2a", "Sat1a", edgeBandwidth), ("Sat2a", "Sat1b", edgeBandwidth), ("Sat2a", "Sat2b", edgeBandwidth),
-#      ("Sat2b", "Sat1b", edgeBandwidth), ("Sat2b", "Sat2a", edgeBandwidth)
-# ]
+# List of all satellites
+sats = ["Sat" + str(i) for i in range(1, 16)]
 
-g.add_weighted_edges_from(edges_with_bandwidth, weight='bandwidth')
+# Empty list to store connections
+connections = []
 
-# Define the layout for nodes
-pos = nx.spring_layout(g)  # or nx.circular_layout(g) for a circular layout
-# pos = nx.circular_layout(g)
+# Number of connections to create
+num_connections = 30
+
+while len(connections) < num_connections:
+    # Randomly select two different satellites
+    sat1, sat2 = random.sample(sats, 2)
+
+    # Create a connection
+    connection = (sat1, sat2, {"bandwidth": edgeBandwidth})
+
+    # Reverse connection
+    reverse_connection = (sat2, sat1, {"bandwidth": edgeBandwidth})
+
+    # Add the connection if it doesn't exist
+    if connection not in connections and reverse_connection not in connections:
+        connections.append(connection)
+
+g.add_weighted_edges_from(connections, weight='bandwidth')
+
+# Define the layout for nodes, but do not print the edge labels
+pos = nx.circular_layout(g)
+
 
 
 # Draw the graph
@@ -52,7 +62,7 @@ edge_labels = nx.get_edge_attributes(g, 'bandwidth')
 nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels)
 
 # Show the graph:
-# plt.show()
+plt.show()
 
 #### NOW OPTIMIZE USING LINEAR PROGRAMMING
 ## MIXED INTEGER LINEAR PROGRAMMING (MILP)
@@ -75,7 +85,7 @@ def goodness(source, reciever, track_uncertainty, targetID):
         return 0
    
     # Else, calculate the goodness, + if the source is better, 0 if the sat is better
-    if recieverTrackUncertainty - sourceTrackUncertainty < 0: 
+    if recieverTrackUncertainty - sourceTrackUncertainty < 1: 
         return 0 # EX: If i have uncertainty of 200 and share it with a sat with 100, theres no benefit to sharing that
     
     # Else, return the goodness of the link, difference between the two track uncertainties
@@ -103,7 +113,7 @@ def generate_all_paths(graph, max_hops):
                     paths.append(tuple(path))
     return paths
 
-all_paths = generate_all_paths(g, 4)
+all_paths = generate_all_paths(g, 6)
 
 # Define the fixed bandwidth consumption per data transfer
 fixed_bandwidth_consumption = 30
@@ -216,7 +226,8 @@ for source in g.nodes(): # Loop over all source nodes possible
 
 
 #### Solve the problem
-prob.solve(pulp.PULP_CBC_CMD(msg=False))
+# prob.solve(pulp.PULP_CBC_CMD(msg=False))
+prob.solve()
 
 
 #### Extract and interpret results

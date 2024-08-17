@@ -11,7 +11,7 @@ g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
 
 # Add node attributes for trackUncertainty
 track_uncertainty = {
-    "Sat1a": {1: 50, 2: 50, 3: 50, 4: 50, 5: 50},
+    "Sat1a": {1:  80, 2:  90, 3:  90, 4:  90, 5:  90},
     "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
     "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
     "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290}
@@ -19,9 +19,10 @@ track_uncertainty = {
 
 nx.set_node_attributes(g, track_uncertainty, 'trackUncertainty')
 
+# Maximum bandwidth for each edge
 edgeBandwidth = 60
 
-# Add directed edges with bandwidth constraints of 90
+# Add directed edges with banxdwidth constraints of X
 edges_with_bandwidth = [
     ("Sat1a", "Sat1b", edgeBandwidth), ("Sat1a", "Sat2a", edgeBandwidth), ("Sat1a", "Sat2b", edgeBandwidth),
     ("Sat1b", "Sat1a", edgeBandwidth), ("Sat1b", "Sat2a", edgeBandwidth), ("Sat1b", "Sat2b", edgeBandwidth),
@@ -87,29 +88,48 @@ for s in g.nodes():
 # Define the LP problem
 prob = pulp.LpProblem("Maximize_Goodness", pulp.LpMaximize)
 
-# Define the fixed bandwidth consumption per data transfer
-fixed_bandwidth_consumption = 30
-
-# Create binary decision variables for each (source, target, targetID) combination
+# Create binary decision variables for each (source, reciever, targetID) combination
 selection_vars = pulp.LpVariable.dicts(
     "selection", goodness_dict.keys(), 0, 1, pulp.LpBinary
 )
 
-# Objective function: Maximize the total goodness for selected pairs
-prob += pulp.lpSum(
-    selection_vars[(s, t, targetID)] * goodness_dict[(s, t, targetID)]
-    for (s, t, targetID) in goodness_dict
-)
+# Initialize the objective function expression
+objective_expression = pulp.LpAffineExpression()
 
-# Ensure the total bandwidth consumption does not exceed the bandwidth constraints
-for (s, t, _) in goodness_dict:
-    prob += pulp.lpSum(
-        selection_vars[(s, t, targetID)] * fixed_bandwidth_consumption
-        for targetID in track_uncertainty[s]
-    ) <= g[s][t]["bandwidth"]
+# Loop through all source, target, and targetID combinations in goodness_dict
+for (s, r, targetID) in goodness_dict:
+    
+    # Multiply the selection variable by the corresponding goodness value
+    term = selection_vars[(s, r, targetID)] * goodness_dict[(s, r, targetID)]
+    
+    # Add this term to the objective function expression
+    objective_expression += term
+
+# Add the objective expression to the problem
+prob += objective_expression
+
+# Define the fixed bandwidth consumption per data transfer
+fixed_bandwidth_consumption = 30
+
+# Loop through each edge in the graph to ensure the bandwidth constraints are met
+for edge in g.edges():
+    u, v = edge  # Unpack the edge into source (u) and target (v)
+
+    # Initialize a linear expression for total bandwidth consumption on the edge (u, v)
+    total_bandwidth_consumption = pulp.LpAffineExpression()
+
+    # Loop through each targetID associated with the source node u
+    for targetID in track_uncertainty[u]:
+        
+        # Add the bandwidth consumption for the current targetID to the total bandwidth consumption
+        total_bandwidth_consumption += selection_vars[(u, v, targetID)] * fixed_bandwidth_consumption
+
+    # Add the constraint to ensure the total bandwidth on edge (u, v) does not exceed the available bandwidth
+    prob += total_bandwidth_consumption <= g[u][v]["bandwidth"], f"Bandwidth_constraint_{u}_{v}"
+
 
 # Solve the problem
-prob.solve()
+prob.solve(pulp.PULP_CBC_CMD(msg=False))
 
 # Extract and interpret results
 selected_pairs = [
@@ -119,9 +139,12 @@ selected_pairs = [
 ]
 
 # Print the selected pairs
+# also print the total goodness value of the path
 print("Selected pairs:")
 for (s, t, targetID) in selected_pairs:
-    print(f"{s} -> {t} for targetID {targetID}")
+    print(f"{s} -> {t} (targetID: {targetID}, goodness: {goodness_dict[(s, t, targetID)]})")
+    # print(f"Goodness: {goodness_dict[(s, t, targetID)]}")
+
 
 # Print hte total goodness value
 total_goodness = sum(

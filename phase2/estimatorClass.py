@@ -454,42 +454,40 @@ class ciEstimator(BaseEstimator):
                 if time_sent < time_prior:
                     continue
 
-                # If the trackErrorHist is greater than the threshold, we need to do CI
-                if self.needHelp[targetID]:
-                    # We will now use the estimate and covariance that were sent, so we should store this
-                    comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size + cov_sent.size
+                # We will now use the estimate and covariance that were sent, so we should store this
+                comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size*2 + cov_sent.size/2
 
-                    # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
-                    if time_sent - time_prior > 5:
-                        self.estHist[targetID][time_sent] = est_sent
-                        self.covarianceHist[targetID][time_sent] = cov_sent
-                        continue
+                # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
+                if time_sent - time_prior > 5:
+                    self.estHist[targetID][time_sent] = est_sent
+                    self.covarianceHist[targetID][time_sent] = cov_sent
+                    continue
 
-                    # Else, let's do CI
-                    est_prior = self.estHist[targetID][time_prior]
-                    cov_prior = self.covarianceHist[targetID][time_prior]
+                # Else, let's do CI
+                est_prior = self.estHist[targetID][time_prior]
+                cov_prior = self.covarianceHist[targetID][time_prior]
 
-                    # Propagate the prior estimate and covariance to the new time
-                    dt = time_sent - time_prior
-                    est_prior = self.state_transition(est_prior, dt)
-                    F = self.state_transition_jacobian(est_prior, dt)
-                    cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+                # Propagate the prior estimate and covariance to the new time
+                dt = time_sent - time_prior
+                est_prior = self.state_transition(est_prior, dt)
+                F = self.state_transition_jacobian(est_prior, dt)
+                cov_prior = np.dot(F, np.dot(cov_prior, F.T))
 
-                    # Minimize the covariance determinant
-                    omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
+                # Minimize the covariance determinant
+                omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
 
-                    # Compute the fused covariance
-                    cov1 = cov_prior
-                    cov2 = cov_sent
-                    cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
-                    est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
+                # Compute the fused covariance
+                cov1 = cov_prior
+                cov2 = cov_sent
+                cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
+                est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
 
-                    # Save the fused estimate and covariance
-                    self.estHist[targetID][time_sent] = est_prior
-                    self.covarianceHist[targetID][time_sent] = cov_prior
+                # Save the fused estimate and covariance
+                self.estHist[targetID][time_sent] = est_prior
+                self.covarianceHist[targetID][time_sent] = cov_prior
 
-                    # Calculate the track error metric
-                    self.trackErrorHist[targetID][time_sent] = self.calcTrackError(cov_prior)
+                # Calculate the track error metric
+                self.trackErrorHist[targetID][time_sent] = self.calcTrackError(cov_prior)
 
     
     
