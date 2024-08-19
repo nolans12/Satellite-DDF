@@ -33,9 +33,9 @@ class environment:
         # self.ax.set_box_aspect([1, 1, 1])
 
         # If you want to do standard case:
-        self.ax.set_xlim([-8000, 8000])
-        self.ax.set_ylim([-8000, 8000])
-        self.ax.set_zlim([-8000, 8000])
+        self.ax.set_xlim([-15000, 15000])
+        self.ax.set_ylim([-15000, 15000])
+        self.ax.set_zlim([-15000, 15000])
         self.ax.view_init(elev=30, azim=0)
         
         # auto scale the axis to be equal
@@ -57,12 +57,16 @@ class environment:
         
         # Empty lists and dictionaries for simulation images
         self.imgs = []
-        self.imgs_local_GE = defaultdict(lambda: defaultdict(list))
-        self.imgs_ddf_GE = defaultdict(lambda: defaultdict(list))
-        self.imgs_cent_GE = defaultdict(lambda: defaultdict(list))
-        self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
-        self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
-        self.imgs_cent_ET_GE = defaultdict(lambda: defaultdict(list))
+        
+        # Nested Dictionary for storing stereo estimation plots
+        self.imgs_stereo_GE = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        
+        # self.imgs_local_GE = defaultdict(lambda: defaultdict(list))
+        # self.imgs_ddf_GE = defaultdict(lambda: defaultdict(list))
+        # self.imgs_cent_GE = defaultdict(lambda: defaultdict(list))
+        # self.imgs_stereo_GE = defaultdict(lambda: defaultdict(list))
+        # self.imgs_stereo_ET_GE = defaultdict(lambda: defaultdict(list))
+        # self.imgs_cent_ET_GE = defaultdict(lambda: defaultdict(list))
 
 
     def simulate(self, time_vec, pause_step=0.1, savePlot=False, saveGif=False, saveData=False, saveName=None, showSim=False):
@@ -92,21 +96,19 @@ class environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
-            if savePlot:
-                # Update the plot environment
-                self.plot()
+            self.plot()
 
-                if showSim:
-                    plt.pause(pause_step)
-                    plt.draw()
-
+            if showSim:
+                plt.pause(pause_step)
+                plt.draw()
+        print("Simulation Complete")
         if savePlot:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, savePlot=savePlot, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
-            self.plot_messages(savePlot, saveName)
+            
         if saveGif:
             # Save the uncertainty ellipse plots
-            self.plot_all_uncertainty_ellipses() # Uncertainty Ellipse Plots
+            self.plot_all_uncertainty_ellipses(time_vec) # Uncertainty Ellipse Plots
 
         # Log the Data
         if saveData:
@@ -210,7 +212,7 @@ class environment:
             # For each targetID in satellites measurement history        
             for target in targs:
                 if target.targetID in sat.measurementHist.keys():
-                    if len(sat.measurementHist[target.targetID][envTime]) > 0:
+                    if isinstance(sat.measurementHist[target.targetID][envTime], np.ndarray):
                         for neighbor in self.comms.G.neighbors(sat):
                             
                             meas = sat.etEstimator.event_trigger(sat, neighbor, target.targetID, envTime)
@@ -221,32 +223,34 @@ class environment:
                                 target.targetID, 
                                 satTime
                             )
+                            
                             if not sat.etEstimator.estHist[target.targetID][sat][neighbor]:
                                 sat.etEstimator.initialize_filter(sat, target, envTime, sharewith=neighbor)
-                                
-                            elif sat.etEstimator.estHist[target.targetID][sat][neighbor]:
-                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
-                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor] == True
-                                else:
-                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor] == False
-                                                            
+                            
+                            sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = False
+
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=neighbor)
                                 
-                            elif neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
-                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
-                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][neighbor] == True
-                                else:
-                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][neighbor] == False
-                            
                             if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=sat)
-                                
-                            elif neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
-                                if len(sat.measurementHist[target.targetID][envTime]) < 5:
-                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat] == True
-                                else:
-                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat] == False    
+                            
+                            neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = False
+
+                            non_empty_measurements = sum(
+                                1 for value in sat.measurementHist[targetID].values() 
+                                if value is not None and (isinstance(value, np.ndarray) and value.size > 0 or isinstance(value, list) and len(value) > 0)
+                            )
+                            if sat.etEstimator.estHist[target.targetID][sat][neighbor]:
+                                if len(sat.measurementHist[target.targetID][envTime]) > 0:
+                                    if non_empty_measurements < 6:
+                                        sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = True
+                                        neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = True
+                                        #print("Satellite: ", sat.name, "Neighbor: ", neighbor.name, "Synchronize Flag: ", sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime])
+                                        
+                            #print("Satellite: ", sat.name, "Neighbor: ", neighbor.name, "Synchronize Flag: ", sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime])
+                                    
+                                                        
 
     def propagate(self, time_step):
         """
@@ -411,8 +415,8 @@ class environment:
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [km]']        
-        suffix_vec = ['local', 'ddf', 'et', 'shared', 'common', 'et_both']
-        title_vec = ['Local vs Central', 'DDF vs Central', 'ET vs Central', 'ET Local vs ET Common', 'Common ET vs Common ET', 'ET Local vs ET Local']
+        suffix_vec = ['local', 'ddf', 'et', 'et_vs_ddf', 'et_pairwise']
+        title_vec = ['Local vs Central', 'DDF vs Central', 'ET vs Central', 'ET vs DDF']
         title_vec = [title + " Estimator Results" for title in title_vec]
         
         # For Each Target
@@ -422,14 +426,11 @@ class environment:
                     # Set up colors
                     satColor = sat.color
                     ddfColor = '#DC143C' # Crimson
-                    local_et_color = '#ff33f9' # Hot Pink
-                    common_et_color = '#4033ff' # Blue
-                    sat2_et_color = '#ff8433' # Orange
-                    sat2_common_et_color = '#216529' # Lime Green
-                    centralColor = '#228B22' # Forest Green
+                    centralColor = '#070400'  #'#228B22' # Forest Green
                     
                     trueHist = targ.hist
-                    for plotNum in range(3):
+                    for plotNum in range(4):
+                        
                         fig = plt.figure(figsize=(15, 8))
                         fig.suptitle(f"{targ.name}, {sat.name} {title_vec[plotNum]}", fontsize=14)
                         axes = self.setup_axes(fig, state_labels, meas_labels)
@@ -479,91 +480,91 @@ class environment:
                             central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'central')
                             
                             # ET
-                            self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
-                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
+                            self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=satColor, linewidth=2.5)
                             
                             # Central
                             self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
                             self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
                             
                             handles = [
-                                Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
+                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
                                 Patch(color=centralColor, label=f'Central Estimator')
                             ]
                         
+                        elif plotNum == 3:
+                            # ET vs DDF
+                            et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                            ddf_times, ddf_estHist, ddf_covHist, ddf_innovationHist, ddf_innovationCovHist, ddf_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'ddf')
+                            
+                            # ET
+                            self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=satColor, linewidth=2.5)
+                            
+                            # DDF
+                            self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=1.5)
+                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist, label_color=ddfColor, linewidth=1.5)
+                            
+                            handles = [
+                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
+                                Patch(color=ddfColor, label=f'{sat.name} DDF Estimator')
+                            ]
+                        
+                        # Add the legend and tighten the layout
                         fig.legend(handles=handles, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
                         plt.tight_layout()
                             
                         # Save the Plot with respective suffix
                         self.save_plot(fig, savePlot, saveName, targ, sat, suffix_vec[plotNum])
                         
-                    for plotNum in range(3, 6):
-                        for sat2 in self.sats:
-                            if sat != sat2:
-                                fig = plt.figure(figsize=(15, 8))
-                                fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name}, {title_vec[plotNum]}", fontsize=14)
-                                axes = self.setup_axes(fig, state_labels, meas_labels)
+                    for sat2 in self.sats:
+                        if sat != sat2:
+                            fig = plt.figure(figsize=(15, 8))
+                            fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name} ET Filters", fontsize=14)
+                            axes = self.setup_axes(fig, state_labels, meas_labels)
+                            
+                            sat2Color = sat2.color
+                            sat1commonColor, sat2commonColor = self.shifted_colors(satColor, sat2Color, shift=50)
 
-                                if plotNum == 3:
-                                    # ET Local and Common for each neighbor
-                                    et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                                    common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
-                                    # ET
-                                    self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
-                                    self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
-                                    
-                                    # Common ET
-                                    self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=1.5)
-                                    self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=1.5)
-                                    
-                                    handles = [
-                                        Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
-                                        Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator')
-                                    ]
-                                    
-                                elif plotNum == 4:
-                                    # Both Common Informatin Filters
-                                    common_et_times, common_et_estHist, common_et_covHist, common_et_innovationHist, common_et_innovationCovHist, common_et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
-                                    common_et_times2, common_et_estHist2, common_et_covHist2, common_et_innovationHist2, common_et_innovationCovHist2, common_et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
-                                    
-                                    # Common ET
-                                    self.plot_errors(axes, common_et_times, common_et_estHist, trueHist, common_et_covHist, label_color=common_et_color, linewidth=2.5)
-                                    self.plot_track_error(axes, common_et_times, common_et_trackErrorHist, label_color=common_et_color, linewidth=2.5)
-                                    
-                                    # Common ET 2
-                                    self.plot_errors(axes, common_et_times2, common_et_estHist2, trueHist, common_et_covHist2, label_color=sat2_common_et_color, linewidth=2.5)
-                                    self.plot_track_error(axes, common_et_times2, common_et_trackErrorHist2, label_color=sat2_common_et_color, linewidth=2.5)
-                                    
-                                    handles = [
-                                        Patch(color=common_et_color, label=f'{sat.name}, {sat2.name} Common ET Estimator'),
-                                        Patch(color=sat2_common_et_color, label=f'{sat2.name}, {sat.name} Common ET Estimator')
-                                    ]
-                                    
-                                elif plotNum == 5:
-                                    # Plot both et-local filters
-                                    et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                                    et_times2, et_estHist2, et_covHist2, et_innovationHist2, et_innovationCovHist2, et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
-                                    
-                                    # ET
-                                    self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=local_et_color, linewidth=2.5)
-                                    self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=local_et_color, linewidth=2.5)
-                                    
-                                    # ET 2
-                                    self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2_et_color, linewidth=2.5)
-                                    self.plot_track_error(axes, et_times2, et_trackErrorHist2, label_color=sat2_et_color, linewidth=2.5)
-                                    
-                                    handles = [
-                                        Patch(color=local_et_color, label=f'{sat.name} ET Estimator'),
-                                        Patch(color=sat2_et_color, label=f'{sat2.name} ET Estimator')
-                                    ]
-                                    
+                            et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
+                            et_times2, et_estHist2, et_covHist2, et_innovationHist2, et_innovationCovHist2, et_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
+                            
+                            et_common_times, et_common_estHist, et_common_covHist, et_common_innovationHist, et_common_innovationCovHist, et_common_trackErrorHist = self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
+                            et_common_times2, et_common_estHist2, et_common_covHist2, et_common_innovationHist2, et_common_innovationCovHist2, et_common_trackErrorHist2 = self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
+                            
+                            # ET
+                            self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=satColor, linewidth=2.0)
+                            
+                            # ET 2
+                            self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2Color, linewidth=2.0)
+                            self.plot_track_error(axes, et_times2, et_trackErrorHist2, label_color=sat2Color, linewidth=2.0)
+                            
+                            # Common ET
+                            self.plot_errors(axes, et_common_times, et_common_estHist, trueHist, et_common_covHist, label_color=sat1commonColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_common_times, et_common_trackErrorHist, label_color=sat1commonColor, linewidth=2.0)
+                            
+                            # Common ET 2
+                            self.plot_errors(axes, et_common_times2, et_common_estHist2, trueHist, et_common_covHist2, label_color=sat2commonColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_common_times2, et_common_trackErrorHist2, label_color=sat2commonColor, linewidth=2.0)
+                            
+                            # Plot Messages instead of innovations
+                            self.plot_messages(axes[6], sat, sat2, targ.targetID, time_vec.value)
+                            self.plot_messages(axes[7], sat2, sat, targ.targetID, time_vec.value)
+                            
+                            handles = [
+                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
+                                Patch(color=sat2Color, label=f'{sat2.name} ET Estimator'),
+                                Patch(color=sat1commonColor, label=f'{sat.name}, {sat2.name} Common ET Estimator'),
+                                Patch(color=sat2commonColor, label=f'{sat2.name}, {sat.name} Common ET Estimator')
+                            ]
+                            
+                            fig.legend(handles=handles, loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0))
+                            plt.tight_layout()
                                 
-                                fig.legend(handles=handles, loc='lower right', ncol=3, bbox_to_anchor=(1, 0))
-                                plt.tight_layout()
-                                
-                                # Save the Plot with respective suffix
-                                currSuffix = f"{sat2.name}_" + suffix_vec[plotNum]
-                                self.save_plot(fig, savePlot, saveName, targ, sat, currSuffix)
+                            # Save the Plot with respective suffix
+                            currSuffix = f"{sat2.name}_" + suffix_vec[4]
+                            self.save_plot(fig, savePlot, saveName, targ, sat, currSuffix)
                                         
 
     def getEstimationHistory(self, sat, targ, time_vec, estimatorType, sharewith=None):
@@ -668,7 +669,49 @@ class environment:
                     ax[6 + i].plot(segment, innovation, color=label_color, linewidth=linewidth)
                     ax[6 + i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     ax[6 + i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
-
+                    
+    def plot_messages(self, ax, sat, sat2, targetID, timeVec):
+        commNode = self.comms.G.nodes[sat]
+        # if not commNode['received_measurements']:
+        #     return
+        
+        # if targetID not in commNode['received_measurements'].keys():    
+        #     return
+        
+        # if sat2 not in commNode['received_measurements'][targetID]['sender']:
+        #     return
+        
+        synch_times = sat.etEstimator.synchronizeFlag[targetID][sat][sat2].keys()
+        message_times = commNode['received_measurements'].keys()
+        for time in timeVec:
+            if time in synch_times:
+                if sat.etEstimator.synchronizeFlag[targetID][sat][sat2][time] == True:
+                    ax.scatter(time, 0.5, color='g', marker='D', s = 70)
+                    continue
+                
+                if time in message_times:
+                    for i in range(len(commNode['received_measurements'][time][targetID]['meas'])):
+                        if commNode['received_measurements'][time][targetID]['sender'][i] == sat2:
+                            alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
+                            if not np.isnan(alpha):
+                                ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
+                            else:
+                                ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
+                            
+                            if not np.isnan(beta):
+                                ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
+                            else:
+                                ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
+                        
+        
+        ax.set_yticks([0,0.5, 1])
+        # set the axis limits to be the whole time vector
+        ax.set_xlim([timeVec[0], timeVec[-1]])
+        ax.set_yticklabels(['Implicit', 'CI', 'Explict'])
+        ax.set_xlabel('Time [min]')
+        ax.set_ylabel('Message Type')
+        ax.set_title(f'{sat2.name} -> {sat.name} Messages')
+        
     def plot_track_error(self, ax, times, trackErrorHist, label_color, linewidth):
         """
         Plot the track quality.
@@ -722,6 +765,36 @@ class environment:
         segments.append(current_segment)
         
         return segments
+    
+    def shifted_colors(self, hex_colors1, hex_colors2, shift=50):
+        def hex_to_rgb(hex_color):
+            """Convert hex color to RGB tuple."""
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+        def rgb_to_hex(rgb):
+            """Convert RGB tuple to hex color."""
+            return '#{:02x}{:02x}{:02x}'.format(*rgb)
+
+        def find_middle_colors(color1, color2, shift=10):
+            """Find the middle color between two hex colors."""
+            # Convert hex colors to RGB
+            rgb1 = hex_to_rgb(color1)
+            rgb2 = hex_to_rgb(color2)
+            
+            # Calculate the middle RGB values
+            middle_rgb = tuple((c1 + c2) // 2 for c1, c2 in zip(rgb1, rgb2))
+            
+            # Shift the middle color to get two new colors
+            color1 = [max(comp - shift, 0) for comp in middle_rgb]
+            color2 = [min(comp + shift, 255) for comp in middle_rgb]
+            
+            # Convert the middle RGB value back to hex
+            return rgb_to_hex(color1), rgb_to_hex(color2)
+        
+        sat1commonColor, sat2commonColor = find_middle_colors(hex_colors1, hex_colors2, shift)
+        return sat1commonColor, sat2commonColor
+        
 
     def setup_axes(self, fig, state_labels, meas_labels):
         """
@@ -791,75 +864,9 @@ class environment:
         plt.close()
 
 
-### Plot all messages
-    def plot_messages(self, savePlot, saveName):
-        """
-        Plot all messages sent between satellites.
-
-        Args:
-            savePlot (bool): Flag indicating whether to save the plot.
-            saveName (str): Name for the saved plot file.
-        """
-        
-        for sat in self.sats:
-            # Get the Communication Node
-            commNode = self.comms.G.nodes[sat]
-            if not commNode['received_measurements']:
-                return
-            times = list(commNode['received_measurements'].keys())
-            targetIDs = list(commNode['received_measurements'][times[0]].keys())
-            sender = commNode['received_measurements'][times[0]][targetIDs[0]]['sender'][0]
-            fig = plt.figure(figsize=(15, 8))
-            gs = gridspec.GridSpec(2, 1)
-            ax1 = fig.add_subplot(gs[0, 0])
-            ax2 = fig.add_subplot(gs[1, 0])
-            
-            for time in times:
-                for targetID in targetIDs:
-                    for i in range(len(commNode['received_measurements'][time][targetID]['meas'])):
-                        alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
-                        if not np.isnan(alpha):
-                            ax1.scatter(time, 1, color='r', marker='x')
-                        else:
-                            ax1.scatter(time, 0, color='b', marker='x')
-                        
-                        if not np.isnan(beta):
-                            ax2.scatter(time, 1, color='r',  marker='x')
-                        else:
-                            ax2.scatter(time, 0, color='b',  marker='x')
-            
-            fig.suptitle(f"Satellite Msgs from {sender.name} to {sat.name}", fontsize=14)
-
-            # Label the plots
-            ax1.set_xlabel("Time [min]")
-            ax1.set_ylabel("In-Track Measurement")
-            
-            ax2.set_xlabel("Time [min]")
-            ax2.set_ylabel("Cross-Track Measurement")
-            
-            # Create a patch for the legend
-            handles = [
-                Patch(color='r', label=f'{sat.name} Explicit Measurements'),
-                Patch(color='b', label=f'{sat.name} Implicit Measurements'),
-            ]
-                    
-                    # Create a legend   
-            fig.legend(handles=handles, loc='lower right', bbox_to_anchor=(1, 0))
-            plt.tight_layout()
-            
-            # Save the plot
-            if savePlot:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                os.makedirs(plotPath, exist_ok=True)
-                if saveName is None:
-                    plt.savefig(os.path.join(plotPath, f"Targ{targetID}_{sat.name}_{sender.name}_et_msg.png"), dpi=300)
-                else:
-                    plt.savefig(os.path.join(plotPath, f"{saveName}_Targ{targetID}_{sat.name}_{sender.name}_et_msg.png"), dpi=300)
-            plt.close()            
-        
+                   
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
-    def plot_all_uncertainty_ellipses(self):
+    def plot_all_uncertainty_ellipses(self, time_vec):
         """
         Plots Local Uncertainty Ellipsoids, DDF Uncertainty Ellipsoids, Central Uncertainty Ellipsoids,
         and Overlapping Uncertainty Ellipsoids for each target and satellite.
@@ -872,263 +879,198 @@ class environment:
         for targ in self.targs:
             for sat in self.sats:
                 if targ.targetID in sat.targetIDs:
-                    for k in range(6):
-                        if k < 3:
-                            continue 
-                        
-                        if k == 0:  # Plot Local Uncertainty Ellipsoid
-                            fig = plt.figure(figsize=(10, 8))
-                            ax = fig.add_subplot(111, projection='3d')
-                            fig.suptitle(f"{targ.name}, {sat.name} Local Gaussian Uncertainty Ellipsoids")
+                    for sat2 in self.sats:
+                        if targ.targetID in sat2.targetIDs:
+                            if sat != sat2:
+                                # Create a 2x2 subplot to save as a gif
+                                # Rows; Stereo CI, Stereo ET, CI vs Central, ET vs Central
+                                fig = plt.figure(figsize=(12, 12))
+                                fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name} Stereo Gaussian Uncertainty Ellipsoids")
 
-                            satColor = sat.color
-                            alpha = 0.3
+                                sat1Color = sat.color
+                                sat2Color = sat2.color
+                                ddfColor = '#DC143C' # Crimson
+                                etColor = '#DC143C' # Crimson
+                                centralColor = '#070400'  
+                                alpha = 0.2
+                                
+                                # Create 2x2 Grid
+                                ax1 = fig.add_subplot(221, projection='3d')
+                                ax2 = fig.add_subplot(222, projection='3d')
+                                ax3 = fig.add_subplot(223, projection='3d')
+                                ax4 = fig.add_subplot(224, projection='3d')
+                                plt.subplots_adjust(left=0.05, right=0.95, top=0.9, bottom=0.05, wspace=0.15, hspace=0.15)
+                   
 
-                            for time in sat.indeptEstimator.estHist[targ.targetID].keys():
-                                true_pos = targ.hist[time][[0, 2, 4]]
-                                est_pos = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                cov_matrix = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-                                error = np.linalg.norm(true_pos - est_pos)
-                                LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                
+                                for bigTime in time_vec.value:
+                                    time = bigTime
+                                    sat1_times = sat.indeptEstimator.estHist[targ.targetID].keys()
+                                    sat2_times = sat2.indeptEstimator.estHist[targ.targetID].keys()
+                                    stereo_times = [time for time in sat1_times if time in sat2_times]
+                                    
+                                    ddf_times = sat.ddfEstimator.estHist[targ.targetID].keys()
+                                    times = [time for time in stereo_times if time in ddf_times]
+                                    
+                                    if bigTime in times:
+                                        true_pos = targ.hist[time][[0, 2, 4]]
+                                        est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        ddf_pos = np.array([sat.ddfEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
 
-                                self.plot_ellipsoid(ax, est_pos, cov_matrix, color=satColor, alpha=alpha)
-                                self.plot_estimate(ax, est_pos, true_pos, satColor)
-                                self.plot_LOS(ax, est_pos, LOS_vec)
-                                self.plot_labels(ax, targ, sat, time, error)
-                                self.set_axis_limits(ax, est_pos, np.sqrt(eigenvalues), margin=50.0)
+                                        cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        ddf_cov = sat.ddfEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
 
-                                img = self.save_GEplot_to_image(fig)
-                                self.imgs_local_GE[targ.targetID][sat].append(img)
-                                ax.cla()  # Clear the plot for the next iteration
-                            plt.close(fig)
+                                        eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
+                                        eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
+                                        ddf_eigenvalues, ddf_eigenvectors = np.linalg.eigh(ddf_cov)
 
-                        if k == 1:  # Plot DDF Uncertainty Ellipsoid
-                            fig = plt.figure(figsize=(10, 8))
-                            ax = fig.add_subplot(111, projection='3d')
-                            fig.suptitle(f"{targ.name}, {sat.name} DDF Gaussian Uncertainty Ellipsoids")
+                                        error1 = np.linalg.norm(true_pos - est_pos1)
+                                        error2 = np.linalg.norm(true_pos - est_pos2)
+                                        ddf_error = np.linalg.norm(true_pos - ddf_pos)
 
-                            satColor = '#DC143C'
-                            alpha = 0.3
+                                        LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                        LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
 
-                            for time in sat.ddfEstimator.estHist[targ.targetID].keys():
-                                true_pos = targ.hist[time][[0, 2, 4]]
-                                est_pos = np.array([sat.ddfEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                cov_matrix = sat.ddfEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-                                error = np.linalg.norm(true_pos - est_pos)
-                                LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                        self.plot_ellipsoid(ax1, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
+                                        self.plot_ellipsoid(ax1, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
+                                        self.plot_ellipsoid(ax1, ddf_pos, ddf_cov, color=ddfColor, alpha=alpha+0.1)
 
-                                self.plot_ellipsoid(ax, est_pos, cov_matrix, color=satColor, alpha=alpha)
-                                self.plot_estimate(ax, est_pos, true_pos, satColor)
-                                self.plot_LOS(ax, est_pos, LOS_vec)
-                                self.plot_labels(ax, targ, sat, time, error)
-                                self.set_axis_limits(ax, est_pos, np.sqrt(eigenvalues), margin=50.0)
+                                        self.plot_estimate(ax1, est_pos1, true_pos, sat1Color)
+                                        self.plot_estimate(ax1, est_pos2, true_pos, sat2Color)
+                                        self.plot_estimate(ax1, ddf_pos, true_pos, ddfColor)
 
-                                img = self.save_GEplot_to_image(fig)
-                                self.imgs_ddf_GE[targ.targetID][sat].append(img)
-                                ax.cla()  # Clear the plot for the next iteration
-                            plt.close(fig)
-
-                        if k == 2:  # Plot Central Uncertainty Ellipsoid
-                            fig = plt.figure(figsize=(10, 8))
-                            fig.suptitle(f"{targ.name}, {sat.name} Central Gaussian Uncertainty Ellipsoids")
-
-                            ax = fig.add_subplot(111, projection='3d')
-                            satColor = '#228B22'
-                            alpha = 0.3
-
-                            for time in self.centralEstimator.estHist[targ.targetID].keys():
-                                true_pos = targ.hist[time][[0, 2, 4]]
-                                est_pos = np.array([self.centralEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                cov_matrix = self.centralEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-                                error = np.linalg.norm(true_pos - est_pos)
-                                LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
-
-                                self.plot_ellipsoid(ax, est_pos, cov_matrix, color=satColor, alpha=alpha)
-                                self.plot_estimate(ax, est_pos, true_pos, satColor)
-                                self.plot_LOS(ax, est_pos, LOS_vec)
-                                self.plot_labels(ax, targ, sat, time, error)
-                                self.set_axis_limits(ax, est_pos, np.sqrt(eigenvalues), margin=50.0)
-
-                                img = self.save_GEplot_to_image(fig)
-                                self.imgs_cent_GE[targ.targetID][sat].append(img)
-                                ax.cla()  # Clear the plot for the next iteration
-                            plt.close(fig)
-
-                        if k == 3:  # Plot Stereo Uncertainty Ellipsoid
-                            for sat2 in self.sats:
-                                if sat2 != sat:
-                                    if targ.targetID in sat2.targetIDs:
-                                        fig = plt.figure(figsize=(10, 8))
-                                        fig.suptitle(f"{targ.name}, {sat.name} and {sat2.name} Gaussian Uncertainty Ellipsoids")
-
-                                        ax = fig.add_subplot(111, projection='3d')
-                                        sat1Color = sat.color
-                                        sat2Color = sat2.color
-                                        ddfColor = '#DC143C'
-                                        alpha = 0.2
-
-                                        sat1_times = sat.indeptEstimator.estHist[targ.targetID].keys()
-                                        sat2_times = sat2.indeptEstimator.estHist[targ.targetID].keys()
-                                        times = [time for time in sat1_times if time in sat2_times]
-
-                                        for time in times:
-                                            true_pos = targ.hist[time][[0, 2, 4]]
-                                            est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                            est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                            ddf_pos = np.array([sat.ddfEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-
-                                            cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                            cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                            ddf_cov = sat.ddfEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-
-                                            eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
-                                            eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
-                                            ddf_eigenvalues, ddf_eigenvectors = np.linalg.eigh(ddf_cov)
-
-                                            error1 = np.linalg.norm(true_pos - est_pos1)
-                                            error2 = np.linalg.norm(true_pos - est_pos2)
-                                            ddf_error = np.linalg.norm(true_pos - ddf_pos)
-
-                                            LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
-                                            LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
-
-                                            self.plot_ellipsoid(ax, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
-                                            self.plot_ellipsoid(ax, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
-                                            self.plot_ellipsoid(ax, ddf_pos, ddf_cov, color=ddfColor, alpha=alpha+0.1)
-
-                                            self.plot_estimate(ax, est_pos1, true_pos, sat1Color)
-                                            self.plot_estimate(ax, est_pos2, true_pos, sat2Color)
-                                            self.plot_estimate(ax, ddf_pos, true_pos, ddfColor)
-
-                                            self.plot_LOS(ax, est_pos1, LOS_vec1)
-                                            self.plot_LOS(ax, est_pos2, LOS_vec2)
-
-                                            self.plot_all_labels(ax, targ, sat, sat2, time, error1, error2, ddf_error)
-                                            self.set_axis_limits(ax, ddf_pos, np.sqrt(ddf_eigenvalues), margin=50.0)
-
-                                            img = self.save_GEplot_to_image(fig)
-                                            self.imgs_stereo_GE[targ.targetID][sat].append(img)
-                                            ax.cla()  # Clear the plot for the next iteration
-                                        plt.close(fig)
-                        
-                        if k == 4: # plot stereo with et
-                            for sat2 in self.sats:
-                                if sat2 != sat:
-                                    if targ.targetID in sat2.targetIDs:
+                                        self.plot_LOS(ax1, est_pos1, LOS_vec1)
+                                        self.plot_LOS(ax1, est_pos2, LOS_vec2)
                                         
-                                        fig = plt.figure(figsize=(10, 8))
-                                        fig.suptitle(f"{targ.name}, {sat.name} and {sat2.name} ET Gaussian Uncertainty Ellipsoids")
-
-                                        ax = fig.add_subplot(111, projection='3d')
-                                        sat1Color = sat.color
-                                        sat2Color = sat2.color
-                                        local_et_color = '#ff33f9'
-                                        alpha = 0.2
-
-                                        sat1_times = sat.indeptEstimator.estHist[targ.targetID].keys()
-                                        sat2_times = sat2.indeptEstimator.estHist[targ.targetID].keys()
-                                        et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
-                                        times = [time for time in sat1_times if time in sat2_times and time in et_times]
-
-                                        for time in times:
-                                            true_pos = targ.hist[time][[0, 2, 4]]
-                                            est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                            est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                            et_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
-
-                                            cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                            cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                            et_cov = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]                                            
-                                            eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
-                                            eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
-                                            et_eigenvalues, et_eigenvectors = np.linalg.eigh(et_cov)
-                                            
-                                            error1 = np.linalg.norm(true_pos - est_pos1)
-                                            error2 = np.linalg.norm(true_pos - est_pos2)
-                                            et_error = np.linalg.norm(true_pos - et_pos)
-                                            
-                                            LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
-                                            LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
-                                            
-                                            self.plot_ellipsoid(ax, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
-                                            self.plot_ellipsoid(ax, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
-                                            self.plot_ellipsoid(ax, et_pos, et_cov, color=local_et_color, alpha=alpha+0.1)
-                                            
-                                            self.plot_estimate(ax, est_pos1, true_pos, sat1Color)
-                                            self.plot_estimate(ax, est_pos2, true_pos, sat2Color)
-                                            self.plot_estimate(ax, et_pos, true_pos, local_et_color)
-                                            
-                                            self.plot_LOS(ax, est_pos1, LOS_vec1)
-                                            self.plot_LOS(ax, est_pos2, LOS_vec2)
-                                            
-                                            ax.text2D(0.05, 0.95, f"Time: {time:.2f}, {targ.name}, Error {sat.name}: {error1:.2f} [km], Error {sat2.name}: {error2:.2f}, ET Error {sat.name}: {et_error:.2f} [km]", transform=ax.transAxes)
-                                            ax.set_xlabel('X')
-                                            ax.set_ylabel('Y')
-                                            ax.set_zlabel('Z')
-                                            ax.view_init(elev=10, azim=30)                                            
-                                            self.set_axis_limits(ax, et_pos, np.sqrt(et_eigenvalues), margin=50.0)
-                                            
-                                                
-                                            img = self.save_GEplot_to_image(fig)
-                                            self.imgs_stereo_ET_GE[targ.targetID][sat].append(img)
-                                            ax.cla()  # Clear the plot for the next iteration
-                                        plt.close(fig)
+                                        self.set_axis_limits(ax1, ddf_pos, np.sqrt(ddf_eigenvalues),  margin=50.0)
+                                        self.plot_labels(ax1, time)
+                                        self.make_legened1(ax1, sat, sat1Color, sat2, sat2Color, ddfColor, error1, error2, ddf_error, 'CI')
+      
+                                    et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
+                                    times = [time for time in stereo_times if time in et_times]
+                                    
+                                    if bigTime in times:
+                                        # Plot Et
+                                        true_pos = targ.hist[time][[0, 2, 4]]
+                                        est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        et_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
                                         
-                        if k == 5: # plot et vs central verification
-                            fig = plt.figure(figsize=(10, 8))
-                            fig.suptitle(f"{targ.name}, {sat.name} ET vs Central Gaussian Uncertainty Ellipsoids")
-                            
-                            ax = fig.add_subplot(111, projection='3d')
-                            satColor = sat.color
-                            centralColor = '#228B22'
-                            alpha = 0.3
-                            
-                            et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
-                            central_times = self.centralEstimator.estHist[targ.targetID].keys()
-                            times = [time for time in et_times if time in central_times]
-                            
-                            for time in times:
-                                true_pos = targ.hist[time][[0, 2, 4]]
-                                et_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
-                                central_pos = np.array([self.centralEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                
-                                et_cov = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]
-                                central_cov = self.centralEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                et_eigenvalues, et_eigenvectors = np.linalg.eigh(et_cov)
-                                central_eigenvalues, central_eigenvectors = np.linalg.eigh(central_cov)
-                                
-                                error_et = np.linalg.norm(true_pos - et_pos)
-                                error_central = np.linalg.norm(true_pos - central_pos)
-                                
-                                LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
-                                
-                                self.plot_ellipsoid(ax, et_pos, et_cov, color=satColor, alpha=alpha)
-                                self.plot_ellipsoid(ax, central_pos, central_cov, color=centralColor, alpha=alpha)
-                                
-                                self.plot_estimate(ax, et_pos, true_pos, satColor)
-                                self.plot_estimate(ax, central_pos, true_pos, centralColor)
-                                
-                                self.plot_LOS(ax, et_pos, LOS_vec)
-                                
-                                ax.text2D(0.05, 0.95, f"Time: {time:.2f}, {targ.name}, ET Error {sat.name}: {error_et:.2f} [km], Central Error: {error_central:.2f} [km]", transform=ax.transAxes)
-                                ax.set_xlabel('X')
-                                ax.set_ylabel('Y')
-                                ax.set_zlabel('Z')
-                                ax.view_init(elev=10, azim=30)
+                                        cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        et_cov = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]
+                                        
+                                        eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
+                                        eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
+                                        et_eigenvalues, et_eigenvectors = np.linalg.eigh(et_cov)
+                                        
+                                        error1 = np.linalg.norm(true_pos - est_pos1)
+                                        error2 = np.linalg.norm(true_pos - est_pos2)
+                                        et_error = np.linalg.norm(true_pos - et_pos)
+                                        
+                                        LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+                                        LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
+                                        
+                                        self.plot_ellipsoid(ax2, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
+                                        self.plot_ellipsoid(ax2, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
+                                        self.plot_ellipsoid(ax2, et_pos, et_cov, color=etColor, alpha=alpha)
+                                        
+                                        self.plot_estimate(ax2, est_pos1, true_pos, sat1Color)
+                                        self.plot_estimate(ax2, est_pos2, true_pos, sat2Color)
+                                        self.plot_estimate(ax2, et_pos, true_pos, etColor)
+                                        
+                                        self.plot_LOS(ax2, est_pos1, LOS_vec1)
+                                        self.plot_LOS(ax2, est_pos2, LOS_vec2)
+                                        
+                                        self.make_legened1(ax2, sat, sat1Color, sat2, sat2Color, etColor, error1, error2, et_error, 'ET')
+                                        self.set_axis_limits(ax2, et_pos, np.sqrt(et_eigenvalues), margin=50.0)
+                                        self.plot_labels(ax2, time)
+                                        
+                                        
+                                    ddf_times = sat.ddfEstimator.estHist[targ.targetID].keys()
+                                    central_times = self.centralEstimator.estHist[targ.targetID].keys()
+                                    times = [time for time in ddf_times if time in central_times]
+                                    
+                                    if bigTime in times:
+                                        true_pos = targ.hist[time][[0, 2, 4]]
+                                        est_pos = np.array([sat.ddfEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        central_pos = np.array([self.centralEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
 
-                                self.set_axis_limits(ax, et_pos, np.sqrt(et_eigenvalues), margin=50.0)
-                                
-                                img = self.save_GEplot_to_image(fig)
-                                self.imgs_cent_ET_GE[targ.targetID][sat].append(img)
-                                ax.cla()  # Clear the plot for the next iteration
-                            plt.close(fig)
-                                
-                                
-                                
-                            
+                                        cov_matrix = sat.ddfEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        central_cov = self.centralEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+
+                                        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+                                        central_eigenvalues, central_eigenvectors = np.linalg.eigh(central_cov)
+
+                                        error = np.linalg.norm(true_pos - est_pos)
+                                        central_error = np.linalg.norm(true_pos - central_pos)
+
+                                        LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+
+                                        self.plot_ellipsoid(ax3, est_pos, cov_matrix, color=ddfColor, alpha=alpha)
+                                        self.plot_ellipsoid(ax3, central_pos, central_cov, color=centralColor, alpha=alpha)
+
+                                        self.plot_estimate(ax3, est_pos, true_pos, sat1Color)
+                                        self.plot_estimate(ax3, central_pos, true_pos, centralColor)
+
+                                        self.plot_LOS(ax3, est_pos, LOS_vec)
+                                        self.set_axis_limits(ax3, est_pos, np.sqrt(eigenvalues), margin=50.0)
+                                        self.plot_labels(ax3, time)
+                                        self.make_legened2(ax3, ddfColor, centralColor, error, central_error, 'CI')
+                                        
+                                    et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
+                                    central_times = self.centralEstimator.estHist[targ.targetID].keys()
+                                    times = [time for time in et_times if time in central_times]
+                                    
+                                    if bigTime in times:
+                                        true_pos = targ.hist[time][[0, 2, 4]]
+                                        est_pos = np.array([sat.etEstimator.estHist[targ.targetID][sat][sat][time][i] for i in [0, 2, 4]])
+                                        central_pos = np.array([self.centralEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+
+                                        cov_matrix = sat.etEstimator.covarianceHist[targ.targetID][sat][sat][time][np.array([0, 2, 4])][:, np.array([0, 2, 4])]
+                                        central_cov = self.centralEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+
+                                        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+                                        central_eigenvalues, central_eigenvectors = np.linalg.eigh(central_cov)
+
+                                        error = np.linalg.norm(true_pos - est_pos)
+                                        central_error = np.linalg.norm(true_pos - central_pos)
+
+                                        LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
+
+                                        self.plot_ellipsoid(ax4, est_pos, cov_matrix, color=etColor, alpha=alpha)
+                                        self.plot_ellipsoid(ax4, central_pos, central_cov, color=centralColor, alpha=alpha)
+
+                                        self.plot_estimate(ax4, est_pos, true_pos, sat1Color)
+                                        self.plot_estimate(ax4, central_pos, true_pos, centralColor)
+
+                                        self.plot_LOS(ax4, est_pos, LOS_vec)
+                                        self.set_axis_limits(ax4, est_pos, np.sqrt(eigenvalues), margin=50.0)
+                                        self.plot_labels(ax4, time)
+                                        self.make_legened2(ax4, etColor, centralColor, error, central_error, 'ET')
+                                    
+                                    handles = [
+                                        Patch(color=sat1Color, label=f'{sat.name} Local Estimator'),
+                                        Patch(color=sat2Color, label=f'{sat2.name} Local Estimator'),
+                                        Patch(color=ddfColor, label=f'DDF Estimator'),
+                                        Patch(color=etColor, label=f'ET Estimator'),
+                                        Patch(color=centralColor, label=f'Central Estimator')
+                                    ]
+                                    
+                                    fig.legend(handles=handles, loc='lower right', ncol=5, bbox_to_anchor=(1, 0))
+                                    ax1.set_title(f"Covariance Intersection")
+                                    ax2.set_title(f"Event Triggered Fusion")
+                                    img = self.save_GEplot_to_image(fig)
+                                    self.imgs_stereo_GE[targ.targetID][sat][sat2].append(img)
+                                    
+                                    ax1.cla()
+                                    ax2.cla()
+                                    ax3.cla()
+                                    ax4.cla()
+                                    
+                                plt.close(fig)                            
 
 
     def plot_ellipsoid(self, ax, est_pos, cov_matrix, color, alpha):
@@ -1189,10 +1131,21 @@ class environment:
         Returns:
         None
         """
-        ax.quiver(est_pos[0], est_pos[1], est_pos[2], LOS_vec[0], LOS_vec[1], LOS_vec[2], color='k', length=10, normalize=True)
+       # Calculate the end point of the LOS vector relative to est_pos
+        arrow_length = 30  # Length of the LOS vector
+        LOS_vec_unit = LOS_vec / np.linalg.norm(LOS_vec)  # Normalize the LOS vector
+
+        # Adjusted starting point of the arrow
+        arrow_start = est_pos - (LOS_vec_unit * arrow_length)
+
+        # Use quiver to plot the arrow starting from arrow_start to est_pos
+        ax.quiver(arrow_start[0], arrow_start[1], arrow_start[2], 
+                LOS_vec_unit[0], LOS_vec_unit[1], LOS_vec_unit[2], 
+                color='k', length=arrow_length, normalize=True)
+        #ax.quiver(est_pos[0], est_pos[1], est_pos[2], LOS_vec[0], LOS_vec[1], LOS_vec[2], color='k', length=10, normalize=True)
 
 
-    def plot_labels(self, ax, targ, sat, time, err):
+    def plot_labels(self, ax, time):
         """
         Plots labels on the given axes.
 
@@ -1206,37 +1159,37 @@ class environment:
         Returns:
         None
         """
-        ax.text2D(0.05, 0.95, f"Time: {time:.2f}, {targ.name}, Error {sat.name}: {err:.2f} [km]", transform=ax.transAxes)
+        ax.text2D(0.05, 0.95, f"Time: {time:.2f}", transform=ax.transAxes)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
         ax.view_init(elev=10, azim=30)
 
 
-    def plot_all_labels(self, ax, targ, sat1, sat2, time, err1, err2, ddf_err):
-        """
-        Plots labels for multiple satellites on the given axes.
+    def make_legened1(self, ax, sat1, sat1color, sat2, sat2color, ddfcolor, error1, error2, ddf_error, ddf_type=None):
+        if ddf_type == 'CI':
+            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'CI Error: {ddf_error:.2f} km']
+            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ddfcolor, label=labels[2])]
+            ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
+        
+        elif ddf_type == 'ET':
+            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'ET Error: {ddf_error:.2f} km']
+            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ddfcolor, label=labels[2])]
+            ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
-        Parameters:
-        - ax: The matplotlib axes to plot on.
-        - targ: The target object.
-        - sat1: The first satellite object.
-        - sat2: The second satellite object.
-        - time: The current time.
-        - err1: The error value for the first satellite.
-        - err2: The error value for the second satellite.
-        - ddf_err: The error value for the DDF.
+    def make_legened2(self, ax, ddfColor, centralColor, error1, error2, ddf_type=None):
+        if ddf_type == 'CI':
+            labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
+            handles = [Patch(color=ddfColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
+            ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
+        
+        elif ddf_type == 'ET':
+            labels = [f'ET Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
+            handles = [Patch(color=ddfColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
+            ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
-        Returns:
-        None
-        """
-        ax.text2D(0.05, 0.95, f"Time: {time:.2f}, {targ.name}, Error {sat1.name}: {err1:.2f} [km], Error {sat2.name}: {err2:.2f} [km], Error DDF: {ddf_err:.2f} [km]", transform=ax.transAxes)
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.view_init(elev=10, azim=30)
-
-
+        
+    
     def set_axis_limits(self, ax, est_pos, radii, margin=50.0):
         """
         Sets the limits of the axes.
@@ -1256,7 +1209,6 @@ class environment:
         ax.set_ylim(min_vals[1], max_vals[1])
         ax.set_zlim(min_vals[2], max_vals[2])
         ax.set_box_aspect([1, 1, 1])
-
 
     def save_GEplot_to_image(self, fig):
         """
@@ -1298,38 +1250,16 @@ class environment:
                     writer.append_data(img)
 
         if fileType == 'uncertainty_ellipse':
-            for sat in self.sats:
-                for targ in self.targs:
+            for targ in self.targs:
+                for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
-                        file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_indept_GE.gif")
-                        with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_local_GE[targ.targetID][sat]:
-                                writer.append_data(img)
-
-                        ddf_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_ddf_GE.gif")
-                        with imageio.get_writer(ddf_file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_ddf_GE[targ.targetID][sat]:
-                                writer.append_data(img)
-
-                        cent_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_central_GE.gif")
-                        with imageio.get_writer(cent_file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_cent_GE[targ.targetID][sat]:
-                                writer.append_data(img)
-
-                        both_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_stereo_GE.gif")
-                        with imageio.get_writer(both_file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_stereo_GE[targ.targetID][sat]:
-                                writer.append_data(img)
-                                
-                        et_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_stereo_ET_GE.gif")
-                        with imageio.get_writer(et_file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_stereo_ET_GE[targ.targetID][sat]:
-                                writer.append_data(img)
-                                
-                        cent_et_file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_central_ET_GE.gif")
-                        with imageio.get_writer(cent_et_file, mode='I', duration=frame_duration) as writer:
-                            for img in self.imgs_cent_ET_GE[targ.targetID][sat]:
-                                writer.append_data(img)
+                        for sat2 in self.sats:
+                            if targ.targetID in sat2.targetIDs:
+                                if sat != sat2:
+                                    file = os.path.join(filePath, 'gifs', f"{saveName}_{targ.name}_{sat.name}_{sat2.name}_stereo_GE.gif")
+                                    with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
+                                        for img in self.imgs_stereo_GE[targ.targetID][sat][sat2]:
+                                            writer.append_data(img)
                                 
   
 ### Data Dump File ###        

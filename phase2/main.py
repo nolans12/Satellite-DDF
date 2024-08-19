@@ -95,29 +95,31 @@ def create_environment_mono():
     # Define the centralized estimator
     central = centralEstimator(targetIDs = targetIDs) 
 
-    purple_shades = ['#9467BD']
-    blue_shades = ['#87CEEB', '#6495ED', '#0000FF']
-    yellow_shades = ['#FFBF00', '#E49B0F', '#FDDA0D']
+    # Define the colors for the sats:
+    sat1_color = '#28B463'  # Green
+    sat2_color = '#ef10d2'  # Purple
+    sat3_color = '#3498DB'  # Blue
+    
     red_shades = ['#EE4B2B', '#800020', '#DE3163']
-
+    
     # MONO TRACK SATELLITE
-    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et),a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color=purple_shades[0])
+    sat1 = satellite(name = 'Sat1', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et),a = Earth.R + 12000 * u.km, ecc = 0, inc = 0, raan = -45, argp = 0, nu = 0, color=sat1_color)
 
     # POLAR ORBIT SATELLITE
-    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = -45, color=blue_shades[0])
+    sat2 = satellite(name = 'Sat2', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 0, argp = 0, nu = -45, color=sat2_color)
 
     # INCLINATION 50 SATELLITE=90
-    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 50, raan = 45, argp = 0, nu = -90, color=yellow_shades[0])
+    sat3 = satellite(name = 'Sat3', sensor = deepcopy(sens), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ddfEstimator=deepcopy(ddf), etEstimator=deepcopy(et), a = Earth.R + 12000 * u.km, ecc = 0, inc = 90, raan = 35, argp = 0, nu = -80, color=sat3_color)
     
     sats = [sat1, sat2, sat3]
 
     # Make the targets have some uncertainty in their initial state
     # At M = 4.7, hypersonic
     targ1 = target(name = 'Targ1', targetID=1, coords = np.array([0,-45,0]), heading=90, speed= 1.61538*60,  uncertainty=np.array([0, 0, 0, 0, 0]), color = red_shades[0])
-    # At M = 0.7, transonic speed
-    targ2 = target(name = 'Targ2', targetID=2, coords = np.array([100,-5,0]), heading=180, speed= 0.2401*60, uncertainty=np.array([0, 0, 0, 0, 0]), color = red_shades[1])
-    # At 50 mph
-    targ3 = target(name = 'Targ3', targetID=3, coords = np.array([45,0,0]), heading=180 + 45, speed= 0.022352*60, uncertainty=np.array([0.1, 0.1, 0, 0.1, 0.1]), color = red_shades[2])
+    # # At M = 0.7, transonic speed
+    # targ2 = target(name = 'Targ2', targetID=2, coords = np.array([100,-5,0]), heading=180, speed= 0.2401*60, uncertainty=np.array([0, 0, 0, 0, 0]), color = red_shades[1])
+    # # At 50 mph
+    # targ3 = target(name = 'Targ3', targetID=3, coords = np.array([45,0,0]), heading=180 + 45, speed= 0.022352*60, uncertainty=np.array([0.1, 0.1, 0, 0.1, 0.1]), color = red_shades[2])
 
     targs = [targ1]
 
@@ -270,8 +272,8 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     ### Do formal NEES and NIS test:
-    time_vec = np.linspace(0, 120, 60 + 1) * u.minute
-    fileName = "three_satellites_"
+    time_vec = np.linspace(0, 100, 100 + 1) * u.minute
+    fileName = "d0"
     numSims = 1
     simData = defaultdict(dict)
     for i in range(numSims):
@@ -279,7 +281,7 @@ if __name__ == "__main__":
         # Create a new environment instance for each simulation run:
         env = create_environment_mono()
         # Simulate the satellites through the vector of time:
-        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=False, saveData=True, saveName=fileName, showSim=False)
+        simData[i] = env.simulate(time_vec, pause_step=0.1, savePlot=True, saveGif=True, saveData=True, saveName=fileName, showSim=False)
         
         env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 2)
         env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 2)

@@ -508,8 +508,8 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0.1
-        self.delta_beta = 0.1
+        self.delta_alpha = 0
+        self.delta_beta = 0
         
         # R Factor
         self.R_factor = 100
@@ -520,7 +520,8 @@ class etEstimator(BaseEstimator):
         self.covarianceHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.covPredHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.trackErrorHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
-        self.synchronizeFlag = {targetID: {self.sat: {neighbor: False for neighbor in self.neighbors}} for targetID in self.targetIDs}
+        
+        self.synchronizeFlag = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         
     def update_neighbors(self, neighbors):
         '''
@@ -534,7 +535,8 @@ class etEstimator(BaseEstimator):
             self.covarianceHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.covPredHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.trackErrorHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
-            self.synchronizeFlag[targetID][self.sat] = {neighbor: False for neighbor in self.neighbors}
+
+            self.synchronizeFlag[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             
     
     def event_triggered_fusion(self, sat, envTime, commNode):
@@ -566,7 +568,8 @@ class etEstimator(BaseEstimator):
         self.estPredHist[targetID][sat][sharewith][envTime] = est_prior
         self.covarianceHist[targetID][sat][sharewith][envTime] = P_prior
         self.covPredHist[targetID][sat][sharewith][envTime] = P_prior
-        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est_prior, P_prior)                        
+        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+        self.synchronizeFlag[targetID][sat][sharewith][envTime] = False                        
         
         
     def update_common_filters(self, sat, envTime, commNode):
@@ -586,12 +589,13 @@ class etEstimator(BaseEstimator):
                 
                 # Proccess the new measurement from sender with the local and common filter
                 alpha, beta = commNode['sent_measurements'][time_sent][targetID]['meas'][i]
-                if not np.isnan(alpha): ## TODO: sat neighbor wont work bc i am sender not neighbor
-                    self.explicit_measurement_update(sat, sat, alpha, 'IT', 'common', targetID, envTime, sharewith=receiver) # update our common filter
+                if not np.isnan(alpha):
+                    self.explicit_measurement_update(sat, sat, alpha, 'IT', targetID, envTime, sharewith=receiver) # update our common filter
                 else:
                     self.implicit_measurement_update(sat, sat, est_pred, cov_pred, 'IT', 'common', targetID, envTime, sharewith=receiver)
+                
                 if not np.isnan(beta):
-                    self.explicit_measurement_update(sat, sat, beta, 'CT', 'common', targetID, envTime, sharewith=receiver) # update our common filter
+                    self.explicit_measurement_update(sat, sat, beta, 'CT', targetID, envTime, sharewith=receiver) # update our common filter
                 else:
                     self.implicit_measurement_update(sat, sat, est_pred, cov_pred, 'CT', 'common', targetID, envTime, sharewith=receiver)
 
@@ -613,7 +617,7 @@ class etEstimator(BaseEstimator):
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][sender]) == 1:
                     return 
                 
-                if self.synchronizeFlag[targetID][sat][sender] == True: ## TODO: If any of the last 5 
+                if self.synchronizeFlag[targetID][sat][sender][envTime] == True: ## TODO: If any of the last 5 
                     self.synchronize_filters(sat, sender, targetID, envTime)
                     return
                 
@@ -631,13 +635,15 @@ class etEstimator(BaseEstimator):
                 # Proccess the new measurement from sender with the local and common filter
                 alpha, beta = commNode['received_measurements'][time_sent][targetID]['meas'][i]
                 # In-Track Measurement
-                if not np.isnan(alpha):
-                    self.explicit_measurement_update(sat, sender, alpha, 'IT', 'both', targetID, envTime, sharewith=sender) # update our common filter
+                if not np.isnan(alpha): # TODO: This is wrong, explicit takes wrong local estimate
+                    self.explicit_measurement_update(sat, sender, alpha, 'IT', targetID, envTime, sharewith=sat) # update local filter
+                    self.explicit_measurement_update(sat, sender, alpha, 'IT', targetID, envTime, sharewith=sender) # update our common filter
                 else:
                     self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'IT', 'both', targetID, envTime, sharewith=sender) # update my local and common filter
                 # Cross-Track Measurement
                 if not np.isnan(beta):
-                    self.explicit_measurement_update(sat, sender, beta, 'CT', 'both', targetID, envTime, sharewith=sender) # update our common filter
+                    self.explicit_measurement_update(sat, sender, beta, 'CT', targetID, envTime, sharewith=sat) # update local filter
+                    self.explicit_measurement_update(sat, sender, beta, 'CT', targetID, envTime, sharewith=sender) # update our common filter
                 else:
                     self.implicit_measurement_update(sat, sender, est_pred, cov_pred, 'CT', 'both', targetID, envTime, sharewith=sender) # update my local and common filter
                 
@@ -683,8 +689,8 @@ class etEstimator(BaseEstimator):
         alpha, beta = sat.measurementHist[targetID][envTime]
                             
         # Proccess my measurement in the local filter
-        self.explicit_measurement_update(sat, sat, alpha, 'IT', 'both', targetID, envTime, sharewith=sat) 
-        self.explicit_measurement_update(sat, sat, beta, 'CT', 'both', targetID, envTime, sharewith=sat)
+        self.explicit_measurement_update(sat, sat, alpha, 'IT', targetID, envTime, sharewith=sat) 
+        self.explicit_measurement_update(sat, sat, beta, 'CT', targetID, envTime, sharewith=sat)
         
          # Calculate Local Track Quaility Metric
         est = self.estHist[targetID][sat][sat][envTime]
@@ -738,7 +744,7 @@ class etEstimator(BaseEstimator):
         self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est_pred, P_pred)
         
          
-    def explicit_measurement_update(self, sat, sender, measurement, type, update, targetID, envTime, sharewith):
+    def explicit_measurement_update(self, sat, sender, measurement, type, targetID, envTime, sharewith):
         '''
         Explicit measurement updates  the estimate with a measurement from a sender satellite.
         Note satellites can send themselves measurements for local filter.
@@ -792,21 +798,11 @@ class etEstimator(BaseEstimator):
         # Correct covariance 
         P = P_prev - K @ H @ P_prev
          
-        # Save Data into both filters
-        if update == 'both':
-            self.estHist[targetID][sat][sat][envTime] = est
-            self.covarianceHist[targetID][sat][sat][envTime] = P
-            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, P)
-            
-            self.estHist[targetID][sat][sharewith][envTime] = est
-            self.covarianceHist[targetID][sat][sharewith][envTime] = P
-            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)
-            
-        elif update == 'common':
-            self.estHist[targetID][sat][sharewith][envTime] = est
-            self.covarianceHist[targetID][sat][sharewith][envTime] = P
-            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)
-                
+         # Save Data into filter
+        self.estHist[targetID][sat][sharewith][envTime] = est
+        self.covarianceHist[targetID][sat][sharewith][envTime] = P
+        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)    
+                     
         
     def implicit_measurement_update(self, sat, sender, local_est_pred, local_P_pred, type, update, targetID, envTime, sharewith):
         """
@@ -962,12 +958,12 @@ class etEstimator(BaseEstimator):
         ### Try just synchronizing the common information filters
         
         # Sat common information filter with neighbor
-        time12 = max(self.estHist[targetID][sat][neighbor].keys())
+        time12 = max(self.estHist[targetID][sat][sat].keys())
         est12 = self.estHist[targetID][sat][neighbor][time12]
         cov12 = self.covarianceHist[targetID][sat][neighbor][time12]
         
         # Neighbor common information filter with sat
-        time21 = max(neighbor.etEstimator.estHist[targetID][neighbor][sat].keys())
+        time21 = max(neighbor.etEstimator.estHist[targetID][neighbor][neighbor].keys())
         est21 = neighbor.etEstimator.estHist[targetID][neighbor][sat][time21]
         cov21 = neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][time21]
         
