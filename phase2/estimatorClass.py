@@ -74,6 +74,11 @@ class BaseEstimator:
             # Store initial values and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
+            
+            # Add the trackUncertainty
+            trackError = self.calcTrackError(P_prior)
+            self.trackErrorHist[targetID][envTime] = trackError
+
             return est_prior
        
         else:
@@ -452,6 +457,10 @@ class ciEstimator(BaseEstimator):
 
                 # If the send time is older than the prior estimate, discard the sent estimate
                 if time_sent < time_prior:
+                    continue
+
+                # Now, also only use the data if the sat needs help:
+                if not self.needHelp[targetID]:
                     continue
 
                 # We will now use the estimate and covariance that were sent, so we should store this

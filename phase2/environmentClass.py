@@ -163,23 +163,261 @@ class environment:
         Then use the communication contraints to optimize the network
         Choosing which satellites should communicaiton with whom.
         """
-        test = 1
 
+        # Get the track uncertainties from each of the satellites into a dictionary:
+        trackUncertainty = defaultdict(lambda: defaultdict(dict))
+
+        # Loop through all satellites
+        for sat in self.sats:
+
+            # Add the satname to the dictionary
+            trackUncertainty[sat] = defaultdict(dict)
+
+            # For each targetID in satellites object to track, add the track error to the dictionaryg
+            for targetID in sat.targetIDs:
+
+                # Check, is there a track error for this targetID?
+                if not bool(sat.ciEstimator.trackErrorHist[targetID]) or len(sat.ciEstimator.trackErrorHist[targetID].keys()) == 0:
+                    # Make the track uncertainty 999
+                    trackUncertainty[sat.name][targetID] = 999
+                    continue # Skip to next targetID
+
+                # Otherwise, get the most recent trackUncertainty
+                maxTime = max(sat.ciEstimator.trackErrorHist[targetID].keys())
+
+                # Add the track uncertainty to the dictionary
+                trackUncertainty[sat.name][targetID] = sat.ciEstimator.trackErrorHist[targetID][maxTime]
+
+        # Now that we have the track uncertainties, we can optimize the communication network
+
+        #### MIXED INTEGER LINEAR PROGRAMMING ####
+        # Redefine goodness function to be based on a source and reciever node pair, not a path:
+        def goodness(source, reciever, trackUncertainty, targetID):
+            """ A paths goodness is defined as the sum of the deltas in track uncertainty on a targetID, as far as that node hasnt already recieved data from that satellite"""
+
+            # Get the track uncertainty of the source node
+            sourceTrackUncertainty = trackUncertainty[source.name][targetID]
+
+            # Get the track uncertainty of the target node
+            recieverTrackUncertainty = trackUncertainty[reciever.name][targetID]
+
+            # Get the desired targetID track uncertainty
+            desired = 50 + 50*targetID
+
+            # Check, if the sats track uncertainty on that targetID needs help or not
+            if recieverTrackUncertainty < desired:
+                return 0
+        
+            # Else, calculate the goodness, + if the source is better, 0 if the sat is better
+            if recieverTrackUncertainty - sourceTrackUncertainty < 0: 
+                return 0 # EX: If i have uncertainty of 200 and share it with a sat with 100, theres no benefit to sharing that
+            
+
+            # TODO:
+                # maybe make this return piecewise reward, if source is already at threshold, cap the reward to be reciever - threshold
+                
+            # Else, return the goodness of the link, difference between the two track uncertainties
+            return recieverTrackUncertainty - sourceTrackUncertainty 
+        
+
+        # Now goal is to find the set of paths that maximize the total goodness, while also respecting the bandwidth constraints and not double counting, farying information is allowed
+
+        # Generate all possible non cyclic paths up to a reasonable length (e.g., max 3 hops)
+        def generate_all_paths(graph, max_hops):
+            paths = []
+            for source in graph.nodes():
+                for target in graph.nodes():
+                    if source != target:
+                        for path in nx.all_simple_paths(graph, source=source, target=target, cutoff=max_hops):
+                            paths.append(tuple(path))
+            return paths
+        
+        # Generate all possible paths
+        allPaths = generate_all_paths(self.comms.G, 3)
+
+        # Define the fixed bandwidth consumption per CI
+        fixed_bandwidth_consumption = 30
+
+        # Define the optimization problem
+        prob = pulp.LpProblem("Path_Optimization", pulp.LpMaximize)
+
+        # Create binary decision variables for each path combination
+        # 1 if the path is selected, 0 otherwise
+        path_selection_vars = pulp.LpVariable.dicts(
+            "path_selection", [(path, targetID) for path in allPaths for targetID in trackUncertainty[path[0].name].keys()], 0, 1, pulp.LpBinary
+        )
+
+        #### OBJECTIVE FUNCTION
+
+        ## Define the objective function, total sum of goodness across all paths
+        # Initalize a linear expression that will be used as the objective
+        total_goodness_expression = pulp.LpAffineExpression()
+
+        for path in allPaths: # Loop through all paths possible
+
+            for targetID in trackUncertainty[path[0].name].keys(): # Loop through all targetIDs that a path could be talking about
+
+                # Initalize a linear expression that will define the goodness of a path in talking about a targetID
+                path_goodness = pulp.LpAffineExpression() 
+
+                # Loop through the links of the path
+                for i in range(len(path) - 1):
+
+                    # Get the goodness of a link in the path on the specified targetID
+                    edge_goodness = goodness(path[0], path[i+1], trackUncertainty, targetID)
+                
+                    # Add the edge goodness to the path goodness
+                    path_goodness += edge_goodness
+
+                # Thus we are left with a value for the goodness of the path in talking about targetID
+                # But, we dont know if we are going to take that path, thats up to the optimizer
+                # So make it a binary expression, so that if the path is selected,
+                # the path_goodness will be added to the total_goodness_expression. 
+                # Otherwsie if the path isn't selected, the path_goodness will be 0
+                total_goodness_expression += path_goodness * path_selection_vars[(path, targetID)]
+
+        # Add the total goodness expression to the linear programming problem as the objective function
+        prob += total_goodness_expression, "Total_Goodness_Objective"
+
+        #### CONSTRAINTS
+
+        ## Ensure the total bandwidth consumption across a link does not exceed the bandwidth constraints
+        for edge in self.comms.G.edges(): # Loop through all edges possible
+            u, v = edge  # Unpack the edge
+
+            # Create a list to accumulate the terms for the total bandwidth usage on this edge
+            bandwidth_usage_terms = []
+            
+            # Iterate over all possible paths
+            for (path, targetID) in path_selection_vars:
+
+                # Check if the current path includes the edge in question
+                if any((path[i], path[i+1]) == edge for i in range(len(path) - 1)):
+
+                    # Now path_selection_vars is a binary expression/condition will either be 0 or 1
+                    # Thus, the following term essentially accounts for the bandwidth usage on this edge, if its used
+                    bandwidth_usage = path_selection_vars[(path, targetID)] * fixed_bandwidth_consumption
+
+                    # Add the term to the list
+                    bandwidth_usage_terms.append(bandwidth_usage)
+            
+            # Sum all the expressions in the list to get the total bandwidth usage on this edge
+            total_bandwidth_usage = pulp.lpSum(bandwidth_usage_terms)
+
+            # Add the constraint to the linear programming problem
+            # The constraint indicates that the total bandwidth usage on this edge should not exceed the bandwidth constraint
+            # This constraint will be added for all edges in the graph after the loop
+            prob += total_bandwidth_usage <= self.comms.G[u][v]['maxBandwidth'], f"Bandwidth_constraint_{edge}"
+
+        ## Ensure the reward for sharing information about a targetID from source node to another node is not double counted
+        for source in self.comms.G.nodes(): # Loop over all source nodes possible
+
+            for receiver in self.comms.G.nodes(): # Loop over all receiver nodes possible
+
+                # If the receiver is not the source node, we can add a constraint
+                if receiver != source:
+                        
+                    # Loop over all targetIDs source and reciever could be talking about
+                    for targetID in trackUncertainty[source.name].keys():
+
+                        # Initalize a linear expression that will be used as a constraint
+                        # This expression is exclusivly for source -> reciever about targetID, gets reinitalized every time
+                        path_count = pulp.LpAffineExpression()
+
+                        # Now we want to add the constraint that no more than 1 
+                        # source -> reciever about targetID is selected
+
+                        # So we will count the number of paths that could be selected that are source -> reciever about targetID
+                        for path in allPaths:
+
+                            # Check if the path starts at the source and contains the receiver
+                            if path[0] == source and receiver in path:
+
+                                # Add the path selection variable to the path sum if its selected and talking about the targetID
+                                path_count += path_selection_vars[(path, targetID)]
+                        
+                        # Add a constraint to ensure the path sum is at most 1
+                        # Thus, there will be a constraint for every source -> reciever about targetID combo, 
+                        # ensuring the total number of paths selected that contain that isn't greater than 1
+                        prob += path_count <= 1, f"Single_path_for_target_{source}_{receiver}_{targetID}"
+
+
+        # Solve the optimization problem
+        prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+        # Output the results, paths selected
+        selected_paths = [
+            (path, targetID)
+            for (path, targetID) in path_selection_vars
+            if path_selection_vars[(path, targetID)].value() == 1
+        ]
+        
+        ### DEBUGGING PRINTS
+
+        # Print the selected paths
+        print("Selected paths:")
+        for (path, targetID) in selected_paths:
+            # also print the total goodness of the selected paths
+            total_goodness = sum(
+                goodness(path[0], path[i+1], trackUncertainty, targetID)
+                for i in range(len(path) - 1)
+            )
+            # now loop through the satellites in the path, and print the satellite names, then print the total goodness
+            print(
+                [sat.name for sat in path],
+                f"TargetID: {targetID}",
+                f"Goodness: {total_goodness}",
+            )
+
+        # Print the total bandwidht usage vs avaliable across the graph
+        total_bandwidth_usage = sum(
+            fixed_bandwidth_consumption
+            for (path, targetID) in selected_paths
+            for i in range(len(path) - 1)
+        )
+        print(f"Total bandwidth usage: {total_bandwidth_usage}")
+        print(f"Total available bandwidth: {sum(self.comms.G[u][v]['maxBandwidth'] for u, v in self.comms.G.edges())}")
+
+        # Now, we have the selected paths, we can send the estimates
+        for (path, targetID) in selected_paths:
+
+            # Get the est, cov, and time of the most recent estimate
+            sourceSat = path[0]
+
+            # Get the most recent estimate time
+            sourceTime = max(sourceSat.ciEstimator.estHist[targetID].keys())
+            est = sourceSat.ciEstimator.estHist[targetID][sourceTime]
+            cov = sourceSat.ciEstimator.covarianceHist[targetID][sourceTime]
+
+            # Get the most recent 
+            self.comms.send_estimate_path(path, est, cov, targetID, sourceTime)
+
+
+        test = 1 
+        
 
     def send_estimates(self):
         """
         Send the most recent estimates from each satellite to its neighbors.
         """
         # Loop through all satellites
-        for sat in self.sats:
+        random_sats = self.sats[:]
+        random.shuffle(random_sats)
+        for sat in random_sats:
             # For each targetID in the satellite estimate history
-            for targetID in sat.ciEstimator.estHist.keys():
+
+            # also shuffle the targetIDs
+            shuffle_targetIDs = list(sat.ciEstimator.estHist.keys())
+            random.shuffle(shuffle_targetIDs)
+            for targetID in shuffle_targetIDs:
                 # Skip if there are no estimates for this targetID
                 if len(sat.ciEstimator.estHist[targetID].keys()) == 0:
                     continue  
 
                 # This means satellite has an estimate for this target, now send it to neighbors
-                for neighbor in self.comms.G.neighbors(sat):
+                neighbors = list(self.comms.G.neighbors(sat))
+                random.shuffle(neighbors)
+                for neighbor in neighbors:
                     # Get the most recent estimate time
                     satTime = max(sat.ciEstimator.estHist[targetID].keys())
 

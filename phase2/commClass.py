@@ -17,7 +17,7 @@ class comms:
             display_struct (bool, optional): Flag to display structure. Defaults to False.
         """
         # Create a graph instance with the satellites as nodes
-        self.G = nx.Graph()
+        self.G = nx.DiGraph()
 
         # Add nodes with a dict for queued data (list of arrays)
         for sat in sats:
@@ -35,6 +35,19 @@ class comms:
         self.min_range = minRange
         self.data_rate = dataRate
         self.displayStruct = displayStruct
+
+    def send_estimate_path(self, path, est_meas_source, cov_meas_source, target_id, time):
+        """ Send an estimate along a path of satellites.
+                Includes ferrying the data!!!
+        """
+
+        # Take the path, and from path[0] (source node) share the est_meas and cov_meas to all other nodes in the path, send the data
+        for i in range(1, len(path)):
+            self.send_estimate(path[i-1], path[i], est_meas_source, cov_meas_source, target_id, time)
+            # Activate that edge
+            self.G.edges[path[i-1], path[i]]['active'] = True
+
+
 
     def send_estimate(self, sender, receiver, est_meas, cov_meas, target_id, time):
         """Send an estimate from one satellite to another
@@ -84,7 +97,6 @@ class comms:
 
         self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
 
-
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
         """Send a vector of measurements from one satellite to another.
                 First checks if two satellites are neighbors,
@@ -121,7 +133,6 @@ class comms:
 
         self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size
 
-
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
                 Performs double loop through all satellites to check known pairs.
@@ -134,18 +145,20 @@ class comms:
         self.G.clear_edges()
 
         # Loop through each satellite pair and remake the edges
-        for sat in sats:
+        for sat1 in sats:
             for sat2 in sats:
-                if sat != sat2:
+                if sat1 != sat2:
                     # Check if an edge already exists between the two satellites
-                    if not self.G.has_edge(sat, sat2):
+                    if not self.G.has_edge(sat1, sat2):
                         # Check if the distance is within range
-                        dist = np.linalg.norm(sat.orbit.r - sat2.orbit.r)
+                        dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
                         if self.min_range < dist < self.max_range:
                             # Check if the Earth is blocking the two satellites
-                            if not self.intersect_earth(sat, sat2):
+                            if not self.intersect_earth(sat1, sat2):
                                 # Add the edge
-                                self.G.add_edge(sat, sat2, active=False)
+                                self.G.add_edge(sat1, sat2, maxBandwidth = self.maxBandwidth, usedBandwidth = 0, active=False)
+                                # also add the edge in the opposite direction
+                                self.G.add_edge(sat2, sat1, maxBandwidth = self.maxBandwidth, usedBandwidth = 0, active=False)
 
         # Restrict to just the maximum number of neighbors
         for sat in sats:
@@ -163,13 +176,7 @@ class comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-
-        # Finally, make the edges have a max bandwidth and current bandwidth
-        for edge in self.G.edges:
-            self.G.edges[edge]['maxBandwidth'] = self.maxBandwidth
-            self.G.edges[edge]['usedBandwidth'] = 0
         
-
     def intersect_earth(self, sat1, sat2):
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.

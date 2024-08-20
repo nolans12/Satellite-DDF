@@ -52,7 +52,7 @@ def create_environment():
     sats = [sat1a, sat1b, sat2a, sat2b]
 
     # Define the communication network: 
-    comms_network = comms(sats, maxBandwidth = 90, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central, ciEstimator = True)
@@ -259,14 +259,14 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 2, 2*12 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "test"
+    fileName = "randomSending"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = True, saveName = fileName)
+    env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = False, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
