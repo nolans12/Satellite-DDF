@@ -224,22 +224,20 @@ class environment:
                             
                             
                             # If a satellite wants to send measurements, it needs to have synchronized common filters
-                            sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = False                            
-                            neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = False
+                            sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = True                            
+                            neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = True
                             
                             # Search backwards through dictionary to check if there are 5 measurements sent to this neighbor
-                            count = 0
+                            count = 5
                             for lastTime in reversed(list(sat.measurementHist[target.targetID].keys())): # starting now, go back in time
                                 if isinstance(sat.measurementHist[target.targetID][lastTime], np.ndarray): # if the satellite took a measurement at this time
-                                    count += 1 # increment count
-                                
-                                else: # otherwise, this is one of the first 5 measurements on this target sent to this neighbor
-                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = True # set synchronize flag to true
-                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = True
-                                    break
+                                    count -= 1 # increment count
                                     
-                                if count == 6: # if there are 5 measurements sent to this neighbor, no need to synchronize
-                                    break
+                                if count == 0: # if there are 5 measurements sent to this neighbor, no need to synchronize
+                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = False # set synchronize flag to true
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = False
+                                    break # break out of loop
+                                
 
 
     def collect_all_measurements(self):
@@ -447,11 +445,10 @@ class environment:
         """
         
         plt.close('all')
-        plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainity [km]']        
         suffix_vec = ['local', 'ci', 'et', 'et_vs_ddf', 'et_pairwise']
-        title_vec = ['Local vs Central', 'DDF vs Central', 'ET vs Central', 'ET vs DDF']
+        title_vec = ['Local vs Central', 'CI vs Central', 'ET vs Central', 'ET vs CI']
         title_vec = [title + " Estimator Results" for title in title_vec]
         
         # For Each Target
@@ -726,18 +723,19 @@ class environment:
                     continue
                 
                 if time in message_times:
-                    for i in range(len(commNode['received_measurements'][time][targetID]['meas'])):
-                        if commNode['received_measurements'][time][targetID]['sender'][i] == sat2:
-                            alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
-                            if not np.isnan(alpha):
-                                ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
-                            else:
-                                ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
-                            
-                            if not np.isnan(beta):
-                                ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
-                            else:
-                                ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
+                    if targetID in commNode['received_measurements'][time].keys():
+                        for i in range(len(commNode['received_measurements'][time][targetID]['sender'])):
+                            if commNode['received_measurements'][time][targetID]['sender'][i] == sat2:
+                                alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
+                                if not np.isnan(alpha):
+                                    ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
+                                else:
+                                    ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
+                                
+                                if not np.isnan(beta):
+                                    ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
+                                else:
+                                    ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
                         
         
         ax.set_yticks([0,0.5, 1])

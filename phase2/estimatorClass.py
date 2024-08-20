@@ -314,7 +314,7 @@ class centralEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
-        self.R_factor = 100  # Factor to scale the sensor noise matrix
+        self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
@@ -343,7 +343,7 @@ class indeptEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
 
-        self.R_factor = 100
+        self.R_factor = 1
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
 
     def EKF(self, sats, measurements, target, envTime):
@@ -373,7 +373,7 @@ class ciEstimator(BaseEstimator):
         """
         super().__init__(targetIDs)
             
-        self.R_factor = 100  # Factor to scale the sensor noise matrix
+        self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
 
     def EKF(self, sats, measurements, target, envTime):
@@ -537,7 +537,7 @@ class etEstimator(BaseEstimator):
         self.delta_beta = 0.1
         
         # R Factor
-        self.R_factor = 100
+        self.R_factor = 1
 
         # Define history vectors for each extended Kalman filter
         self.estHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
@@ -592,13 +592,13 @@ class etEstimator(BaseEstimator):
         self.covarianceHist[targetID][sat][sharewith][envTime] = P_prior
         self.covPredHist[targetID][sat][sharewith][envTime] = P_prior
         self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackError(est_prior, P_prior)
-        self.synchronizeFlag[targetID][sat][sharewith][envTime] = False                        
+        self.synchronizeFlag[targetID][sat][sharewith][envTime] = True                        
         
         
     def update_common_filters(self, sat, envTime, commNode):
         time_sent = max(commNode['sent_measurements'].keys()) # Get the newest info on this target
         for targetID in commNode['sent_measurements'][time_sent].keys():
-            for i in range(len(commNode['sent_measurements'][time_sent])): # number of messages on this target?
+            for i in range(len(commNode['sent_measurements'][time_sent][targetID]['receiver'])): # number of messages on this target?
                 receiver = commNode['sent_measurements'][time_sent][targetID]['receiver'][i]
                 
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][receiver]) == 1:
@@ -634,7 +634,7 @@ class etEstimator(BaseEstimator):
         '''
         time_sent = max(commNode['received_measurements'].keys()) # Get the newest info on this target
         for targetID in commNode['received_measurements'][time_sent].keys():
-            for i in range(len(commNode['received_measurements'][time_sent])): # number of messages on this target?
+            for i in range(len(commNode['received_measurements'][time_sent][targetID]['sender'])): # number of messages on this target?
                 sender = commNode['received_measurements'][time_sent][targetID]['sender'][i]
 
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1 or len(sat.etEstimator.estHist[targetID][sat][sender]) == 1:
@@ -982,13 +982,13 @@ class etEstimator(BaseEstimator):
         
         # Sat common information filter with neighbor
         time12 = max(self.estHist[targetID][sat][sat].keys())
-        est12 = self.estHist[targetID][sat][neighbor][time12]
-        cov12 = self.covarianceHist[targetID][sat][neighbor][time12]
+        est12 = self.estHist[targetID][sat][sat][time12]
+        cov12 = self.covarianceHist[targetID][sat][sat][time12]
         
         # Neighbor common information filter with sat
         time21 = max(neighbor.etEstimator.estHist[targetID][neighbor][neighbor].keys())
-        est21 = neighbor.etEstimator.estHist[targetID][neighbor][sat][time21]
-        cov21 = neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][time21]
+        est21 = neighbor.etEstimator.estHist[targetID][neighbor][neighbor][time21]
+        cov21 = neighbor.etEstimator.covarianceHist[targetID][neighbor][neighbor][time21]
         
         omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov12, cov21), bounds=[(0, 1)]).x
         cov_fused = np.linalg.inv(omega_opt * np.linalg.inv(cov12) + (1 - omega_opt) * np.linalg.inv(cov21))

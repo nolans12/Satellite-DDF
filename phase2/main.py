@@ -46,7 +46,9 @@ def create_environment():
 
     local = indeptEstimator(targetIDs = targetIDs)
 
-    ddf = ciEstimator(targetIDs = targetIDs)
+    ci = ciEstimator(targetIDs = targetIDs)
+    
+    et = etEstimator(targetIDs = targetIDs, targets=None, sat=None, neighbors=None)
 
     central = centralEstimator(targetIDs = targetIDs)
 
@@ -56,18 +58,23 @@ def create_environment():
     yellow_shades = ['#FDDA0D', '#FFA500']
 
     # Define the satellites:
-    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color=green_shades[0])
-    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color=green_shades[1])
-    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color=yellow_shades[0])
-    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ddf), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color=yellow_shades[1])
+    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color=green_shades[0])
+    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color=green_shades[1])
+    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color=yellow_shades[0])
+    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color=yellow_shades[1])
 
     sats = [sat1a, sat1b, sat2a, sat2b]
 
     # Define the communication network: 
     comms_network = comms(sats, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    
+    for sat in sats:
+        neighbors = [neighbor for neighbor in sats if neighbor != sat]
+        et = etEstimator(targets = targs, targetIDs=targetIDs, sat=sat, neighbors=neighbors)
+        sat.update_et_estimator(et)
 
     # Create and return an environment instance:
-    return environment(sats, targs, comms_network, central, ciEstimator = True)
+    return environment(sats, targs, comms_network, central, ci, et)
 
 ### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
 def create_environment_mono():
@@ -79,23 +86,6 @@ def create_environment_mono():
     # Define targets for the satellites to track:
     targetIDs = [1]
 
-    # Define local estimators:
-    local = indeptEstimator(targetIDs = targetIDs)
-
-    # Define the Data Fusion Algorithm, use the covariance intersection estimator:
-    ddf = ciEstimator(targetIDs = targetIDs)
-
-    # Define the centralized estimator
-    # Define local estimators:
-    local = indeptEstimator(targetIDs = targetIDs)
-
-    # Define the Data Fusion Algorithm, use the covariance intersection estimator:
-    ddf = ciEstimator(targetIDs = targetIDs)
-    
-    # Define the ET Fusion Algorithm
-    et = etEstimator(targetIDs = targetIDs, targets=None, sat=None, neighbors=None)
-    
-    # Define the centralized estimator
     # Define local estimators:
     local = indeptEstimator(targetIDs = targetIDs)
 
@@ -146,7 +136,6 @@ def create_environment_mono():
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central, ci, et)
-
 
 
 ### This environment is used for standard testing, 6 sats at 1000 km ####
@@ -285,14 +274,14 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(10, 100, 50 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 20 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "test"
+    fileName = "test_nol_env"
 
-    env = create_environment_mono()
+    env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, showSim =False, savePlot = True, saveGif=False, saveData = True, saveComms = True, saveName = fileName)
+    env.simulate(time_vec, showSim =False, savePlot = True, saveGif=False, saveData = False, saveComms = True, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
