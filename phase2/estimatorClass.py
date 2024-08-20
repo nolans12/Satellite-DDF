@@ -508,8 +508,8 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 0
-        self.delta_beta = 0
+        self.delta_alpha = 0.1
+        self.delta_beta = 0.1
         
         # R Factor
         self.R_factor = 100
@@ -541,10 +541,10 @@ class etEstimator(BaseEstimator):
     
     def event_triggered_fusion(self, sat, envTime, commNode):
         
-        if len(commNode['received_measurements']) > 0:
+        if envTime in commNode['received_measurements']:
             self.process_new_measurements(sat, envTime, commNode)
         
-        if len(commNode['sent_measurements']) > 0: ## This should be true when I have sent measurements to neighbors
+        if envTime in commNode['sent_measurements']: ## This should be true when I have sent measurements to neighbors
             self.update_common_filters(sat, envTime, commNode)
                
                 

@@ -211,12 +211,15 @@ class environment:
                     )
             # For each targetID in satellites measurement history        
             for target in targs:
-                if target.targetID in sat.measurementHist.keys():
-                    if isinstance(sat.measurementHist[target.targetID][envTime], np.ndarray):
-                        for neighbor in self.comms.G.neighbors(sat):
+                if target.targetID in sat.targetIDs:
+                    if isinstance(sat.measurementHist[target.targetID][envTime], np.ndarray): # if the satellite took a measurement at this time
+                        for neighbor in self.comms.G.neighbors(sat): # for each neighbor
                             
+                            # Create a censored message to this neighbor based on common EKF
                             meas = sat.etEstimator.event_trigger(sat, neighbor, target.targetID, envTime)
-                            self.comms.send_measurements(
+                            self.comms.send_measurements(                            
+                            # Send message to this neighbor
+
                                 sat, 
                                 neighbor, 
                                 meas, 
@@ -224,33 +227,35 @@ class environment:
                                 satTime
                             )
                             
-                            if not sat.etEstimator.estHist[target.targetID][sat][neighbor]:
+                            if not sat.etEstimator.estHist[target.targetID][sat][neighbor]: # if this is first meas, initialize common EKF 
                                 sat.etEstimator.initialize_filter(sat, target, envTime, sharewith=neighbor)
                             
-                            sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = False
-
-                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]:
+                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][neighbor]: # if this is first meas, initialize sat2 local EKF
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=neighbor)
                                 
-                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]:
+                            if not neighbor.etEstimator.estHist[target.targetID][neighbor][sat]: # if this is first meas, initialize sat21 common EKF
                                 neighbor.etEstimator.initialize_filter(neighbor, target, envTime, sharewith=sat)
                             
+                            
+                            # If a satellite wants to send measurements, it needs to have synchronized common filters
+                            sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = False                            
                             neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = False
-
-                            non_empty_measurements = sum(
-                                1 for value in sat.measurementHist[targetID].values() 
-                                if value is not None and (isinstance(value, np.ndarray) and value.size > 0 or isinstance(value, list) and len(value) > 0)
-                            )
-                            if sat.etEstimator.estHist[target.targetID][sat][neighbor]:
-                                if len(sat.measurementHist[target.targetID][envTime]) > 0:
-                                    if non_empty_measurements < 6:
-                                        sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = True
-                                        neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = True
-                                        #print("Satellite: ", sat.name, "Neighbor: ", neighbor.name, "Synchronize Flag: ", sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime])
-                                        
-                            #print("Satellite: ", sat.name, "Neighbor: ", neighbor.name, "Synchronize Flag: ", sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime])
+                            
+                            # Search backwards through dictionary to check if there are 5 measurements sent to this neighbor
+                            count = 0
+                            for lastTime in reversed(list(sat.measurementHist[target.targetID].keys())): # starting now, go back in time
+                                if isinstance(sat.measurementHist[target.targetID][lastTime], np.ndarray): # if the satellite took a measurement at this time
+                                    count += 1 # increment count
+                                
+                                else: # otherwise, this is one of the first 5 measurements on this target sent to this neighbor
+                                    sat.etEstimator.synchronizeFlag[targetID][sat][neighbor][envTime] = True # set synchronize flag to true
+                                    neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = True
+                                    break
                                     
-                                                        
+                                if count == 6: # if there are 5 measurements sent to this neighbor, no need to synchronize
+                                    break
+                                                       
+         
 
     def propagate(self, time_step):
         """
