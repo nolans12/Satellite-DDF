@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None, etEstimator = None, neighbors = None):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ciEstimator = None, etEstimator = None, neighbors = None):
         """Initialize a Satellite object.
 
         Args:
@@ -34,17 +34,17 @@ class satellite:
         self.indeptEstimator = indeptEstimator
     
     # DDF estimator to test
-        if ddfEstimator:
-            self.ddfEstimator = ddfEstimator
+        if ciEstimator:
+            self.ciEstimator = ciEstimator
         else:
-            self.ddfEstimator = None
+            self.ciEstimator = None
 
     # ET estimator to test
         if etEstimator:
             self.etEstimator = etEstimator
         else:
             self.etEstimator = None
-            
+    
     # Other parameters
         self.name = name
         self.color = color
@@ -92,6 +92,7 @@ class satellite:
         # Is the current target one of the ones to track?
             # If so, get the measurement
             measurement = self.sensor.get_measurement(self, target)
+
             # Make sure its not just a default 0, means target isnt visible
             if not isinstance(measurement, int):
             # If target is visible, save relavent data
@@ -108,6 +109,7 @@ class satellite:
                     self.etEstimator.initialize_filter(self, target, self.time, sharewith=self)
                     return
             
+            # If an ET filter exists for this target, update the ET filter with prediction step ( and measurement if available)
             if self.etEstimator.estHist[target.targetID][self][self]:
                 # Update the ET filters
                 self.update_et_filters(target, self.time)
@@ -130,8 +132,8 @@ class satellite:
         self.indeptEstimator.EKF([self], [measurement], target, time)
         
         # If a DDF estimator is present, update the DDF filters using a local EKF 
-        if self.ddfEstimator:
-            self.ddfEstimator.EKF([self], [measurement], target, time)
+        if self.ciEstimator:
+            self.ciEstimator.EKF([self], [measurement], target, time)
             
     def update_et_filters(self, target, time):
         """Update the ET filters for the satellite.

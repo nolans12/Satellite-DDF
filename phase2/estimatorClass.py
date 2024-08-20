@@ -23,9 +23,6 @@ class BaseEstimator:
         
         self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
 
-        self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
-
-
     def EKF(self, sats, measurements, target, envTime):
         """
         Extended Kalman Filter for both local and central estimation.
@@ -57,7 +54,7 @@ class BaseEstimator:
             # TODO: Eventually should initialize the kalman filter with the real of what target was sampled from
             # # If the environment time == 0, initialize the filter with what the target was sampled from
             # if envTime == 0:
-            #     test = 1
+            #     code would go here
 
             # # If the environment time is not 0, just initalize the filter with the true position plus some noise
             # else:
@@ -82,7 +79,7 @@ class BaseEstimator:
             self.innovationCovHist[targetID][envTime] = np.eye(2)
             self.nisHist[targetID][envTime] = 0
             self.neesHist[targetID][envTime] = 0
-            self.trackErrorHist[targetID][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+            self.trackErrorHist[targetID][envTime] = self.calcTrackError(est_prior, P_prior)
             return est_prior
        
         else:
@@ -100,12 +97,13 @@ class BaseEstimator:
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
             est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
             # Initial covariance matrix
-            P_prior = np.array([[1000, 0, 0, 0, 0, 0],
+            P_prior = np.array([[2500, 0, 0, 0, 0, 0],
                                 [0, 100, 0, 0, 0, 0],
-                                [0, 0, 1000, 0, 0, 0],
+                                [0, 0, 2500, 0, 0, 0],
                                 [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 1000, 0],
+                                [0, 0, 0, 0, 2500, 0],
                                 [0, 0, 0, 0, 0, 100]])
+
             dt = 0 # Reset the time difference since were just reinitializing at this time
 
         # Predict next state using state transition function
@@ -131,7 +129,7 @@ class BaseEstimator:
         for i, sat in enumerate(sats):
             z[2*i:2*i+2] = np.reshape(measurements[i][:], (2, 1))  # Measurement stack
             H[2*i:2*i+2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)  # Jacobian of the sensor model
-            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * self.R_factor  # Sensor noise matrix scaled by X amount
+            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2  # Sensor noise matrix
             
             z_pred = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
             innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(z_pred, (2, 1))  # Innovations
@@ -155,7 +153,8 @@ class BaseEstimator:
         nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
         
         # Calculate Track Quaility Metric
-        trackError = self.calcTrackQuailty(est, P)
+        trackError = self.calcTrackError(est, P)
+        self.trackErrorHist[targetID][envTime] = trackError
 
         # Save data
         self.estHist[targetID][envTime] = est
@@ -164,8 +163,6 @@ class BaseEstimator:
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
-        self.trackErrorHist[targetID][envTime] = trackError
-        self.gottenEstimate = True
     
     def state_transition(self, estPrior, dt):
         """
@@ -272,7 +269,7 @@ class BaseEstimator:
         
         return jacobian
 
-    def calcTrackQuailty(self, est, cov):
+    def calcTrackError(self, est, cov):
         """
         Calculate the track quality metric for the current estimate.
 
@@ -288,7 +285,7 @@ class BaseEstimator:
         # Then take norm of xyz max as the error
 
         # Calculate the 2 sigma bounds of the position
-        diag = np.sqrt(np.diag(cov))
+        diag = np.diag(cov)
 
         # Calculate the std
         posStd = np.array([np.sqrt(diag[0]), np.sqrt(diag[2]), np.sqrt(diag[4])])
@@ -364,8 +361,9 @@ class indeptEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-### DDF Estimator Class
-class ddfEstimator(BaseEstimator):
+### CI Estimator Class
+# Always does covariance intersection
+class ciEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         """
         Initialize DDF Estimator object.
@@ -393,7 +391,7 @@ class ddfEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-    def CI(self, sat, commNode):
+    def CI(self, sat, comms):
         """
         Covariance Intersection function to conservatively combine received estimates and covariances
         into updated target state and covariance.
@@ -406,6 +404,9 @@ class ddfEstimator(BaseEstimator):
             estPrior (array-like): Updated current state in Cartesian coordinates [x, vx, y, vy, z, vz].
             covPrior (array-like): Updated current covariance matrix.
         """
+
+        commNode = comms.G.nodes[sat]
+
         # Check if there is any information in the queue:
         if len(commNode['queued_data']) == 0:
             return
@@ -418,6 +419,7 @@ class ddfEstimator(BaseEstimator):
 
             # For each target, loop through all the estimates and covariances
             for i in range(len(commNode['queued_data'][time_sent][targetID]['est'])):
+                senderName = commNode['queued_data'][time_sent][targetID]['sender'][i]
                 est_sent = commNode['queued_data'][time_sent][targetID]['est'][i]
                 cov_sent = commNode['queued_data'][time_sent][targetID]['cov'][i]
 
@@ -426,7 +428,7 @@ class ddfEstimator(BaseEstimator):
                     # If not, use the sent estimate and covariance to initialize
                     self.estHist[targetID][time_sent] = est_sent
                     self.covarianceHist[targetID][time_sent] = cov_sent
-                    self.trackErrorHist[targetID][time_sent] = self.calcTrackQuailty(est_sent, cov_sent)
+                    self.trackErrorHist[targetID][time_sent] = self.calcTrackError(est_sent, cov_sent)
                     continue
 
                 # If satellite has an estimate and covariance for this target already, check if we should CI
@@ -436,38 +438,61 @@ class ddfEstimator(BaseEstimator):
                 if time_sent < time_prior:
                     continue
 
-                # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
-                if time_sent - time_prior > 5:
-                    self.estHist[targetID][time_sent] = est_sent
-                    self.covarianceHist[targetID][time_sent] = cov_sent
-                    continue
+                # TODO: THIS IS ONLY TEMP TO VISUALIZE RESULTS
+                #### CHECK, IS MY MOST RECENT TRACK ERROR OUTSIDE THE SPECIFIED BOUNDS?
+                # If the track error is outside the bounds, discard the sent estimate
+                for i in range(1,6):
+                    if i == targetID:
 
-                # Else, let's do CI
-                est_prior = self.estHist[targetID][time_prior]
-                cov_prior = self.covarianceHist[targetID][time_prior]
+                        doCI = True
 
-                # Propagate the prior estimate and covariance to the new time
-                dt = time_sent - time_prior
-                est_prior = self.state_transition(est_prior, dt)
-                F = self.state_transition_jacobian(est_prior, dt)
-                cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+                        # First, check does trackErrorHist have a value at that time?
+                        if not self.trackErrorHist[i][time_prior]:
+                            doCI = True # If we dont have a trackErrorHist yet, we dont have an initalized filter, initalize the filter with the one from CI, so do CI!
+                        else:
+                            # If the trackErrorHist is less than the threshold, we dont need to do any CI
+                            if self.trackErrorHist[i][time_prior] < i*50 + 50: 
+                                doCI = False
+                        
+                        if doCI:
 
-                # Minimize the covariance determinant
-                omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
+                            # If the trackErrorHist is greater than the threshold, we need to do CI
+                            
+                            # We will now use the estimate and covariance that were sent, so we should store this
+                            comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size + cov_sent.size
 
-                # Compute the fused covariance
-                cov1 = cov_prior
-                cov2 = cov_sent
-                cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
-                est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
+                            # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
+                            if time_sent - time_prior > 5:
+                                self.estHist[targetID][time_sent] = est_sent
+                                self.covarianceHist[targetID][time_sent] = cov_sent
+                                continue
 
-                # Save the fused estimate and covariance
-                self.estHist[targetID][time_sent] = est_prior
-                self.covarianceHist[targetID][time_sent] = cov_prior
-                
-                # Calculate Track Quaility Metric
-                trackError = self.calcTrackQuailty(est_prior, cov_prior)
-                self.trackErrorHist[targetID][time_sent] = trackError
+                            # Else, let's do CI
+                            est_prior = self.estHist[targetID][time_prior]
+                            cov_prior = self.covarianceHist[targetID][time_prior]
+
+                            # Propagate the prior estimate and covariance to the new time
+                            dt = time_sent - time_prior
+                            est_prior = self.state_transition(est_prior, dt)
+                            F = self.state_transition_jacobian(est_prior, dt)
+                            cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+
+                            # Minimize the covariance determinant
+                            omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
+
+                            # Compute the fused covariance
+                            cov1 = cov_prior
+                            cov2 = cov_sent
+                            cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
+                            est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
+
+                            # Save the fused estimate and covariance
+                            self.estHist[targetID][time_sent] = est_prior
+                            self.covarianceHist[targetID][time_sent] = cov_prior
+                            
+                            # Calculate Track Quaility Metric
+                            trackError = self.calcTrackError(est_prior, cov_prior)
+                            self.trackErrorHist[targetID][time_sent] = trackError
     
     
     def det_of_fused_covariance(self, omega, cov1, cov2):
@@ -520,7 +545,6 @@ class etEstimator(BaseEstimator):
         self.covarianceHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.covPredHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         self.trackErrorHist = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
-        
         self.synchronizeFlag = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
         
     def update_neighbors(self, neighbors):
@@ -535,7 +559,6 @@ class etEstimator(BaseEstimator):
             self.covarianceHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.covPredHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             self.trackErrorHist[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
-
             self.synchronizeFlag[targetID][self.sat] = {neighbor: {} for neighbor in self.neighbors}
             
     
@@ -568,7 +591,7 @@ class etEstimator(BaseEstimator):
         self.estPredHist[targetID][sat][sharewith][envTime] = est_prior
         self.covarianceHist[targetID][sat][sharewith][envTime] = P_prior
         self.covPredHist[targetID][sat][sharewith][envTime] = P_prior
-        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackError(est_prior, P_prior)
         self.synchronizeFlag[targetID][sat][sharewith][envTime] = False                        
         
         
@@ -602,7 +625,7 @@ class etEstimator(BaseEstimator):
                 # Calculate Common Track Quaility Metric
                 est = self.estHist[targetID][sat][receiver][envTime]
                 cov = self.covarianceHist[targetID][sat][receiver][envTime]
-                self.trackErrorHist[targetID][sat][receiver][envTime] = self.calcTrackQuailty(est, cov)
+                self.trackErrorHist[targetID][sat][receiver][envTime] = self.calcTrackError(est, cov)
     
     
     def process_new_measurements(self, sat, envTime, commNode):
@@ -650,13 +673,13 @@ class etEstimator(BaseEstimator):
                 # Calculate Local Track Quaility Metric
                 est = self.estHist[targetID][sat][sat][envTime]
                 cov = self.covarianceHist[targetID][sat][sat][envTime]
-                self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+                self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackError(est, cov)
                 
                     
                 # Calculate Common Track Quaility Metric
                 est = self.estHist[targetID][sat][sender][envTime]
                 cov = self.covarianceHist[targetID][sat][sender][envTime]
-                self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est, cov)
+                self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackError(est, cov)
         
        
     def local_et_filter_prediction(self, sat, target, envTime):
@@ -669,7 +692,7 @@ class etEstimator(BaseEstimator):
         # Store the prediction
         self.estPredHist[targetID][self.sat][sat][envTime] = est
         self.covPredHist[targetID][self.sat][sat][envTime] = cov
-        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackError(est, cov)
         
         
     def local_et_filter_meas_update(self, sat, target, envTime):
@@ -695,7 +718,7 @@ class etEstimator(BaseEstimator):
          # Calculate Local Track Quaility Metric
         est = self.estHist[targetID][sat][sat][envTime]
         cov = self.covarianceHist[targetID][sat][sat][envTime]
-        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackError(est, cov)
                   
                               
     def pred_EKF(self, sat, sender, targetID, envTime):
@@ -723,7 +746,7 @@ class etEstimator(BaseEstimator):
         if dt == 0:
             self.estHist[targetID][sat][sender][envTime] = est_prior
             self.covarianceHist[targetID][sat][sender][envTime] = P_prior
-            self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est_prior, P_prior)
+            self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackError(est_prior, P_prior)
             return
 
         # Predict next state using state transition function
@@ -741,7 +764,7 @@ class etEstimator(BaseEstimator):
         # Store the prediction
         self.estHist[targetID][sat][sender][envTime] = est_pred
         self.covarianceHist[targetID][sat][sender][envTime] = P_pred
-        self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackQuailty(est_pred, P_pred)
+        self.trackErrorHist[targetID][sat][sender][envTime] = self.calcTrackError(est_pred, P_pred)
         
          
     def explicit_measurement_update(self, sat, sender, measurement, type, targetID, envTime, sharewith):
@@ -801,7 +824,7 @@ class etEstimator(BaseEstimator):
          # Save Data into filter
         self.estHist[targetID][sat][sharewith][envTime] = est
         self.covarianceHist[targetID][sat][sharewith][envTime] = P
-        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, P)    
+        self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackError(est, P)    
                      
         
     def implicit_measurement_update(self, sat, sender, local_est_pred, local_P_pred, type, update, targetID, envTime, sharewith):
@@ -884,16 +907,16 @@ class etEstimator(BaseEstimator):
         if update == 'both':
             self.estHist[targetID][sat][sat][envTime] = est
             self.covarianceHist[targetID][sat][sat][envTime] = cov
-            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est, cov)
+            self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackError(est, cov)
 
             self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = cov
-            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, cov)
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackError(est, cov)
         
         elif update == 'common':
             self.estHist[targetID][sat][sharewith][envTime] = est
             self.covarianceHist[targetID][sat][sharewith][envTime] = cov
-            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackQuailty(est, cov)
+            self.trackErrorHist[targetID][sat][sharewith][envTime] = self.calcTrackError(est, cov)
 
         
     
@@ -974,22 +997,22 @@ class etEstimator(BaseEstimator):
         # Save the local filter
         self.estHist[targetID][sat][sat][envTime] = est_fused
         self.covarianceHist[targetID][sat][sat][envTime] = cov_fused
-        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        self.trackErrorHist[targetID][sat][sat][envTime] = self.calcTrackError(est_fused, cov_fused)
         
         # Save the synchronized filter
         self.estHist[targetID][sat][neighbor][envTime] = est_fused
         self.covarianceHist[targetID][sat][neighbor][envTime] = cov_fused
-        self.trackErrorHist[targetID][sat][neighbor][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        self.trackErrorHist[targetID][sat][neighbor][envTime] = self.calcTrackError(est_fused, cov_fused)
         
         # Save the neighbor filter
         neighbor.etEstimator.estHist[targetID][neighbor][neighbor][envTime] = est_fused
         neighbor.etEstimator.covarianceHist[targetID][neighbor][neighbor][envTime] = cov_fused
-        neighbor.etEstimator.trackErrorHist[targetID][neighbor][neighbor][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        neighbor.etEstimator.trackErrorHist[targetID][neighbor][neighbor][envTime] = self.calcTrackError(est_fused, cov_fused)
         
         # Neighbor common information filter with sat
         neighbor.etEstimator.estHist[targetID][neighbor][sat][envTime] = est_fused
         neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][envTime] = cov_fused
-        neighbor.etEstimator.trackErrorHist[targetID][neighbor][sat][envTime] = self.calcTrackQuailty(est_fused, cov_fused)
+        neighbor.etEstimator.trackErrorHist[targetID][neighbor][sat][envTime] = self.calcTrackError(est_fused, cov_fused)
 
     def det_of_fused_covariance(self, omega, cov1, cov2):
         """
