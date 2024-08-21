@@ -277,7 +277,7 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 20 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "test_nol_env"
+    fileName = "debug"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:

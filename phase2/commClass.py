@@ -26,6 +26,10 @@ class comms:
         self.total_comm_data = NestedDict()
         self.used_comm_data = NestedDict()
         
+        self.total_comm_et_data = NestedDict()
+        self.used_comm_et_data = NestedDict()
+        self.used_comm_et_data_values = NestedDict()
+        
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
         self.min_range = minRange
@@ -70,7 +74,7 @@ class comms:
         self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
         
         self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size + cov_meas.size
-
+        
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
             """Send a vector of measurements from one satellite to another.
                     First checks if two satellites are neighbors,
@@ -114,6 +118,16 @@ class comms:
                 
             self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
             self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
+            
+            measVector_size = 2
+            if np.isnan(meas_vector[0]):
+                measVector_size -= 1
+            
+            if np.isnan(meas_vector[1]):
+                measVector_size -= 1
+            
+                
+            self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
             
            #self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
