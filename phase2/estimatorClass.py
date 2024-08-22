@@ -1,27 +1,31 @@
 from import_libraries import *
 
 class BaseEstimator:
-    def __init__(self, targetIDs):
+    def __init__(self, targetPriorities):
         """
         Initialize the BaseEstimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
+
+        # Define the targetPriorities dictioanry
+        self.targetPriorities = targetPriorities
+
         # Define the targets to track
-        self.targs = targetIDs
+        self.targs = targetPriorities.keys()
 
         # Define history vectors for each extended Kalman filter
-        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of Kalman estimates in ECI coordinates
-        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of covariance matrices
+        self.estHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of Kalman estimates in ECI coordinates
+        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of covariance matrices
 
-        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of innovations
-        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of innovation covariances
+        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of innovations
+        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of innovation covariances
 
-        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
-        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
+        self.neesHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of NEES (Normalized Estimation Error Squared)
+        self.nisHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of NIS (Normalized Innovation Squared)
         
-        self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
+        self.trackErrorHist = {targetID: defaultdict(dict) for targetID in targetPriorities.keys()}  # History of track quality metric
 
     def EKF(self, sats, measurements, target, envTime):
         """
@@ -371,9 +375,6 @@ class ciEstimator(BaseEstimator):
         - targetIDs (list): List of target IDs to track.
         """
         super().__init__(targetIDs)
-
-        # Make a dicitonary of targetIDs with booleans keys, represents needing help on estimating a target
-        self.needHelp = {targetID: False for targetID in targetIDs}
             
         self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
@@ -395,23 +396,6 @@ class ciEstimator(BaseEstimator):
         # Perform EKF for each satellite
         super().EKF(sats, measurements, target, envTime)
 
-        # Now check, does this satellite need help estimating the target?
-            
-        # Get the most recent estimate and covariance
-        time = max(self.estHist[target.targetID].keys())
-
-        # Check, does the track error exist?
-        if not self.trackErrorHist[target.targetID][time]:
-            return
-
-        # If the track error is outside the bounds, set needHelp to True
-        if self.trackErrorHist[target.targetID][time] > target.targetID*50 + 50:
-            self.needHelp[target.targetID] = True
-        else:
-            self.needHelp[target.targetID] = False
-            
-
-        return 
 
     def CI(self, sat, comms):
         """
@@ -431,15 +415,20 @@ class ciEstimator(BaseEstimator):
 
         # Check if there is any information in the queue:
         if len(commNode['estimate_data']) == 0:
+            # If theres no information in the queue, return
             return
 
         # There is information in the queue, get the newest info
         time_sent = max(commNode['estimate_data'].keys())
 
-        # Check all the targets in the queue
+        # Check all the targets that are being talked about in the queue
         for targetID in commNode['estimate_data'][time_sent].keys():
 
-            # For each target, loop through all the estimates and covariances
+            # Is that target something this satellite should be tracking? Or just ferrying data?
+            if targetID not in sat.targetIDs:
+                continue
+
+            # For each target we should track, loop through all the estimates and covariances
             for i in range(len(commNode['estimate_data'][time_sent][targetID]['est'])):
                 senderName = commNode['estimate_data'][time_sent][targetID]['sender'][i]
                 est_sent = commNode['estimate_data'][time_sent][targetID]['est'][i]
@@ -457,10 +446,6 @@ class ciEstimator(BaseEstimator):
 
                 # If the send time is older than the prior estimate, discard the sent estimate
                 if time_sent < time_prior:
-                    continue
-
-                # Now, also only use the data if the sat needs help:
-                if not self.needHelp[targetID]:
                     continue
 
                 # We will now use the estimate and covariance that were sent, so we should store this
@@ -495,9 +480,9 @@ class ciEstimator(BaseEstimator):
                 self.estHist[targetID][time_sent] = est_prior
                 self.covarianceHist[targetID][time_sent] = cov_prior
 
-                # Calculate the track error metric
-                self.trackErrorHist[targetID][time_sent] = self.calcTrackError(cov_prior)
-
+                # Save the trackUncertainty
+                trackError = self.calcTrackError(cov_prior)
+                self.trackErrorHist[targetID][time_sent] = trackError
     
     
     def det_of_fused_covariance(self, omega, cov1, cov2):

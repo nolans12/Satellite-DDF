@@ -45,7 +45,7 @@ class comms:
         for i in range(1, len(path)):
             self.send_estimate(path[i-1], path[i], est_meas_source, cov_meas_source, target_id, time)
             # Activate that edge
-            self.G.edges[path[i-1], path[i]]['active'] = True
+            # self.G.edges[path[i-1], path[i]]['active'] = True
 
 
 

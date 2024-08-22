@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ciEstimator = None, etEstimator = None, neighbors = None):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targPriority, indeptEstimator, name, color, ciEstimator = None, etEstimator = None, neighbors = None):
         """Initialize a Satellite object.
 
         Args:
@@ -22,10 +22,13 @@ class satellite:
 
     # Sensor to use
         self.sensor = sensor
-        self.measurementHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
+        self.measurementHist = {targetID: defaultdict(dict) for targetID in targPriority.keys()} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
     
-    # Targets to track:
-        self.targetIDs = targetIDs
+    # Target priority
+        self.targPriority = targPriority # Dictionary of targetIDs to track and the uncertainty to track them too!
+
+    # Targets to track: 
+        self.targetIDs = targPriority.keys()
         
     # Topology to communciate with
         self.neighbors = [self, neighbors] # List of neighbors, will be updated by the topology class
@@ -97,7 +100,7 @@ class satellite:
         # If target is visible, save relavent data
             collectedFlag = 1
 
-            # Save the measurement
+            # Save the measurement # TODO: This is the part where we assume when we see a target we know exactly what target it is
             self.measurementHist[target.targetID][self.time] = measurement
 
             # Update the local filters

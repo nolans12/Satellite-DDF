@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 class environment:
-    def __init__(self, sats, targs, comms, centralEstimator=None, ciEstimator=False, etEstimator=False):
+    def __init__(self, sats, targs, comms, commandersIntent = None, centralEstimator=None, ciEstimator=False, etEstimator=False):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
         """
@@ -16,6 +16,9 @@ class environment:
         
         # Define the targets
         self.targs = targs
+
+        # Set the commanders intent,
+        self.commandersIntent = commandersIntent
         
         # Define the communication network
         self.comms = comms
@@ -141,8 +144,8 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimator:
-            # self.send_estimates_optimize()
-            self.send_estimates()
+            self.send_estimates_optimize()
+            # self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimator:
@@ -173,10 +176,10 @@ class environment:
             # Add the satname to the dictionary
             trackUncertainty[sat] = defaultdict(dict)
 
-            # For each targetID in satellites object to track, add the track error to the dictionaryg
+            # For each targetID in satellites object to track, add the Track Uncertainty to the dictionaryg
             for targetID in sat.targetIDs:
 
-                # Check, is there a track error for this targetID?
+                # Check, is there a Track Uncertainty for this targetID?
                 if not bool(sat.ciEstimator.trackErrorHist[targetID]) or len(sat.ciEstimator.trackErrorHist[targetID].keys()) == 0:
                     # Make the track uncertainty 999
                     trackUncertainty[sat.name][targetID] = 999
@@ -195,14 +198,18 @@ class environment:
         def goodness(source, reciever, trackUncertainty, targetID):
             """ A paths goodness is defined as the sum of the deltas in track uncertainty on a targetID, as far as that node hasnt already recieved data from that satellite"""
 
+            # If either the source or reciever targetUncertainty doesnt contain that targetID, reward of 0
+            if targetID not in trackUncertainty[source.name].keys() or targetID not in trackUncertainty[reciever.name].keys():
+                return 0
+
             # Get the track uncertainty of the source node
             sourceTrackUncertainty = trackUncertainty[source.name][targetID]
 
             # Get the track uncertainty of the target node
             recieverTrackUncertainty = trackUncertainty[reciever.name][targetID]
 
-            # Get the desired targetID track uncertainty
-            desired = 50 + 50*targetID
+            # Get the desired targetID track uncertainty, from the reciever
+            desired = reciever.targPriority[targetID]
 
             # Check, if the sats track uncertainty on that targetID needs help or not
             if recieverTrackUncertainty < desired:
@@ -212,10 +219,6 @@ class environment:
             if recieverTrackUncertainty - sourceTrackUncertainty < 0: 
                 return 0 # EX: If i have uncertainty of 200 and share it with a sat with 100, theres no benefit to sharing that
             
-
-            # TODO:
-                # maybe make this return piecewise reward, if source is already at threshold, cap the reward to be reciever - threshold
-                
             # Else, return the goodness of the link, difference between the two track uncertainties
             return recieverTrackUncertainty - sourceTrackUncertainty 
         
@@ -233,7 +236,7 @@ class environment:
             return paths
         
         # Generate all possible paths
-        allPaths = generate_all_paths(self.comms.G, 3)
+        allPaths = generate_all_paths(self.comms.G, 4)
 
         # Define the fixed bandwidth consumption per CI
         fixed_bandwidth_consumption = 30
@@ -354,29 +357,31 @@ class environment:
         
         ### DEBUGGING PRINTS
 
-        # Print the selected paths
-        print("Selected paths:")
-        for (path, targetID) in selected_paths:
-            # also print the total goodness of the selected paths
-            total_goodness = sum(
-                goodness(path[0], path[i+1], trackUncertainty, targetID)
-                for i in range(len(path) - 1)
-            )
-            # now loop through the satellites in the path, and print the satellite names, then print the total goodness
-            print(
-                [sat.name for sat in path],
-                f"TargetID: {targetID}",
-                f"Goodness: {total_goodness}",
-            )
+        # # Print the selected paths
+        # print("Selected paths:")
+        # for (path, targetID) in selected_paths:
+        #     # also print the total goodness of the selected paths
+        #     total_goodness = sum(
+        #         goodness(path[0], path[i+1], trackUncertainty, targetID)
+        #         for i in range(len(path) - 1)
+        #     )
+        #     # now loop through the satellites in the path, and print the satellite names, then print the total goodness
+        #     print(
+        #         [sat.name for sat in path],
+        #         f"TargetID: {targetID}",
+        #         f"Goodness: {total_goodness}",
+        #     )
 
-        # Print the total bandwidht usage vs avaliable across the graph
-        total_bandwidth_usage = sum(
-            fixed_bandwidth_consumption
-            for (path, targetID) in selected_paths
-            for i in range(len(path) - 1)
-        )
-        print(f"Total bandwidth usage: {total_bandwidth_usage}")
-        print(f"Total available bandwidth: {sum(self.comms.G[u][v]['maxBandwidth'] for u, v in self.comms.G.edges())}")
+        # # Print the total bandwidht usage vs avaliable across the graph
+        # total_bandwidth_usage = sum(
+        #     fixed_bandwidth_consumption
+        #     for (path, targetID) in selected_paths
+        #     for i in range(len(path) - 1)
+        # )
+        # print(f"Total bandwidth usage: {total_bandwidth_usage}")
+        # print(f"Total available bandwidth: {sum(self.comms.G[u][v]['maxBandwidth'] for u, v in self.comms.G.edges())}")
+
+        ### SEND THE ESTIMATES
 
         # Now, we have the selected paths, we can send the estimates
         for (path, targetID) in selected_paths:
@@ -410,6 +415,7 @@ class environment:
             shuffle_targetIDs = list(sat.ciEstimator.estHist.keys())
             random.shuffle(shuffle_targetIDs)
             for targetID in shuffle_targetIDs:
+
                 # Skip if there are no estimates for this targetID
                 if len(sat.ciEstimator.estHist[targetID].keys()) == 0:
                     continue  
@@ -418,6 +424,11 @@ class environment:
                 neighbors = list(self.comms.G.neighbors(sat))
                 random.shuffle(neighbors)
                 for neighbor in neighbors:
+
+                    # Check, does that neighbor care about that target?
+                    if targetID not in neighbor.targetIDs:
+                        continue
+
                     # Get the most recent estimate time
                     satTime = max(sat.ciEstimator.estHist[targetID].keys())
 
@@ -650,7 +661,7 @@ class environment:
         self.imgs.append(img)
 
 
-### Estimation Errors and Track Error Plots ###
+### Estimation Errors and Track Uncertainty Plots ###
     def plot_estimator_results(self, time_vec, plotEstimators, saveName):
         """
         Create three types of plots: Local vs Central, DDF vs Central, and Local vs DDF vs Central.
@@ -662,7 +673,7 @@ class environment:
         """
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
-        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Error [km]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainty [km]']
 
         # For each target and satellite, plot the estimation error, innovation, and track quality
         for targ in self.targs:
@@ -861,12 +872,12 @@ class environment:
                             
                             # Plot the 3x3 Grid of Data
                             self.plot_estimator_data(fig, axes, times, innovation_times, nisnees_times, trackError_times, estHist, trueHist, covHist, 
-                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, targ.tqReq,
+                                                    innovationHist, innovationCovHist, NISHist, NEESHist, trackErrorHist, sat.targPriority[targ.targetID],
                                                     satColor, linewidth=2.5)
                             self.plot_estimator_data(fig, axes, ddf_times, ddf_innovation_times, ddf_NISNEES_times, 
                                                     ddf_trackError_times, ddf_estHist, trueHist, ddf_covHist, 
                                                     ddf_innovationHist, ddf_innovationCovHist, ddf_NISHist, ddf_NEESHist, 
-                                                    ddf_trackErrorHist, targ.tqReq, '#DC143C', linewidth=2.0, ci=True)
+                                                    ddf_trackErrorHist, sat.targPriority[targ.targetID], '#DC143C', linewidth=2.0, ci=True)
 
                             if self.centralEstimator:  # If central estimator is used, plot the data
                                 # Get the data
@@ -1020,9 +1031,9 @@ class environment:
 
             if ci:
                 # Finally plot a dashed line for the targetPriority
-                ax[8].axhline(y=targQuality*50 + 50, color='k', linestyle='dashed', linewidth=1.5)
+                ax[8].axhline(y=targQuality, color='k', linestyle='dashed', linewidth=1.5)
                 # Add a text label on the above right side of the dashed line
-                ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
+                ax[8].text(min(nonEmptyTime), targQuality + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
 
     def segment_data(self, times, max_gap = 1/2):
@@ -1105,7 +1116,7 @@ class environment:
             axes[6 + i].set_xlabel("Time [min]")
             axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
         axes[8].set_xlabel("Time [min]")
-        axes[8].set_ylabel("Track Error [km]")
+        axes[8].set_ylabel("Track Uncertainty [km]")
         
         return axes
 
@@ -1375,7 +1386,8 @@ class environment:
             # Now, at the bottom of the plot, add the legends
             handles = []
             for targ in self.targs:
-                handles.append(Patch(color=targ.color, label=f"{targ.name}"))
+                if targ.targetID in sat.targetIDs: # Change such that it is only the targets that the satellite is tracking
+                    handles.append(Patch(color=targ.color, label=f"{targ.name}"))
             for tempSat in self.sats:
                 handles.append(Patch(color=tempSat.color, label=f"{tempSat.name}"))
 
@@ -1386,6 +1398,8 @@ class environment:
 
             # Now do plots for the first subplot, we will be plotting track uncertainty for each target
             for targ in self.targs:
+                if targ.targetID not in sat.targetIDs:
+                    continue
 
                 # Get the uncertainty data
                 trackUncertainty = sat.ciEstimator.trackErrorHist[targ.targetID]
@@ -1408,11 +1422,13 @@ class environment:
 
             # Now for each target make the dashed lines for the target quality
             for targ in self.targs:
+                if targ.targetID not in sat.targetIDs:
+                    continue
 
                 # Now plot a dashed line for the targetPriority
-                ax1.axhline(y=targ.tqReq*50 + 50, color=targ.color, linestyle='dashed', linewidth=1.5)
+                ax1.axhline(y=sat.targPriority[targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
                 # Add a text label on the above right side of the dashed line
-                ax1.text(min(nonEmptyTime), targ.tqReq*50 + 50 + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+                # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
 
 
             # Now do the 2nd subplot, bar plot showing the data sent/recieved by each satellite about each target
@@ -1435,6 +1451,8 @@ class environment:
                 prevData[time] = 0
 
             for targ in self.targs:
+                if targ.targetID not in sat.targetIDs:
+                    continue
 
                 # Check if the target has any communication data
                 if targ.targetID not in self.comms.used_comm_data:
@@ -2082,10 +2100,10 @@ class environment:
                 'Time', 'x_sat', 'y_sat', 'z_sat',
                 'True_x', 'True_vx', 'True_y', 'True_vy', 'True_z', 'True_vz',
                 'InTrackAngle', 'CrossTrackAngle', 'Est_x', 'Est_vx', 'Est_y', 'Est_vy', 'Est_z', 'Est_vz',
-                'Cov_xx', 'Cov_vxvx', 'Cov_yy', 'Cov_vyvy', 'Cov_zz', 'Cov_vzvz', 'Track Error',
+                'Cov_xx', 'Cov_vxvx', 'Cov_yy', 'Cov_vyvy', 'Cov_zz', 'Cov_vzvz', 'Track Uncertainty',
                 'Innovation_ITA', 'Innovation_CTA', 'InnovationCov_ITA', 'InnovationCov_CTA',
                 'DDF_Est_x', 'DDF_Est_vx', 'DDF_Est_y', 'DDF_Est_vy', 'DDF_Est_z', 'DDF_Est_vz',
-                'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Error',
+                'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Uncertainty',
                 'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
                 'ET_Cov_vzvz', 'ET_Meas_alpha', 'ET_Meas_beta'
