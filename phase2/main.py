@@ -18,13 +18,19 @@ def create_environment():
 
     # inverse the order so that 0 is most intense, 11 is least intense
     reds = reds.reversed()
+    targ1_color = '#e71714'
+    targ2_color = '#eea62a'
+    targ3_color = '#58b428'
+    targ4_color = '#2879b4'
+    targ5_color = '#b228b4'
+    
 
     # Define a random target:
-    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(0))
-    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(1))
-    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(2))
-    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(3))
-    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = reds(4))
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ1_color)
+    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color =  targ2_color)
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ3_color)
+    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ4_color)
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ5_color)
     # targ6 = target(name = 'Targ6', tqReq = 6, targetID=6, coords = np.array([45,0,0]), heading=0, speed= 10,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(5))
     # targ7 = target(name = 'Targ7', tqReq = 7, targetID=7, coords = np.array([45,0,0]), heading=0, speed= 5,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(6))
     # targ8 = target(name = 'Targ8', tqReq = 8, targetID=8, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(7))
@@ -277,15 +283,16 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 20 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "debug"
+    fileName = "final_threshold_again_haha"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, showSim =False, savePlot = True, saveGif=False, saveData = False, saveComms = True, saveName = fileName)
+    env.simulate(time_vec, showSim = False, savePlot = False, saveGif= False, saveData = False, saveComms = True, plot_dynamic_comms = False, saveName = fileName)
 
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
     #env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
+    #env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
 
     # ### Do formal NEES and NIS test:
     # time_vec = np.linspace(36, 51, 15 + 1) * u.minute

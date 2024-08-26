@@ -65,10 +65,11 @@ class environment:
         
         # Nested Dictionary for storing stereo estimation plots
         self.imgs_stereo_GE = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self.imgs_dyn_comms = []
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, saveComms = False, saveName=None):
+    def simulate(self, time_vec, pause_step=0.1, showSim=False, savePlot=False, saveGif=False, saveData=False, saveComms = False, plot_dynamic_comms = False, saveName=None):
         """
         Simulate the environment over a time range.
         
@@ -96,6 +97,9 @@ class environment:
             self.data_fusion()
 
             self.plot()
+            
+            if plot_dynamic_comms:
+                self.plot_dynamic_comms()
 
             if showSim:
                 plt.pause(pause_step)
@@ -154,6 +158,7 @@ class environment:
         for sat in self.sats:
             if self.etEstimator:
                 sat.etEstimator.event_trigger_updating(sat, self.time.to_value(), self.comms)
+
 
     def send_estimates(self):
         """
@@ -242,7 +247,6 @@ class environment:
                                     neighbor.etEstimator.synchronizeFlag[targetID][neighbor][sat][envTime] = False
                                     break # break out of loop
                                 
-
 
     def collect_all_measurements(self):
         """
@@ -469,7 +473,7 @@ class environment:
                         
                         fig = plt.figure(figsize=(15, 8))
                         fig.suptitle(f"{targ.name}, {sat.name} {title_vec[plotNum]}", fontsize=14)
-                        axes = self.setup_axes(fig, state_labels, meas_labels)
+                        axes = self.setup_axes(fig, state_labels, meas_labels, targ.tqReq)
                         
                         if plotNum == 0:
                             # First Plot: Local vs Central
@@ -479,11 +483,11 @@ class environment:
                             # Local
                             self.plot_errors(axes, times, estHist, trueHist, covHist, label_color=satColor, linewidth=2.5)
                             self.plot_innovations(axes, times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
-                            self.plot_track_error(axes, times, trackErrorHist, targ.tqReq, label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, times, trackErrorHist, label_color=satColor, linewidth=2.5)
                             
                             # Central
                             self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
-                            self.plot_track_error(axes, central_times, central_trackErrorHist,  targ.tqReq, label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
                             
                             handles = [
                                 Patch(color=satColor, label=f'{sat.name} Indept. Estimator'),
@@ -498,11 +502,11 @@ class environment:
                             # DDF
                             self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=2.5)
                             #self.plot_innovations(axes, ddf_times, ddf_innovationHist, ddf_innovationCovHist, label_color=ddfColor, linewidth=2.5)
-                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist, targ.tqReq,  label_color=ddfColor, linewidth=2.5)
+                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist, label_color=ddfColor, linewidth=2.5)
                             
                             # Central
                             self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
-                            self.plot_track_error(axes, central_times, central_trackErrorHist, targ.tqReq,  label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
                             
                             handles = [
                                 Patch(color=ddfColor, label=f'{sat.name} DDF Estimator'),
@@ -517,11 +521,11 @@ class environment:
                             
                             # ET
                             self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.5)
-                            self.plot_track_error(axes, et_times, et_trackErrorHist, targ.tqReq,  label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist, label_color=satColor, linewidth=2.5)
                             
                             # Central
                             self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
-                            self.plot_track_error(axes, central_times, central_trackErrorHist, targ.tqReq,  label_color=centralColor, linewidth=1.5)
+                            self.plot_track_error(axes, central_times, central_trackErrorHist, label_color=centralColor, linewidth=1.5)
                             
                             handles = [
                                 Patch(color=satColor, label=f'{sat.name} ET Estimator'),
@@ -535,11 +539,11 @@ class environment:
                             
                             # ET
                             self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.5)
-                            self.plot_track_error(axes, et_times, et_trackErrorHist, targ.tqReq,  label_color=satColor, linewidth=2.5)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist,  label_color=satColor, linewidth=2.5)
                             
                             # DDF
                             self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=1.5)
-                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist, targ.tqReq,  label_color=ddfColor, linewidth=1.5)
+                            self.plot_track_error(axes, ddf_times, ddf_trackErrorHist,  label_color=ddfColor, linewidth=1.5)
                             
                             handles = [
                                 Patch(color=satColor, label=f'{sat.name} ET Estimator'),
@@ -557,7 +561,7 @@ class environment:
                         if sat != sat2:
                             fig = plt.figure(figsize=(15, 8))
                             fig.suptitle(f"{targ.name}, {sat.name}, {sat2.name} ET Filters", fontsize=14)
-                            axes = self.setup_axes(fig, state_labels, meas_labels)
+                            axes = self.setup_axes(fig, state_labels, meas_labels, targ.tqReq)
                             
                             sat2Color = sat2.color
                             sat1commonColor, sat2commonColor = self.shifted_colors(satColor, sat2Color, shift=50)
@@ -570,19 +574,19 @@ class environment:
                             
                             # ET
                             self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.0)
-                            self.plot_track_error(axes, et_times, et_trackErrorHist,  targ.tqReq, label_color=satColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_times, et_trackErrorHist,   label_color=satColor, linewidth=2.0)
                             
                             # ET 2
                             self.plot_errors(axes, et_times2, et_estHist2, trueHist, et_covHist2, label_color=sat2Color, linewidth=2.0)
-                            self.plot_track_error(axes, et_times2, et_trackErrorHist2,  targ.tqReq, label_color=sat2Color, linewidth=2.0)
+                            self.plot_track_error(axes, et_times2, et_trackErrorHist2,  label_color=sat2Color, linewidth=2.0)
                             
                             # Common ET
                             self.plot_errors(axes, et_common_times, et_common_estHist, trueHist, et_common_covHist, label_color=sat1commonColor, linewidth=2.0)
-                            self.plot_track_error(axes, et_common_times, et_common_trackErrorHist,  targ.tqReq, label_color=sat1commonColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_common_times, et_common_trackErrorHist,   label_color=sat1commonColor, linewidth=2.0)
                             
                             # Common ET 2
                             self.plot_errors(axes, et_common_times2, et_common_estHist2, trueHist, et_common_covHist2, label_color=sat2commonColor, linewidth=2.0)
-                            self.plot_track_error(axes, et_common_times2, et_common_trackErrorHist2,  targ.tqReq, label_color=sat2commonColor, linewidth=2.0)
+                            self.plot_track_error(axes, et_common_times2, et_common_trackErrorHist2,  label_color=sat2commonColor, linewidth=2.0)
                             
                             # Plot Messages instead of innovations
                             self.plot_messages(axes[6], sat, sat2, targ.targetID, time_vec.value)
@@ -709,57 +713,25 @@ class environment:
 
                     
     def plot_messages(self, ax, sat, sat2, targetID, timeVec):
-        commNode = self.comms.G.nodes[sat]
-        # if not commNode['received_measurements']: TODO: Redo these if statements to make sure we only plot valid message sets
-        #     return
-        
-        # if targetID not in commNode['received_measurements'].keys():    
-        #     return
-        
-        # if sat2 not in commNode['received_measurements'][targetID]['sender']:
-        #     return
+
         synch_times = sat.etEstimator.synchronizeFlag[targetID][sat][sat2].keys()
-        message_times = self.comms.used_comm_et_data_values[targetID][sat.name][sat2.name].keys()
         for time in timeVec:
             if time in synch_times:
                 if sat.etEstimator.synchronizeFlag[targetID][sat][sat2][time] == True:
                     ax.scatter(time, 0.5, color='g', marker='D', s = 70)
                     continue
                 
-                if time in message_times:
-                    alpha, beta = self.comms.used_comm_et_data_values[targetID][sat.name][sat2.name][time]
-                    if not np.isnan(alpha):
-                        ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
-                    else:
-                        ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
-                        
-                    if not np.isnan(beta):
-                        ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
-                    else:
-                        ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
-        
-        # synch_times = sat.etEstimator.synchronizeFlag[targetID][sat][sat2].keys()
-        # message_times = commNode['received_measurements'].keys()
-        # for time in timeVec:
-        #     if time in synch_times:
-        #         if sat.etEstimator.synchronizeFlag[targetID][sat][sat2][time] == True:
-        #             ax.scatter(time, 0.5, color='g', marker='D', s = 70)
-        #             continue
-                
-        #         if time in message_times:
-        #             if targetID in commNode['received_measurements'][time].keys():
-        #                 for i in range(len(commNode['received_measurements'][time][targetID]['sender'])):
-        #                     if commNode['received_measurements'][time][targetID]['sender'][i] == sat2:
-        #                         alpha, beta = commNode['received_measurements'][time][targetID]['meas'][i]
-        #                         if not np.isnan(alpha):
-        #                             ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
-        #                         else:
-        #                             ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
-                                
-        #                         if not np.isnan(beta):
-        #                             ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
-        #                         else:
-        #                             ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
+            if isinstance(self.comms.used_comm_et_data_values[targetID][sat.name][sat2.name][time], np.ndarray):
+                alpha, beta = self.comms.used_comm_et_data_values[targetID][sat.name][sat2.name][time]
+                if not np.isnan(alpha):
+                    ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s = 80)
+                else:
+                    ax.scatter(time, 0.2, color='b', marker=r'$\alpha$', s = 80)
+                    
+                if not np.isnan(beta):
+                    ax.scatter(time, 0.8, color='r',  marker=r'$\beta$', s = 120)
+                else:
+                    ax.scatter(time, 0.1, color='b',  marker=r'$\beta$', s = 120)
                         
         
         ax.set_yticks([0,0.5, 1])
@@ -771,7 +743,7 @@ class environment:
         ax.set_title(f'{sat2.name} -> {sat.name} Messages')
 
         
-    def plot_track_error(self, ax, times, trackErrorHist, targQuality,label_color, linewidth):
+    def plot_track_error(self, ax, times, trackErrorHist,label_color, linewidth):
         """
         Plot the track quality.
 
@@ -796,12 +768,7 @@ class environment:
 
                 track_quality = [trackErrorHist[time] for time in new_time]
                 ax[8].plot(new_time, track_quality, color=label_color, linewidth=linewidth)
-
-                # Finally plot a dashed line for the targetPriority
-                ax[8].axhline(y=targQuality*50 + 50, color='k', linestyle='dashed', linewidth=1.5)
-                # Add a text label on the above right side of the dashed line
-                ax[8].text(min(nonEmptyTime), targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
-
+                 
 
     def segment_data(self, times, max_gap = 30):
         """
@@ -870,7 +837,7 @@ class environment:
         return sat1commonColor, sat2commonColor
         
 
-    def setup_axes(self, fig, state_labels, meas_labels):
+    def setup_axes(self, fig, state_labels, meas_labels, targQuality):
         """
         Set up the axes.
 
@@ -910,7 +877,11 @@ class environment:
             axes[6 + i].set_xlabel("Time [min]")
             axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
         axes[8].set_xlabel("Time [min]")
-        axes[8].set_ylabel("Track Error [km]")
+        axes[8].set_ylabel("Track Uncertainity [km]")
+         # Finally plot a dashed line for the targetPriority
+        axes[8].axhline(y=targQuality*50 + 50, color='k', linestyle='dashed', linewidth=1.5)
+                # Add a text label on the above right side of the dashed line
+        axes[8].text(1, targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
         
         return axes
 
@@ -1357,10 +1328,123 @@ class environment:
             os.makedirs(plotPath, exist_ok=True)
             plt.savefig(os.path.join(plotPath, f"{saveName}_used_et_comms.png"), dpi=300)
             
+
+    def plot_dynamic_comms(self):
+        comms = self.comms
+        envTime = self.time.to_value()
+        once = True
+        
+        fig = plt.figure(figsize=(15, 15))
+        ax = fig.add_subplot(111)
+        diComms = nx.MultiDiGraph()
+
+        edge_styles = []
+        node_colors = []
+        for targ in self.targs:
+            for sat in self.sats:
+                if sat not in diComms.nodes():
+                    diComms.add_node(sat)
+                    node_colors.append(sat.color)
+                
+                for sat2 in self.sats:
+                    if sat == sat2:
+                        continue
+
+                    # Add the second satellite node
+                    if sat2 not in diComms.nodes():
+                        diComms.add_node(sat2)
+                        node_colors.append(sat2.color)
+                    
+                    targetID = targ.targetID
+                    targ_color = targ.color
+
+                    # If the satellites synchronize, add an edge
+                    if (sat.etEstimator.synchronizeFlag[targetID][sat][sat2]):
+                        if sat.etEstimator.synchronizeFlag[targetID][sat][sat2].get(envTime) == True:
+                            diComms.add_edge(sat, sat2)
+                            style = self.get_edge_style(comms, targetID, sat, sat2, envTime, CI = True)
+                            edge_styles.append((sat, sat2, style, targ_color))
+                    
+                    value = comms.used_comm_et_data_values[targetID][sat.name][sat2.name][envTime]
+                    print(f"Receiver {sat.name}, Sender {sat2.name}, Value {value}")
+                    # If there is a communication between the two satellites, add an edge
+                    if isinstance(comms.used_comm_et_data_values[targ.targetID][sat.name][sat2.name][envTime], np.ndarray):
+                            diComms.add_edge(sat2, sat)
+                            style = self.get_edge_style(comms, targetID, sat, sat2, envTime)
+                            edge_styles.append((sat2, sat, style, targ_color))
+                        
+
+            # Draw the graph with the nodes and edges
+        
+        if once:
+            pos = nx.circular_layout(diComms)
+            nx.draw_networkx_nodes(diComms, pos, ax=ax, node_size=1000, node_color=node_colors)
+            once = False
+        # Draw edges with appropriate styles
+        for i, edge in enumerate(edge_styles):
+            # Adjust the curvature for each edge
+            connectionstyle = f'arc3,rad={(i - len(edge_styles) / 2) / len(edge_styles)}'
+            nx.draw_networkx_edges(
+                diComms, pos, edgelist=[(edge[0], edge[1])], ax=ax, style=edge[2], edge_color=edge[3], arrows=True, arrowsize=10, connectionstyle=connectionstyle, min_source_margin=0, min_target_margin=40, width = 2
+            )
+
+        # Add labels
+        labels = {node: node.name for node in diComms.nodes()}
+        nx.draw_networkx_labels(diComms, pos, ax=ax, labels=labels)
+        # Add Title
+        ax.set_title(f"Dynamic Communications at Time {envTime} min")
+        handles = [
+            Patch(color=targ.color, label=targ.name) for targ in self.targs
+        ]
+        fig.legend(handles=handles, loc='lower right', ncol = 1, bbox_to_anchor=(0.9, 0.1))
+
+            # Display and close the figure
+        img = self.save_comm_plot_to_image(fig)
+        self.imgs_dyn_comms.append(img)
             
+        ax.cla()
+        # clear graph
+        diComms.clear()
+        plt.close(fig)
+
+    def get_edge_style(self, comms, targetID, sat1, sat2, envTime, CI = False):
+        """
+        Helper function to determine the edge style based on communication data.
+        Returns 'solid' if both alpha and beta are present, 'dashed' if only one is present, 
+        and None if neither is present (meaning no line).
+        """
+        
+        if CI:
+            return (0, ())
+        
+        alpha, beta = comms.used_comm_et_data_values[targetID][sat1.name][sat2.name][envTime]
+        if np.isnan(alpha) and np.isnan(beta):
+            return (0, (1, 10))
+        elif np.isnan(alpha) or np.isnan(beta):
+            return (0, (3, 10, 1, 10))
+        else:
+            return (0, (5, 10))
         
         
     
+    def save_comm_plot_to_image(self, fig):
+        """
+        Saves the plot to an image.
+
+        Parameters:
+        - fig: The matplotlib figure to save.
+
+        Returns:
+        numpy.ndarray: The image array.
+        """
+        ios = io.BytesIO()
+        fig.savefig(ios, format='raw')
+        ios.seek(0)
+        w, h = fig.canvas.get_width_height()
+        img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
+        return img
+                        
+                      
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self, time_vec):
         """
@@ -1673,6 +1757,7 @@ class environment:
             handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ddfcolor, label=labels[2])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
+
     def make_legened2(self, ax, ddfColor, centralColor, error1, error2, ddf_type=None):
         if ddf_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
@@ -1685,7 +1770,6 @@ class environment:
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
         
-    
     def set_axis_limits(self, ax, est_pos, radii, margin=50.0):
         """
         Sets the limits of the axes.
@@ -1705,6 +1789,7 @@ class environment:
         ax.set_ylim(min_vals[1], max_vals[1])
         ax.set_zlim(min_vals[2], max_vals[2])
         ax.set_box_aspect([1, 1, 1])
+
 
     def save_GEplot_to_image(self, fig):
         """
@@ -1756,6 +1841,14 @@ class environment:
                                     with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                                         for img in self.imgs_stereo_GE[targ.targetID][sat][sat2]:
                                             writer.append_data(img)
+                                            
+        if fileType == 'dynamic_comms':
+                file = os.path.join(filePath, 'gifs', f"{saveName}_dynamic_comms.gif")
+                with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
+                    for img in self.imgs_dyn_comms:
+                        writer.append_data(img)
+                                            
+    
                                 
   
 ### Data Dump File ###        

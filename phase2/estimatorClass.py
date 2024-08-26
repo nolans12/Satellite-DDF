@@ -533,9 +533,9 @@ class etEstimator(BaseEstimator):
         self.neighbors = [sat] + neighbors if neighbors else [sat]
         
         # ET Parameters
-        self.delta_alpha = 1.5
-        self.delta_beta = 1.5
-        
+        self.delta_alpha = 1
+        self.delta_beta = 1
+    
         # R Factor
         self.R_factor = 1
 
@@ -564,14 +564,14 @@ class etEstimator(BaseEstimator):
             self.doET = {targetID: {self.sat: {neighbor: {} for neighbor in self.neighbors}} for targetID in self.targetIDs}
             
     
-    def event_triggered_fusion(self, sat, envTime, comms):
-        commNode = comms.G.nodes[sat]
+    # def event_triggered_fusion(self, sat, envTime, comms):
+    #     commNode = comms.G.nodes[sat]
         
-        if envTime in commNode['received_measurements']:
-            self.process_new_measurements(sat, envTime, comms)
+    #     if envTime in commNode['received_measurements']:
+    #         self.process_new_measurements(sat, envTime, comms)
         
-        if envTime in commNode['sent_measurements']: ## This should be true when I have sent measurements to neighbors
-            self.update_common_filters(sat, envTime, comms)
+    #     if envTime in commNode['sent_measurements']: ## This should be true when I have sent measurements to neighbors
+    #         self.update_common_filters(sat, envTime, comms)
     
     def event_trigger_processing(self, sat, envTime, comms):
         commNode = comms.G.nodes[sat]
@@ -656,6 +656,7 @@ class etEstimator(BaseEstimator):
         for targetID in commNode['received_measurements'][time_sent].keys():
             for i in range(len(commNode['received_measurements'][time_sent][targetID]['sender'])): # number of messages on this target?
                 sender = commNode['received_measurements'][time_sent][targetID]['sender'][i]
+                alpha, beta = commNode['received_measurements'][time_sent][targetID]['meas'][i]
 
                 if len(sat.etEstimator.estHist[targetID][sat][sat]) == 1: # if your filter was just intialized dont process anything
                     continue
@@ -665,12 +666,14 @@ class etEstimator(BaseEstimator):
                 
                 if (self.trackErrorHist[targetID][sat][sat][envTime] > tqReq):
                     sat.etEstimator.doET[targetID][sat][sender][envTime] = True
-                    #print(f"Satellite {sat.name}, Target {targetID}, Track Error: {self.trackErrorHist[targetID][sat][sat][envTime]}")
+                
+                elif np.isnan(alpha) and np.isnan(beta):
+                    sat.etEstimator.doET[targetID][sat][sender][envTime] = True # if there is just implicit information use it
                 
                 if sat.etEstimator.doET[targetID][sat][sender][envTime]: 
                 
                     if self.synchronizeFlag[targetID][sat][sender][envTime] == True: ## TODO: If any of the last 5 
-                        self.synchronize_filters(sat, sender, targetID, envTime)
+                        self.synchronize_filters(sat, sender, targetID, envTime, comms)
                         continue
                     
                     
@@ -682,7 +685,6 @@ class etEstimator(BaseEstimator):
                     self.pred_EKF(sat, sender, targetID, envTime)
                     
                     # Proccess the new measurement from sender with the local and common filter
-                    alpha, beta = commNode['received_measurements'][time_sent][targetID]['meas'][i]
                     measVec_size = 2
 
                     # In-Track Measurement
@@ -1024,21 +1026,22 @@ class etEstimator(BaseEstimator):
             send_alpha = alpha
             send_beta = beta
         
-        else:
-            # If the difference between the measurement and the prediction is greater than delta, send the measurement
-            if np.abs(alpha - pred_alpha) > self.delta_alpha:
-                send_alpha = alpha
-                
-            if np.abs(beta - pred_beta) > self.delta_beta:
-                send_beta = beta
+        # else:
             
-        # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
-        # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
-        # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
+        #     # If the difference between the measurement and the prediction is greater than delta, send the measurement
+        #     if np.abs(alpha - pred_alpha) > self.delta_alpha:
+        #         send_alpha = alpha
+                
+        #     if np.abs(beta - pred_beta) > self.delta_beta:
+        #         send_beta = beta
+            
+        # # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
+        # # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
+        # # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
         return send_alpha, send_beta
     
     
-    def synchronize_filters(self, sat, neighbor, targetID, envTime):
+    def synchronize_filters(self, sat, neighbor, targetID, envTime, comms):
         """
         Synchronize the local and common filters between two agents.
 
@@ -1084,6 +1087,9 @@ class etEstimator(BaseEstimator):
         neighbor.etEstimator.covarianceHist[targetID][neighbor][sat][envTime] = cov_fused
         neighbor.etEstimator.trackErrorHist[targetID][neighbor][sat][envTime] = self.calcTrackError(est_fused, cov_fused)
 
+        
+        comms.used_comm_et_data[targetID][sat.name][neighbor.name][envTime] = 6 + 21
+        
     def det_of_fused_covariance(self, omega, cov1, cov2):
         """
         Calculate the determinant of the fused covariance matrix.

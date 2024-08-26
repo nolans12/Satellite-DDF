@@ -73,7 +73,7 @@ class comms:
         self.G.nodes[receiver]['queued_data'][time][target_id]['cov'].append(cov_meas)
         self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
         
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size + cov_meas.size
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = 6 + 21
         
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
             """Send a vector of measurements from one satellite to another.
@@ -119,7 +119,7 @@ class comms:
             self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
             self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
             
-            measVector_size = 2
+            measVector_size = 2 + 2 # 2 for the meas vector, 2 for the sensor noise
             if np.isnan(meas_vector[0]):
                 measVector_size -= 1
             
