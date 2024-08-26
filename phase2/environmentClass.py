@@ -1,14 +1,35 @@
 from import_libraries import *
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
+# Import classes
+from satelliteClass import satellite
+from targetClass import target
+from estimatorClass import centralEstimator, indeptEstimator, ciEstimator, etEstimator
+from sensorClass import sensor
+from commClass import comms
+
 class environment:
-    def __init__(self, sats, targs, comms, commandersIntent = None, centralEstimator=None, ciEstimator=False, etEstimator=False):
+    def __init__(self, sats, targs, comms, commandersIntent, centralEstimator=None, ciEstimatorBool=False, etEstimator=False):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
         """
         # Use the provided central estimator or default to None
         self.centralEstimator = centralEstimator if centralEstimator else None
-        self.ciEstimator = ciEstimator
+
+        # Populate the local estimators for each satellite
+        for sat in sats:
+            targPriorityInitial = commandersIntent[0][sat]
+            sat.indeptEstimator = indeptEstimator(targPriorityInitial)
+            sat.targPriority = targPriorityInitial
+            sat.targetIDs = targPriorityInitial.keys()
+            sat.measurementHist = {targetID: defaultdict(dict) for targetID in targPriorityInitial.keys()}
+
+        # Now check, is CI == True? If so, we need to populate the CI estimators for each satellite
+        if ciEstimatorBool:
+            for sat in sats:
+                sat.ciEstimator = ciEstimator(commandersIntent[0][sat])
+
+        self.ciEstimatorBool = ciEstimatorBool
         self.etEstimator = etEstimator
         
         # Define the satellites
@@ -98,6 +119,12 @@ class environment:
             # Propagate the satellites and environments position
             self.propagate(t_d)
 
+            # Does the commanders intent change for the satellites?
+            if t_net.to_value(t_net.unit) in self.commandersIntent.keys():
+                for sat in self.sats:
+                    sat.targPriority = self.commandersIntent[t_net.to_value(t_net.unit)][sat]
+                    sat.targetIDs = sat.targPriority.keys()
+
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
@@ -143,9 +170,9 @@ class environment:
             self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        if self.ciEstimator:
-            self.send_estimates_optimize()
-            # self.send_estimates()
+        if self.ciEstimatorBool:
+            # self.send_estimates_optimize()
+            self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimator:
@@ -153,7 +180,7 @@ class environment:
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
-            if self.ciEstimator:
+            if self.ciEstimatorBool:
                 sat.ciEstimator.CI(sat, self.comms)
             if self.etEstimator:
                 sat.etEstimator.event_triggered_fusion(sat, self.time.to_value(), self.comms.G.nodes[sat])
@@ -1370,7 +1397,7 @@ class environment:
             # Create the figure and subplot:
             fig = plt.figure(figsize=(15, 8))
 
-            fig.suptitle(f"CI DDF, Track Uncertainty and Data Received by {sat.name}", fontsize=14)
+            fig.suptitle(f"CI DDF, Track Uncertainty and Data Used by {sat.name}", fontsize=14)
             gs = gridspec.GridSpec(2, 1)
             ax1 = fig.add_subplot(gs[0, 0])
             # Add a subplot title
@@ -1379,7 +1406,7 @@ class environment:
 
             ax2 = fig.add_subplot(gs[1, 0])
             # Add a subplot title
-            ax2.set_title(f"Data Received by {sat.name}")
+            ax2.set_title(f"Data Used by {sat.name}")
             ax2.set_ylabel('Data Sent/Recieved (# of numbers)')
             ax2.set_xlabel('Time [min]')
 
@@ -1420,15 +1447,46 @@ class environment:
                     trackVec = [trackUncertainty[time] for time in newTime]
                     ax1.plot(newTime, trackVec, color=targ.color, linewidth=1.5)
 
-            # Now for each target make the dashed lines for the target quality
-            for targ in self.targs:
-                if targ.targetID not in sat.targetIDs:
-                    continue
 
-                # Now plot a dashed line for the targetPriority
-                ax1.axhline(y=sat.targPriority[targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
-                # Add a text label on the above right side of the dashed line
-                # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+            # Now, do the dashed lines for the target quality, including varying with commanders intent
+
+            count = 0
+            for time in self.commandersIntent.keys():
+
+                count += 1
+                xMin = time
+
+                # Does there exist another key in commandersIntent?
+                if len(self.commandersIntent.keys()) > count:
+                    xMax = list(self.commandersIntent.keys())[count]
+                else:
+                    xMax = max(nonEmptyTime)
+
+                # Now, make a dashed line from xMin to xMax for the target qualities in commandersIntent
+
+                for targ in self.targs:
+
+                    # Should the satellite even be tracking this target?
+                    if targ.targetID not in sat.targetIDs:
+                        continue
+
+                    # Now plot a dashed line for the targetPriority
+                    ax1.hlines(y=self.commandersIntent[time][sat][targ.targetID], xmin=xMin, xmax=xMax, color=targ.color, linestyle='dashed', linewidth=1.5)
+
+                    # Now plot a dashed line for the targetPriority
+                    # ax1.axhline(y=self.commandersIntent[time][sat][targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
+                    # Add a text label on the above right side of the dashed line
+                    # ax1.text(xMin, self.commandersIntent[time][sat][targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+
+            # # Now for each target make the dashed lines for the target quality
+            # for targ in self.targs:
+            #     if targ.targetID not in sat.targetIDs:
+            #         continue
+
+            #     # Now plot a dashed line for the targetPriority
+            #     ax1.axhline(y=sat.targPriority[targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
+            #     # Add a text label on the above right side of the dashed line
+            #     # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
 
 
             # Now do the 2nd subplot, bar plot showing the data sent/recieved by each satellite about each target

@@ -308,14 +308,14 @@ class BaseEstimator:
 
 ### Central Estimator Class
 class centralEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
+    def __init__(self, targPriorities):
         """
         Initialize Central Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targetIDs)
+        super().__init__(targPriorities)
 
         self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
@@ -337,14 +337,14 @@ class centralEstimator(BaseEstimator):
 
 ### Independent Estimator Class
 class indeptEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
+    def __init__(self, targPriorities):
         """
         Initialize Independent Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targetIDs)
+        super().__init__(targPriorities)
 
         self.R_factor = 1
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic 
@@ -367,14 +367,14 @@ class indeptEstimator(BaseEstimator):
 ### CI Estimator Class
 # Always does covariance intersection
 class ciEstimator(BaseEstimator):
-    def __init__(self, targetIDs):
+    def __init__(self, targPriorities):
         """
         Initialize DDF Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targetIDs)
+        super().__init__(targPriorities)
             
         self.R_factor = 1  # Factor to scale the sensor noise matrix
         # self.R_factor = 100 # can be used to really ensure filter stays working, pessimiestic
@@ -447,6 +447,12 @@ class ciEstimator(BaseEstimator):
                 # If the send time is older than the prior estimate, discard the sent estimate
                 if time_sent < time_prior:
                     continue
+
+                # Now check, does the satellite need help on this target?
+                if not not sat.ciEstimator.trackErrorHist[targetID][time_prior]: # An estimate exists for this target
+                    if (sat.ciEstimator.trackErrorHist[targetID][time_prior] < sat.targPriority[targetID]): # Is the estimate good enough already?
+                        # If the track quality is good, don't do CI
+                        continue
 
                 # We will now use the estimate and covariance that were sent, so we should store this
                 comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size*2 + cov_sent.size/2

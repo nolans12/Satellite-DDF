@@ -2,7 +2,7 @@ from import_libraries import *
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targPriority, indeptEstimator, name, color, ciEstimator = None, etEstimator = None, neighbors = None):
+    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, name, color, etEstimator = None, neighbors = None):
         """Initialize a Satellite object.
 
         Args:
@@ -19,28 +19,11 @@ class satellite:
             color (str): Color of the satellite for visualization.
             ddf_estimator (object, optional): DDF estimator to test. Defaults to None.
         """
-
     # Sensor to use
         self.sensor = sensor
-        self.measurementHist = {targetID: defaultdict(dict) for targetID in targPriority.keys()} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
-    
-    # Target priority
-        self.targPriority = targPriority # Dictionary of targetIDs to track and the uncertainty to track them too!
-
-    # Targets to track: 
-        self.targetIDs = targPriority.keys()
         
     # Topology to communciate with
         self.neighbors = [self, neighbors] # List of neighbors, will be updated by the topology class
-
-    # Estimator to use to benchmark against, worst case
-        self.indeptEstimator = indeptEstimator
-    
-    # DDF estimator to test
-        if ciEstimator:
-            self.ciEstimator = ciEstimator
-        else:
-            self.ciEstimator = None
 
     # ET estimator to test
         if etEstimator:
