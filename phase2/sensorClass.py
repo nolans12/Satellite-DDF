@@ -40,11 +40,11 @@ class sensor:
         if self.inFOV(sat, targ): # check if target is in the field of view
             detect = np.random.uniform(0, 1) # generate random number to determine detection
             if detect < self.detectChance: # check if target is detected
-                return 0
+                return None
             else:
                 return self.sensor_model(sat, targ) # return the noisy sensor measurement for target
         else:
-            return 0
+            return None
 
     def sensor_model(self, sat, targ):
         """

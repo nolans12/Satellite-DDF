@@ -10,11 +10,68 @@ from sensorClass import sensor
 from commClass import comms
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
+def create_environment_change_priorities():
+
+    ## Define the targets
+
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([3, 3, 0, 90, 0.1]), color = 'darkred')
+    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = 'slategrey')
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([3, 3, 0, 90, 0.1]), color = 'peru')
+    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([3, 3, 0, 90, 0.1]), color = 'darkorange')
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([3, 3, 0, 90, 0.1]), color = 'dodgerblue')
+   
+    targs = [targ1, targ2, targ3, targ4, targ5]
+
+    ## Define the sensor models
+
+    sens1 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.001, 115 * 0.001])) # 0.1% error on FOV bearings
+    sens2 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.01, 115 * 0.01])) # 1% error on FOV bearings
+    sens3 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.05, 115 * 0.05])) # 5% error on FOV bearings
+    sens4 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1])) # 10% error on FOV bearings
+
+    ## Define the satellites
+
+    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens2), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color='#669900')
+    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens2), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color='#66a3ff')
+    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens4), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color='#9966ff')
+    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens4), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color='#ffff33')
+
+    sats = [sat1a, sat1b, sat2a, sat2b]
+
+    ##  DEFINE THE COMMANDERS INTENT:
+    # TODO: CURRENTLY SATELLITE ESTIMATORS ARE INITIALIZED WITH COMMANDERSINTENT[0], THIS MEANS THAT 
+    # THE DATA STRUCTURES ARE INITIALIZED WITH THE TARGET IDS FROM COMMANDERSINTENT[0]
+    # THUS, RIGHT NOW YOU CANNOT HAVE CHANIGNG/DISCOVERED TARGETS, ONLY CHANGING PRIORITIES
+        # Vector from time step 0 - X where the priorities should be this vs time step X - Y where the priorities should be that
+    commandersIntent = NestedDict()
+
+    # For minute 0+: We want the following tracks:
+    commandersIntent[0] = {sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat2a: {        2: 100, 3: 300}, 
+                           sat2b: {1: 100, 2: 220, 3: 240, 4: 300, 5: 280}}
+    
+    # # For minute X+: We want the following tracks:
+    commandersIntent[4] = {sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat2a: {        2: 300, 3: 100}, 
+                           sat2b: {1: 300, 2: 220, 3: 240, 4: 100, 5: 280}}
+
+
+    ## Define the communication network
+
+    comms_network = comms(sats, maxBandwidth = 30, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+
+    ## Create and return an environment instance:
+    return environment(sats, targs, comms_network, commandersIntent, centralEstimator, ciEstimator, etEstimator)
+
+
+### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
 def create_environment():
 
     # Define the targets for the satellites to track:
     # We will use the Reds color map for the targets
-    reds = plt.get_cmap('Reds', 8)
+    reds = plt.get_cmap('Reds', 7)
 
     # inverse the order so that 0 is most intense, 11 is least intense
     reds = reds.reversed()
@@ -26,61 +83,48 @@ def create_environment():
     
 
     # Define a random target:
-    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ1_color)
-    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color =  targ2_color)
-    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ3_color)
-    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ4_color)
-    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([5, 7.5, 0, 90, 0.1]), color = targ5_color)
-    # targ6 = target(name = 'Targ6', tqReq = 6, targetID=6, coords = np.array([45,0,0]), heading=0, speed= 10,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(5))
-    # targ7 = target(name = 'Targ7', tqReq = 7, targetID=7, coords = np.array([45,0,0]), heading=0, speed= 5,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(6))
-    # targ8 = target(name = 'Targ8', tqReq = 8, targetID=8, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(7))
-    # targ9 = target(name = 'Targ9', tqReq = 9, targetID=9, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(8))
-    # targ10 = target(name = 'Targ10', tqReq = 10, targetID=10, coords = np.array([45,0,0]), heading=0, speed= 2,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(9))
-    # targ11 = target(name = 'Targ11', tqReq = 11, targetID=11, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(10))
-    # targ12 = target(name = 'Targ12', tqReq = 12, targetID=12, coords = np.array([45,0,0]), heading=0, speed= 1,  uncertainty=np.array([5, 10, 0, 90, 0.1]), color = reds(11))
-    
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(1))
+    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(2))
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(3))
+    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(4))
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(5))
+   
     targs = [targ1, targ2, targ3, targ4, targ5]
 
     # Define the satellite structure:
 
-    sens1 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.001, 115 * 0.001])) # 0.1% error on FOV bearings
-    sens2 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.01, 115 * 0.01])) # 1% error on FOV bearings
-    sens3 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.05, 115 * 0.05])) # 5% error on FOV bearings
-    sens4 = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1])) # 10% error on FOV bearings
-
-    targetIDs = [1,2,3,4,5,6,7,8,9,10,11,12]
-
-    local = indeptEstimator(targetIDs = targetIDs)
-
-    ci = ciEstimator(targetIDs = targetIDs)
-    
-    et = etEstimator(targetIDs = targetIDs, targets=None, sat=None, neighbors=None)
-
-    central = centralEstimator(targetIDs = targetIDs)
-
-    # Define the colors for the sats:
-    # Make two of them green, two of them yellow
-    green_shades = ['#8ff881', '#82f8e6']
-    yellow_shades = ['#FDDA0D', '#FFA500']
+    sens_good = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.01, 115 * 0.01])) # 1% error on FOV bearings
+    sens_bad = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1])) # 10% error on FOV bearings
 
     # Define the satellites:
-    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color=green_shades[0])
-    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens2), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color=green_shades[1])
-    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color=yellow_shades[0])
-    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens4), targetIDs=targetIDs, indeptEstimator=deepcopy(local), ciEstimator=deepcopy(ci), etEstimator=deepcopy(et), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color=yellow_shades[1])
+    commandersIntent = NestedDict()
+
+    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color='#669900')
+    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color='#66a3ff')
+    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color='#9966ff')
+    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color='#ffff33')
 
     sats = [sat1a, sat1b, sat2a, sat2b]
-
-    # Define the communication network: 
-    comms_network = comms(sats, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
     
-    for sat in sats:
-        neighbors = [neighbor for neighbor in sats if neighbor != sat]
-        et = etEstimator(targets = targs, targetIDs=targetIDs, sat=sat, neighbors=neighbors)
-        sat.update_et_estimator(et)
+    # For minute 0+: We want the following tracks:
+    commandersIntent[0] = {sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat2a: {        2: 100, 3: 300}, 
+                           sat2b: {1: 100, 2: 220, 3: 240, 4: 300, 5: 280}}
+    
 
+    local = True#indeptEstimator(targPriorities = commandersIntent)
+
+    ci = True#ciEstimator(targPriorities = commandersIntent)
+    
+    et = True#etEstimator(targPriorities = commandersIntent, shareWith=None)
+
+    central = True#centralEstimator(targPriorities = commandersIntent)
+    # Define the communication network: 
+    comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    
     # Create and return an environment instance:
-    return environment(sats, targs, comms_network, central, ci, et)
+    return environment(sats, targs, comms_network, commandersIntent, local, central, ci, et)
 
 ### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
 def create_environment_mono():
@@ -138,7 +182,7 @@ def create_environment_mono():
     for sat in sats:
         neighbors = [neighbor for neighbor in sats if neighbor != sat]
         et = etEstimator(targets = targs, targetIDs=targetIDs, sat=sat, neighbors=neighbors)
-        sat.update_et_estimator(et)
+        sat.populate_pairwise_et_estimator(et)
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central, ci, et)
@@ -181,6 +225,7 @@ def simple_environment():
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, central)
+
 
 ### Plot the NEES and NIS results:
 def plot_NEES_NIS(simData, fileName):
@@ -280,15 +325,15 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 20 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "final_threshold_again_haha"
+    fileName = "Merge"
 
     env = create_environment()
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, showSim = False, savePlot = False, saveGif= False, saveData = False, saveComms = True, plot_dynamic_comms = False, saveName = fileName)
-
+    # env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = False, saveName = fileName)
+    env.simulate(time_vec, saveName = fileName, plot_env = False, show_env = False, plot_env_comms = False, show_env_comms = False, plot_estimation_results = True, plot_communication_results = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False)
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
     #env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)

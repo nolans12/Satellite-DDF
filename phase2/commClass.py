@@ -4,7 +4,7 @@ class comms:
     """
     Communication network class.
     """
-    def __init__(self, sats, maxNeighbors, maxRange, minRange, dataRate=0, displayStruct=False):
+    def __init__(self, sats, maxNeighbors, maxRange, minRange, maxBandwidth = 100000000, dataRate=0, displayStruct=False):
         """Initialize the communications network.
                 Using networkx, a python library, to create a graph of the satellites and their connections.
 
@@ -17,12 +17,16 @@ class comms:
             display_struct (bool, optional): Flag to display structure. Defaults to False.
         """
         # Create a graph instance with the satellites as nodes
-        self.G = nx.Graph()
+        self.G = nx.DiGraph()
 
         # Add nodes with a dict for queued data (list of arrays)
         for sat in sats:
-            self.G.add_node(sat, queued_data={}, received_measurements={}, sent_measurements={})
+            self.G.add_node(sat, estimate_data={}, received_measurements={}, sent_measurements={})
+            
 
+        self.maxBandwidth = maxBandwidth
+    
+        # Create a empty dicitonary to store the amount of data sent/recieved between satellites
         self.total_comm_data = NestedDict()
         self.used_comm_data = NestedDict()
         
@@ -35,6 +39,19 @@ class comms:
         self.min_range = minRange
         self.data_rate = dataRate
         self.displayStruct = displayStruct
+
+    def send_estimate_path(self, path, est_meas_source, cov_meas_source, target_id, time):
+        """ Send an estimate along a path of satellites.
+                Includes ferrying the data!!!
+        """
+
+        # Take the path, and from path[0] (source node) share the est_meas and cov_meas to all other nodes in the path, send the data
+        for i in range(1, len(path)):
+            self.send_estimate(path[i-1], path[i], est_meas_source, cov_meas_source, target_id, time)
+            # Activate that edge
+            # self.G.edges[path[i-1], path[i]]['active'] = True
+
+
 
     def send_estimate(self, sender, receiver, est_meas, cov_meas, target_id, time):
         """Send an estimate from one satellite to another
@@ -60,21 +77,30 @@ class comms:
         if not self.G.has_edge(sender, receiver):
             return 
         
+        # Before we decide if we want to send the estimate, need to make sure it wont violate the bandwidth constraints
+        # Check if the bandwidth is available
+        if self.G.edges[sender, receiver]['usedBandwidth'] + est_meas.size*2 + cov_meas.size/2 > self.G.edges[sender, receiver]['maxBandwidth']:
+            # print(f"Bandwidth exceeded between {sender.name} and {receiver.name} with current bandwith of {self.G.edges[sender, receiver]['usedBandwidth']} and max bandwidth of {self.G.edges[sender, receiver]['maxBandwidth']}")
+            return
+        else:
+            # Update the used bandwidth
+            self.G.edges[sender, receiver]['usedBandwidth'] += est_meas.size*2 + cov_meas.size/2
+        
         # Initialize the target_id key in the receiver's queued data if not present
-        if time not in self.G.nodes[receiver]['queued_data']:
-            self.G.nodes[receiver]['queued_data'][time] = {}
+        if time not in self.G.nodes[receiver]['estimate_data']:
+            self.G.nodes[receiver]['estimate_data'][time] = {}
         
         # Initialize the time key in the target_id's queued data if not present
-        if target_id not in self.G.nodes[receiver]['queued_data'][time]:
-            self.G.nodes[receiver]['queued_data'][time][target_id] = {'est': [], 'cov': [], 'sender': []}
+        if target_id not in self.G.nodes[receiver]['estimate_data'][time]:
+            self.G.nodes[receiver]['estimate_data'][time][target_id] = {'est': [], 'cov': [], 'sender': []}
 
         # Add the estimate to the receiver's queued data at the specified target_id and time
-        self.G.nodes[receiver]['queued_data'][time][target_id]['est'].append(est_meas)
-        self.G.nodes[receiver]['queued_data'][time][target_id]['cov'].append(cov_meas)
-        self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
-        
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = 6 + 21
-        
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['est'].append(est_meas)
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['cov'].append(cov_meas)
+        self.G.nodes[receiver]['estimate_data'][time][target_id]['sender'].append(sender.name)
+
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
+
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
             """Send a vector of measurements from one satellite to another.
                     First checks if two satellites are neighbors,
@@ -143,18 +169,20 @@ class comms:
         self.G.clear_edges()
 
         # Loop through each satellite pair and remake the edges
-        for sat in sats:
+        for sat1 in sats:
             for sat2 in sats:
-                if sat != sat2:
+                if sat1 != sat2:
                     # Check if an edge already exists between the two satellites
-                    if not self.G.has_edge(sat, sat2):
+                    if not self.G.has_edge(sat1, sat2):
                         # Check if the distance is within range
-                        dist = np.linalg.norm(sat.orbit.r - sat2.orbit.r)
+                        dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
                         if self.min_range < dist < self.max_range:
                             # Check if the Earth is blocking the two satellites
-                            if not self.intersect_earth(sat, sat2):
+                            if not self.intersect_earth(sat1, sat2):
                                 # Add the edge
-                                self.G.add_edge(sat, sat2, active=False)
+                                self.G.add_edge(sat1, sat2, maxBandwidth = self.maxBandwidth, usedBandwidth = 0, active=False)
+                                # also add the edge in the opposite direction
+                                self.G.add_edge(sat2, sat1, maxBandwidth = self.maxBandwidth, usedBandwidth = 0, active=False)
 
         # Restrict to just the maximum number of neighbors
         for sat in sats:
@@ -172,7 +200,7 @@ class comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-
+        
     def intersect_earth(self, sat1, sat2):
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
