@@ -9,7 +9,7 @@ from sensorClass import sensor
 from commClass import comms
 
 class environment:
-    def __init__(self, sats, targs, comms, commandersIntent, localEstimatorBool, centralEstimatorBool, ciEstimatorBool, etEstimatorBool):
+    def __init__(self, sats, targs, comms, groundStations, commandersIntent, localEstimatorBool, centralEstimatorBool, ciEstimatorBool, etEstimatorBool):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
         """
@@ -44,10 +44,12 @@ class environment:
         self.sats = sats # define the satellites
         
         self.targs = targs # define the targets
-
-        self.commandersIntent = commandersIntent # define the commanders intent
         
         self.comms = comms # define the communication network
+
+        self.groundStations = groundStations # define the ground stations
+
+        self.commandersIntent = commandersIntent # define the commanders intent
 
         # Define variables to track the comms
         self.comms.total_comm_data = NestedDict()
@@ -79,7 +81,7 @@ class environment:
         # Earth parameters for plotting
         u = np.linspace(0, 2 * np.pi, 100)
         v = np.linspace(0, np.pi, 100)
-        self.earth_r = 6378.0
+        self.earth_r = 6371.0
         self.x_earth = self.earth_r * np.outer(np.cos(u), np.sin(v))
         self.y_earth = self.earth_r * np.outer(np.sin(u), np.sin(v))
         self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
@@ -93,7 +95,7 @@ class environment:
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.0001, saveName = None, show_env = False, plot_estimation_results = False, plot_communication_results = False, plot_et_network = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False):
+    def simulate(self, time_vec, pause_step=0.1, saveName = None, show_env = False, plot_estimation_results = False, plot_communication_results = False, plot_et_network = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False):
         """
         Simulate the environment over a time range.
         
@@ -137,14 +139,14 @@ class environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
+            # Update the plot environment
             if show_env:
-                # Update the plot environment
                 self.plot()
                 plt.pause(pause_step)
                 plt.draw()
                 
+            # Update the dynamic comms plot
             if plot_et_network:
-                # Update the dynamic comms plot
                 self.plot_dynamic_comms()
                 plt.pause(pause_step)
                 plt.draw()
@@ -662,6 +664,7 @@ class environment:
         self.plotSatellites()
         self.plotTargets()
         self.plotCommunication()
+        self.plotGroundStations()
         self.plotLegend_Time()
         self.save_envPlot_to_imgs()
         
@@ -712,7 +715,7 @@ class environment:
             # self.ax.quiver(x, y, z, vx * 1000, vy * 1000, vz * 1000, color=targ.color, arrow_length_ratio=0.75, label=targ.name)
 
             # do a standard scatter plot for the target
-            self.ax.scatter(x, y, z, s=40, color=targ.color, label=targ.name)
+            self.ax.scatter(x, y, z, s=40, marker='x', color=targ.color, label=targ.name)
 
 
     def plotEarth(self):
@@ -738,6 +741,19 @@ class environment:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color=(0.3, 1.0, 0.3), linestyle='dashed', linewidth=2)
                 else:
                     self.ax.plot([x1, x2], [y1, y2], [z1, z2], color='k', linestyle='dashed', linewidth=1)
+
+
+    def plotGroundStations(self):
+        """
+        Plot the ground stations.
+        """
+        for gs in self.groundStations:
+            x, y, z = gs.loc
+            self.ax.scatter(x, y, z, s=40, marker = 's', color=gs.color, label=gs.name)
+
+            # # loop through all the satellites and print if can communicate with GS
+            # for sat in self.sats:
+            #     gs.canCommunicate(sat)
 
 
     def plotLegend_Time(self):

@@ -1,5 +1,6 @@
 from import_libraries import *
 
+### BASE CLASS 
 class BaseEstimator:
     def __init__(self, targetPriorities):
         """
@@ -291,6 +292,7 @@ class BaseEstimator:
         trackError = self.calcTrackError(est, cov)
         self.trackErrorHist[targetID][time] = trackError
 
+
 ### Central Estimator Class
 class centralEstimator(BaseEstimator):
     def __init__(self, targPriorities):
@@ -542,6 +544,7 @@ class ciEstimator(BaseEstimator):
         omega = omega[0]  # Ensure omega is a scalar
         P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
         return np.linalg.det(P)
+
 
 ### Event Triggered Estimator Class
 class etEstimator(BaseEstimator):

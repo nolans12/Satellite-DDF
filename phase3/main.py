@@ -8,14 +8,15 @@ from sensorClass import sensor
 from targetClass import target
 from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator
 from commClass import comms
+from groundStationClass import groundStation
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
 def create_environment():
 
     # Define the targets for the satellites to track:
     # We will use the Reds color map for the targets
-    reds = plt.get_cmap('Reds', 7)
-    reds = reds.reversed() # inverse the order so that 0 is most intense, 7 is least intense
+    # reds = plt.get_cmap('Reds', 7)
+    # reds = reds.reversed() # inverse the order so that 0 is most intense, 7 is least intense
 
     targ1_color = '#e71714'
     targ2_color = '#eea62a'
@@ -58,7 +59,14 @@ def create_environment():
                            sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
                            sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
                            sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125}}
+    
 
+    # Define the ground stations
+    gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = ciEstimator(commandersIntent[0][sat1a]), name = 'GS1', color = 'black')
+    gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = ciEstimator(commandersIntent[0][sat1a]), name = 'GS2', color = 'gray')
+
+    groundStations = [gs1, gs2]
+    # groundStations = [gs1]
 
     # Define the estimators used:
     central = True
@@ -70,7 +78,7 @@ def create_environment():
     comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
 
     # Create and return an environment instance:
-    return environment(sats, targs, comms_network, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
+    return environment(sats, targs, comms_network, groundStations, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
 
 
 ### Main code to run the simulation
@@ -86,7 +94,7 @@ if __name__ == "__main__":
     env = create_environment()
 
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, saveName = fileName, show_env = False, plot_estimation_results = True, plot_communication_results = True)
+    env.simulate(time_vec, saveName = fileName, show_env = True, plot_estimation_results = False, plot_communication_results = False)
 
     # Save gifs:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
