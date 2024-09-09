@@ -318,7 +318,7 @@ class indeptEstimator(BaseEstimator):
 
 
 ### DDF Estimator Class
-class ddfEstimator(BaseEstimator):
+class ciEstimator(BaseEstimator):
     def __init__(self, targetIDs):
         """
         Initialize DDF Estimator object.

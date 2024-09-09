@@ -188,4 +188,3 @@ if __name__ == "__main__":
     # Save the gif:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
     env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    
