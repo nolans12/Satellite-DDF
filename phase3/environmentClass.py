@@ -55,6 +55,7 @@ class environment:
         
         # Initialize time parameter to 0
         self.time = 0
+        self.delta_t = None
         
         # Environemnt Plotting parameters
         self.fig = plt.figure(figsize=(10, 8))
@@ -66,12 +67,6 @@ class environment:
         self.ax.set_zlim([2000, 8000])
         self.ax.view_init(elev=30, azim=0)
 
-        # # If you want to do MonoTrack case:
-        # self.ax.set_xlim([-15000, 15000])
-        # self.ax.set_ylim([-15000, 15000])
-        # self.ax.set_zlim([-15000, 15000])
-        # self.ax.view_init(elev=30, azim=0)
-        
         # auto scale the axis to be equal
         self.ax.set_box_aspect([0.5, 1, 0.5])
         
@@ -122,10 +117,14 @@ class environment:
         
         # Initialize based on the current time
         time_vec = time_vec + self.time
+        self.delta_t = (time_vec[1] - time_vec[0]).to_value(time_vec.unit)
         for t_net in time_vec:
-            t_d = t_net - self.time  # Get delta time to propagate, works because propagate func increases time after first itr
+
             print(f"Time: {t_net:.2f}")
 
+            # Get the delta time to propagate
+            t_d = t_net - self.time  
+            
             # Propagate the environments positions
             self.propagate(t_d)
 
@@ -141,26 +140,23 @@ class environment:
             if show_env:
                 # Update the plot environment
                 self.plot()
-                # Display the plot
                 plt.pause(pause_step)
                 plt.draw()
                 
             if plot_et_network:
                 # Update the dynamic comms plot
                 self.plot_dynamic_comms()
-            
-                # Display the plot
                 plt.pause(pause_step)
                 plt.draw()
 
         print("Simulation Complete")
 
+        # Plot the filter results
         if plot_estimation_results:
-            # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
 
+        # Plot the commm results
         if plot_communication_results:
-            # Plot the commm results
 
             # Make plots for total data sent and used throughout time
             self.plot_global_comms(saveName=saveName)
@@ -170,14 +166,14 @@ class environment:
             if self.ciEstimatorBool:
                 self.plot_timeHist_comms_ci(saveName=saveName)
            
+        # Save the uncertainty ellipse plots
         if plot_uncertainty_ellipses:
-            # Save the uncertainty ellipse plots
             self.plot_all_uncertainty_ellipses(time_vec) # Uncertainty Ellipse Plots
 
         # Log the Data
         if save_estimation_data:
             self.log_data(time_vec, saveName=saveName)
-            
+
         if save_communication_data:
             self.log_comms_data(time_vec, saveName=saveName)
 
@@ -1188,7 +1184,7 @@ class environment:
         """
         for i in range(6):  # For all six states [x, vx, y, vy, z, vz]
             if times:  # If there is an estimate on target
-                segments = self.segment_data(times)
+                segments = self.segment_data(times, max_gap = self.delta_t*2)
                 for segment in segments:
                     est_errors = [estHist[time][i] - trueHist[time][i] for time in segment]
                     upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
@@ -1213,7 +1209,7 @@ class environment:
             linewidth (float): Width of the plot lines.
         """
         if times:  # If there is an estimate on target
-            segments = self.segment_data(times)
+            segments = self.segment_data(times, max_gap = self.delta_t*2)
 
             for i in range(2):  # For each measurement [in track, cross track]
                 for segment in segments:
@@ -1280,7 +1276,7 @@ class environment:
         """
         if times:
             nonEmptyTime = []
-            segments = self.segment_data(times)
+            segments = self.segment_data(times, max_gap = self.delta_t*2)
         
             for segment in segments:
                 # Figure out, does this segment have a real data point in every time step
@@ -1931,8 +1927,7 @@ class environment:
 
                 # Get the times for the track_uncertainty
                 times = [time for time in trackUncertainty.keys()]
-                # segments = self.segment_data(times, max_gap = 1/6)
-                segments = self.segment_data(times)
+                segments = self.segment_data(times, max_gap = self.delta_t*2)
 
                 for segment in segments:
                     # Does the semgnet have a real data point in eveyr time step?
