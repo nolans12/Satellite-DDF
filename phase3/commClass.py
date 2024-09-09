@@ -23,7 +23,6 @@ class comms:
         for sat in sats:
             self.G.add_node(sat, estimate_data={}, received_measurements={}, sent_measurements={})
             
-
         self.maxBandwidth = maxBandwidth
     
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
@@ -101,6 +100,7 @@ class comms:
 
         self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
 
+
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
             """Send a vector of measurements from one satellite to another.
                     First checks if two satellites are neighbors,
@@ -151,11 +151,9 @@ class comms:
             
             if np.isnan(meas_vector[1]):
                 measVector_size -= 1
-            
                 
             self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
-            
-           #self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
+        
 
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
@@ -200,7 +198,8 @@ class comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-        
+
+
     def intersect_earth(self, sat1, sat2):
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.

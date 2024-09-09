@@ -95,7 +95,7 @@ class environment:
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.1, saveName = None, show_env = False, plot_estimation_results = False, plot_communication_results = False, plot_et_network = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False):
+    def simulate(self, time_vec, pause_step=0.1, saveName = None, show_env = False, plot_groundStation_results = False, plot_estimation_results = False, plot_communication_results = False, plot_et_network = False, plot_uncertainty_ellipses = False, save_estimation_data = False, save_communication_data = False):
         """
         Simulate the environment over a time range.
         
@@ -139,6 +139,9 @@ class environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
+            # Have the network send information to the ground station
+            self.send_to_ground_god_mode()
+
             # Update the plot environment
             if show_env:
                 self.plot()
@@ -152,6 +155,10 @@ class environment:
                 plt.draw()
 
         print("Simulation Complete")
+
+        # Plot the ground station results:
+        if plot_groundStation_results:
+            self.plot_gs_results(time_vec, saveName=saveName)
 
         # Plot the filter results
         if plot_estimation_results:
@@ -196,6 +203,8 @@ class environment:
             targ.time = time_val
         for sat in self.sats:
             sat.time = time_val
+        for gs in self.groundStations:
+            gs.time = time_val
 
         # Propagate the targets' positions
         for targ in self.targs:
@@ -653,6 +662,76 @@ class environment:
                 self.centralEstimator.central_EKF_pred(targetID, self.time.to_value())
                 self.centralEstimator.central_EKF_update(satsWithMeasurements, newMeasurements, targetID, self.time.to_value())
 
+
+    def send_to_ground_god_mode(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        GOD MODE:
+            Every satellite that took a measurement on a target, send the measurement to the ground station.
+            Regardless of if the sat can communicate with the ground station.
+        """
+
+        # TODO: this function is kinda hard because the EKF estimator needs the true position of the targets to initalize. 
+        # But most other things just use targetID, thus, have to get target in the data queue even though only need targetID for everything besides the initalization.
+
+        # For each satellite, check, did it get a new measurement?
+        # Compare the environment time with most recent measurement history time
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a measurement for that targetID at the given time
+                for sat in self.sats:
+                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+                        
+                        # Get the measurement
+                        meas = sat.measurementHist[targ.targetID][self.time.to_value()]
+
+                        # Make a dictionary containing [type][time][target][sat] = measurement
+                        data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+
+                        # Now, add that data to the queued data onboard the ground station
+                        gs.queue_data(data_dict)
+
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+        
+
+    def send_to_ground_centralized(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        CENTRALIZED:
+            For every satellite that can communicate with the ground station and took a measurement on a target,
+            send the measurement for that target to the ground station.
+        """
+
+    def send_to_ground_best_sat(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+    def send_to_ground_avaliable_sats(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        DDF, ALL SATS:
+            All satellites in the network that can communicate with ground station send a CI fusion estimate to the ground station.
+        """
+    
+
+
+
                      
 ### 3D Dynamic Environment Plot ###
     def plot(self):
@@ -751,10 +830,6 @@ class environment:
             x, y, z = gs.loc
             self.ax.scatter(x, y, z, s=40, marker = 's', color=gs.color, label=gs.name)
 
-            # # loop through all the satellites and print if can communicate with GS
-            # for sat in self.sats:
-            #     gs.canCommunicate(sat)
-
 
     def plotLegend_Time(self):
         """
@@ -793,6 +868,95 @@ class environment:
 
 
 ### Estimation Errors and Track Uncertainty Plots ###
+    def plot_gs_results(self, time_vec, saveName):
+        """
+        Makes one plot for each ground station target pairing.
+
+        The plot is a subplot where the top 3 plots are the x, y, z position errors and covariances for the estimator
+        The bottom 2 plots contain the track uncertainty and then the comm sent/recieved plot for the ground station.
+        """
+
+        plt.close('all')
+        state_labels = ['X [km]', 'Y [km]', 'Z [km]']
+
+        for gs in self.groundStations:
+            for targ in self.targs:
+                if targ.targetID in gs.estimator.targs:
+
+                    # Create a 2x3 grid of subplots, where the second row will have 2 plots
+                    fig = plt.figure(figsize=(15, 8))
+                    fig.suptitle(f"{gs.name}, {targ.name}", fontsize=14)
+                    grid = gridspec.GridSpec(2, 6)
+
+                    # Make the subplots:
+                    axX = fig.add_subplot(grid[0, 0:2])
+                    axX.set_xlabel('Time [min]')
+                    axX.set_ylabel('X Position Error [km]')
+                    axY= fig.add_subplot(grid[0, 2:4])
+                    axY.set_xlabel('Time [min]')
+                    axY.set_ylabel('Y Position Error [km]')
+                    axZ = fig.add_subplot(grid[0, 4:6])
+                    axZ.set_xlabel('Time [min]')
+                    axZ.set_ylabel('Z Position Error [km]')
+                    axTU = fig.add_subplot(grid[1, 0:3])
+                    axTU.set_xlabel('Time [min]')
+                    axTU.set_ylabel('Track Uncertainty [km]')
+                    axComm = fig.add_subplot(grid[1, 3:6])
+                    axComm.set_xlabel('Time [min]')
+                    axComm.set_ylabel('Comm Sent/Recieved')
+                    
+                    # Now actually plot the data
+                    targetID = targ.targetID
+                    trueHist = targ.hist
+
+                    # Plot the x, y, z position errors and covariances
+                    times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = gs.estimator)
+                    # Plot the errors
+                    self.plot_errors([axX], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+                    self.plot_errors([axY], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+                    self.plot_errors([axZ], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+
+                    # Now plot the track uncertainty
+                    axTU.plot(trackErrorHist.keys(), trackErrorHist.values(), label='Track Uncertainty', color=gs.color, linewidth=2.5)
+                    axTU.set_ylim(bottom=0)
+
+                    # Now, we want to plot the communication sent/recieved
+                    # The goal of this is a bar plot vs time.
+                    # Where there is a bar for each satellite in the network at everytime step,
+                    # But, the bars are only filled of the satellite communicated with the ground station at that time:
+                    # Thus, the bar plot will show the communication structure of the network
+                    for targetID in gs.commData:
+                        if targetID != targ.targetID:
+                            continue
+                        # Loop through the time
+                        for time in gs.commData[targetID]:
+                            # Create a stack for the time
+                            prevData = 0
+                            for sat in self.sats:
+                                # If the satellite communicated with the ground station at that time
+                                if sat.name in gs.commData[targetID][time]:
+                                    axComm.bar(time, 1, bottom = prevData, color=sat.color, edgecolor = 'k', width = self.delta_t)
+                                    prevData += 1
+                                # If the satellite didint communcate with the ground station at that time
+                                else:
+                                    # TODO: ALSO ADD A CASE HERE WHERE IF SATELLITE COULD COMM WITH GROUND STATION BUT DIDNT!
+                                    axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                    prevData += 1
+                        
+
+                    # Adjust layout for better spacing
+                    plt.tight_layout()
+
+                    filePath = os.path.dirname(os.path.realpath(__file__))
+                    plotPath = os.path.join(filePath, 'plots')
+                    os.makedirs(plotPath, exist_ok=True)
+                    plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{gs.name}.png"), dpi=300)
+
+                    plt.close()
+
+
+
+
     def plot_estimator_results(self, time_vec, saveName):
         """
         Makes one plot for each satellite target pairing that shows a comparison between the different estimation algorithms
@@ -1196,7 +1360,8 @@ class environment:
             label_color (str): Color for the plot.
             linewidth (float): Width of the plot lines.
         """
-        for i in range(6):  # For all six states [x, vx, y, vy, z, vz]
+        i = 0
+        for axis in ax:
             if times:  # If there is an estimate on target
                 segments = self.segment_data(times, max_gap = self.delta_t*2)
                 for segment in segments:
@@ -1204,9 +1369,10 @@ class environment:
                     upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
                     lower_bound = [-2 * np.sqrt(covHist[time][i][i]) for time in segment]
                                         
-                    ax[i].plot(segment, est_errors, color=label_color, linewidth=linewidth)
-                    ax[i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
-                    ax[i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+                    axis.plot(segment, est_errors, color=label_color, linewidth=linewidth)
+                    axis.plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+                    axis.plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+                    i += 1
 
 
     def plot_innovations(self, ax, times, innovationHist, innovationCovHist, label_color, linewidth):
@@ -1988,21 +2154,6 @@ class environment:
                     # Now plot a dashed line for the targetPriority
                     ax1.hlines(y=self.commandersIntent[time][sat][targ.targetID], xmin=xMin, xmax=xMax, color=targ.color, linestyle='dashed', linewidth=1.5)
 
-                    # Now plot a dashed line for the targetPriority
-                    # ax1.axhline(y=self.commandersIntent[time][sat][targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
-                    # Add a text label on the above right side of the dashed line
-                    # ax1.text(xMin, self.commandersIntent[time][sat][targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
-
-            # # Now for each target make the dashed lines for the target quality
-            # for targ in self.targs:
-            #     if targ.targetID not in sat.targetIDs:
-            #         continue
-
-            #     # Now plot a dashed line for the targetPriority
-            #     ax1.axhline(y=sat.targPriority[targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
-            #     # Add a text label on the above right side of the dashed line
-            #     # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
-
 
             # Now do the 2nd subplot, bar plot showing the data sent/recieved by each satellite about each target
 
@@ -2070,8 +2221,6 @@ class environment:
                 os.makedirs(plotPath, exist_ok=True)
                 plt.savefig(os.path.join(plotPath, f"{saveName}_{sat.name}_track_uncertainty.png"), dpi=300)
 
-            # plt.close(fig)
-        
 
     # TODO: IDK WHAT THIS DOES - NOLAN. IT IS ONLINE PLOTITNG FOR THE GRAPH?
     def plot_dynamic_comms(self):

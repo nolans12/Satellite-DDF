@@ -19,7 +19,13 @@ class groundStation:
         self.loc = np.array([6371 * np.cos(lat) * np.cos(long), 6371 * np.cos(lat) * np.sin(long), 6371 * np.sin(lat)])
 
         # Estimator object to use
-        self.estimator = None
+        self.estimator = estimator
+
+        # Track communication sent/recieved
+            # Dictionary containing [type][time][target][sat] = measurement, for mailbox system
+        self.queued_data = NestedDict()
+            # Make a dictionary containing [targetID][time][satName] = measurement, for post processing
+        self.commData = NestedDict()
 
         # Communication range of a satellite to the ground station
         self.fov = fov
@@ -31,10 +37,92 @@ class groundStation:
         self.time = 0
        
 
-    # TODO: REDEFINE THIS TO BE BASED ON THE CONE OF GROUND STATION COMMS
-    def canCommunicate(self, sat):
-        """Check if the ground station can communicate with a satellite.
+    def queue_data(self, data):
+        """
+        This function adds the data to the queued data struct to be used later in processing.
+        Thus mailbox system.
 
+        Data is the order of [type][time][targetID][sat] = measurement
+        """
+
+        # Add the data to the queued data struct
+        for type in data.keys():
+            for time in data[type].keys():
+                for targ in data[type][time].keys():
+                    for sat in data[type][time][targ].keys():
+                        self.queued_data[type][time][targ][sat] = data[type][time][targ][sat]
+            
+
+    def process_queued_data(self, time):
+        """
+        This function is used to process the data that has been queued to be sent to the ground station.
+        It will use the estimator object to process the data.
+
+        Queued data is of the form: [type][time][targetID][sat] = measurement
+        """
+
+        # First, figure out what data is available
+        meas_data = self.queued_data['meas']
+        est_data = self.queued_data['est']
+
+        if meas_data:
+        # DO STANDARD EKF HERE WITH QUEUE MEASUREMENTS
+            # Get the time for the data
+            for time in meas_data.keys():
+                # Get the target we are talking ahout
+                for targ in meas_data[time].keys():
+                    # Create blank list for all measurements and sats at that time on that target
+                    measurements = []
+                    sats = []
+                    for sat in meas_data[time][targ].keys():
+
+                        # Get the measurement
+                        meas = meas_data[time][targ][sat]
+
+                        # Store the measurement and satellite
+                        measurements.append(meas)
+                        sats.append(sat)
+
+                        # Store the queued data into the commData, for post processing
+                        self.commData[targ.targetID][time][sat.name] = meas
+
+                    # Now, with the lists of measurements and sats, send to the estimator
+                    if len(self.estimator.estHist[targ.targetID]) < 1:
+                        self.estimator.gs_EKF_initialize(targ, time)
+                        return
+
+                    # Else, update the estimator
+                    self.estimator.gs_EKF_pred(targ.targetID, time)
+                    self.estimator.gs_EKF_update(sats, measurements, targ.targetID, time)
+
+        if est_data:
+        # DO COVARIANCE INTERSECTION HERE!!!
+            # Get the time for the data
+            for time in est_data.keys():
+                # Get the target we are talking ahout
+                for targ in est_data[time].keys():
+                    for sat in est_data[time][targ].keys():
+                        
+                        # Get the est and cov
+                        est = est_data[time][targ][sat]['est']
+                        cov = est_data[time][targ][sat]['cov']
+
+                        # Now do CI with the data
+                        self.estimator.CI_gs(targ.targetID, est, cov, time)
+
+                        # Store the queued data into the commData, for post processing
+                        self.commData[targ.targetID][time][sat.name] = {'est': est, 'cov': cov}
+                        
+
+        # Clear the queued data
+        self.queued_data = NestedDict()
+
+
+    def canCommunicate(self, sat):
+        """
+        Check if the ground station can communicate with a satellite.
+        Based on FOV of the ground station and the communication range.
+           
         Args:
             sat (object): Satellite object to check communication with.
 

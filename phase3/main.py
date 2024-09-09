@@ -6,7 +6,7 @@ from environmentClass import environment
 from satelliteClass import satellite
 from sensorClass import sensor
 from targetClass import target
-from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator
+from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator, gsEstimator
 from commClass import comms
 from groundStationClass import groundStation
 
@@ -62,20 +62,19 @@ def create_environment():
     
 
     # Define the ground stations
-    gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = ciEstimator(commandersIntent[0][sat1a]), name = 'GS1', color = 'black')
-    gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = ciEstimator(commandersIntent[0][sat1a]), name = 'GS2', color = 'gray')
+    gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS1', color = 'black')
+    gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS2', color = 'gray')
 
     groundStations = [gs1, gs2]
-    # groundStations = [gs1]
-
-    # Define the estimators used:
-    central = True
-    local = True
-    ci = True 
-    et = False
 
     # Define the communication network: 
     comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+
+    # Define the estimators used:
+    central = False
+    local = True
+    ci = True 
+    et = False
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, groundStations, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
@@ -85,16 +84,16 @@ def create_environment():
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*6 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "test"
+    fileName = "godMode"
 
     # Create the environment
     env = create_environment()
 
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, saveName = fileName, show_env = True, plot_estimation_results = False, plot_communication_results = False)
+    env.simulate(time_vec, saveName = fileName, show_env = False, plot_groundStation_results = True)
 
     # Save gifs:
     env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
