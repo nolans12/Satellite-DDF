@@ -80,7 +80,7 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 10*6 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "testing"
+    fileName = "test"
 
     # Create the environment
     env = create_environment()

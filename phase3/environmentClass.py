@@ -179,6 +179,7 @@ class environment:
 
         return
 
+
     def propagate(self, time_step):
         """
         Propagate the satellites and targets over the given time step.
@@ -221,8 +222,8 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimatorBool:
-            # self.send_estimates_optimize()
-            self.send_estimates()
+            self.send_estimates_optimize()
+            # self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimatorBool:
@@ -237,6 +238,7 @@ class environment:
                 etEKF = sat.etEstimators[0]
                 etEKF.event_trigger_processing(sat, self.time.to_value(), self.comms)
 
+        # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
         for sat in self.sats:
             if self.etEstimatorBool:
                 etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
@@ -504,9 +506,6 @@ class environment:
             # Get the most recent 
             self.comms.send_estimate_path(path, est, cov, targetID, sourceTime)
 
-
-        test = 1 
-        
 
     def send_estimates(self):
         """
@@ -778,7 +777,6 @@ class environment:
 
 
 ### Estimation Errors and Track Uncertainty Plots ###
-
     def plot_estimator_results(self, time_vec, saveName):
         """
         Makes one plot for each satellite target pairing that shows a comparison between the different estimation algorithms
@@ -798,8 +796,9 @@ class environment:
                 if targ.targetID in sat.targetIDs:
                     # Set up colors
                     satColor = sat.color
-                    ciColor = '#DC143C'
                     centralColor = '#070400'
+                    ciColor = '#DC143C'
+                    etColor = 'slategray'
 
                     targetID = targ.targetID
                     trueHist = targ.hist
@@ -826,7 +825,7 @@ class environment:
                         trackError_times = [time for time in time_vec.value if time in trackErrorHist]
 
                         self.plot_errors(axes, times, estHist, trueHist, covHist, label_color=satColor, linewidth=2.5)
-                        # self.plot_innovations(axes, innovation_times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
+                        self.plot_innovations(axes, innovation_times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
                         self.plot_track_uncertainty(axes, trackError_times, trackErrorHist, targ.tqReq, label_color=satColor, linewidth=2.5)
                         handles.append(Patch(color=satColor, label=f'{sat.name} Indept. Estimator'))
 
@@ -835,7 +834,6 @@ class environment:
                         central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = centralEKF)
 
                         central_times = [time for time in time_vec.value if time in central_estHist]
-                        central_innovation_times = [time for time in time_vec.value if time in central_innovationHist]
                         central_trackError_times = [time for time in time_vec.value if time in central_trackErrorHist]
                         
                         self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
@@ -851,7 +849,7 @@ class environment:
                         ci_trackError_times = [time for time in time_vec.value if time in ci_trackErrorHist]
 
                         self.plot_errors(axes, ci_times, ci_estHist, trueHist, ci_covHist, label_color=ciColor, linewidth=2.5)
-                        # self.plot_innovations(axes, ci_innovation_times, ci_innovationHist, ci_innovationCovHist, label_color=ciColor, linewidth=2.5)
+                        self.plot_innovations(axes, ci_innovation_times, ci_innovationHist, ci_innovationCovHist, label_color=ciColor, linewidth=2.5)
                         self.plot_track_uncertainty(axes, ci_trackError_times, ci_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=2.5)
                         handles.append(Patch(color=ciColor, label=f'CI Estimator'))
 
@@ -860,20 +858,17 @@ class environment:
                         et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = etEKF)
 
                         et_times = [time for time in time_vec.value if time in et_estHist]
-                        et_innovation_times = [time for time in time_vec.value if time in et_innovationHist]
+                        # et_innovation_times = [time for time in time_vec.value if time in et_innovationHist]
                         et_trackError_times = [time for time in time_vec.value if time in et_trackErrorHist]
 
-                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=ciColor, linewidth=2.5)
+                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=etColor, linewidth=2.5)
                         # self.plot_innovations(axes, et_innovation_times, et_innovationHist, et_innovationCovHist, label_color=ciColor, linewidth=2.5)
-                        self.plot_track_uncertainty(axes, et_trackError_times, et_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=2.5)
-                        handles.append(Patch(color=ciColor, label=f'ET Estimator'))
+                        self.plot_track_uncertainty(axes, et_trackError_times, et_trackErrorHist, targ.tqReq, label_color=etColor, linewidth=2.5)
+                        handles.append(Patch(color=etColor, label=f'ET Estimator'))
 
                     # Add the legend
                     fig.legend(handles=handles, loc='lower right')
                     plt.tight_layout()
-
-                    # Save the figure
-                    plt.savefig(f'{saveName}_{targ.name}_{sat.name}.png')
 
                     # Save the Plot with respective suffix
                     self.save_plot(fig, saveName, targ, sat)
@@ -882,8 +877,8 @@ class environment:
                     plt.close(fig)
         
 
-    # TODO: CAN WE JUST CHANGE THIS SO THAT JUST PLOTS EVERYTHING ON ONE PLOT?
-    def plot_estimator_results_old(self, time_vec, saveName):
+    # TODO: THIS IS ORIGINAL VERSION USING DIFFERENT PLOTS DEPENDING ON ESTIMATOR COMBO
+    def plot_estimator_results_2(self, time_vec, saveName):
         """
         Create three types of plots: Local vs Central, CI vs Central, and Local vs CI vs Central.
 
@@ -1104,6 +1099,9 @@ class environment:
                                         
 
     def getEstimationHistory(self, targetID, time_vec, filter = None):
+        """
+        Get the estimation history for a given target and estimator.
+        """
         times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = {}, {}, {}, {}, {}, {}
         
         times = [time for time in time_vec.value if time in filter.estHist[targetID]]
@@ -1195,7 +1193,6 @@ class environment:
                     ax[i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
 
-    # TODO: BROKEN
     def plot_innovations(self, ax, times, innovationHist, innovationCovHist, label_color, linewidth):
         """
         Plot the innovation in bearings angles.
@@ -1214,11 +1211,18 @@ class environment:
             for i in range(2):  # For each measurement [in track, cross track]
                 for segment in segments:
 
-                    segment = [x for x in segment if x is not None]
-
                     innovation = [innovationHist[time][i] for time in segment]
                     upper_bound = [2 * np.sqrt(innovationCovHist[time][i][i]) for time in segment]
                     lower_bound = [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in segment]
+
+                    # Check, if the innovation is 0, prune it
+                    for idx, value in enumerate(innovation):
+                        if value == 0:
+                            # Pop the value from the innovation
+                            segment.pop(idx)
+                            innovation.pop(idx)
+                            upper_bound.pop(idx)
+                            lower_bound.pop(idx)
 
                     ax[6 + i].plot(segment, innovation, color=label_color, linewidth=linewidth)
                     ax[6 + i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
@@ -1658,6 +1662,7 @@ class environment:
             os.makedirs(plotPath, exist_ok=True)
             plt.savefig(os.path.join(plotPath, f"{saveName}_total_et_comms.png"), dpi=300)
 
+
     # Plots the actual data amount used by the satellites
     def plot_used_comms(self, saveName):
         """
@@ -1880,7 +1885,8 @@ class environment:
                 plotPath = os.path.join(filePath, 'plots')
                 os.makedirs(plotPath, exist_ok=True)
                 plt.savefig(os.path.join(plotPath, f"{saveName}_used_et_comms.png"), dpi=300)
-            
+
+
     # Sub plots for each satellite showing the track uncertainty for each target and then the comms sent/recieved about each target vs time
     def plot_timeHist_comms_ci(self, saveName):
         """PLOTS A TIME HISTORY OF THE CI COMMS RECIEVED FOR EACH SATELLITE ON EVERY TARGET"""
@@ -2131,6 +2137,7 @@ class environment:
         diComms.clear()
         plt.close(fig)
 
+
     def get_edge_style(self, comms, targetID, sat1, sat2, envTime, CI = False):
         """
         Helper function to determine the edge style based on communication data.
@@ -2149,6 +2156,7 @@ class environment:
         else:
             return (0, (5, 10))    
     
+   
     def save_comm_plot_to_image(self, fig):
         """
         Saves the plot to an image.
@@ -2373,6 +2381,7 @@ class environment:
                                     
                                 plt.close(fig)                            
 
+
     def plot_ellipsoid(self, ax, est_pos, cov_matrix, color, alpha):
         """
         Plots a 3D ellipsoid representing the uncertainty of the estimated position.
@@ -2401,6 +2410,7 @@ class environment:
         z_transformed = transformed_points[:, 2].reshape(z.shape)
         ax.plot_surface(x_transformed, y_transformed, z_transformed, color=color, alpha=alpha)
 
+
     def plot_estimate(self, ax, est_pos, true_pos, satColor):
         """
         Plots the estimated and true positions on the given axes.
@@ -2417,6 +2427,7 @@ class environment:
         ax.scatter(est_pos[0], est_pos[1], est_pos[2], color=satColor, marker='o')
         ax.scatter(true_pos[0], true_pos[1], true_pos[2], color='g', marker='o')
 
+   
     def plot_LOS(self, ax, est_pos, LOS_vec):
         """
         Plots the line of sight vector on the given axes.
@@ -2442,6 +2453,7 @@ class environment:
                 color='k', length=arrow_length, normalize=True)
         #ax.quiver(est_pos[0], est_pos[1], est_pos[2], LOS_vec[0], LOS_vec[1], LOS_vec[2], color='k', length=10, normalize=True)
 
+   
     def plot_labels(self, ax, time):
         """
         Plots labels on the given axes.
@@ -2462,6 +2474,7 @@ class environment:
         ax.set_zlabel('Z')
         ax.view_init(elev=10, azim=30)
 
+   
     def make_legened1(self, ax, sat1, sat1color, sat2, sat2color, ciColor, error1, error2, ci_error, ci_type=None):
         if ci_type == 'CI':
             labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'CI Error: {ci_error:.2f} km']
@@ -2473,6 +2486,7 @@ class environment:
             handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ciColor, label=labels[2])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
+ 
     def make_legened2(self, ax, ciColor, centralColor, error1, error2, ci_type=None):
         if ci_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
@@ -2484,6 +2498,7 @@ class environment:
             handles = [Patch(color=ciColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
      
+  
     def set_axis_limits(self, ax, est_pos, radii, margin=50.0):
         """
         Sets the limits of the axes.
@@ -2504,6 +2519,7 @@ class environment:
         ax.set_zlim(min_vals[2], max_vals[2])
         ax.set_box_aspect([1, 1, 1])
 
+
     def save_GEplot_to_image(self, fig):
         """
         Saves the plot to an image.
@@ -2521,6 +2537,7 @@ class environment:
         img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
         return img
       
+   
     def render_gif(self, fileType, saveName, filePath=os.path.dirname(os.path.realpath(__file__)), fps=1):
         """
         Renders and saves GIFs based on the specified file type.
@@ -2620,6 +2637,7 @@ class environment:
                         ci_estHist, ci_covHist, ci_trackError, ci_innovation_times,
                         ci_innovationHist, ci_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError
                     )
+
 
     def format_data(
         self, filename, targetID, times, sat_hist, trueHist, sat_measHistTimes,
@@ -2721,6 +2739,7 @@ class environment:
 
                 writer.writerow(row)
                 
+   
     def log_comms_data(self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))):
         for sat in self.sats:
             for targ in self.targs:
@@ -2729,6 +2748,7 @@ class environment:
                     filename = f"{filePath}/data/{saveName}_{targ.name}_{sat.name}_comm.csv"
                     self.format_comms_data(filename, time_vec.value, sat, commNode, targ.targetID)
                     
+  
     def format_comms_data(self, filename, time_vec, sat, commNode, targetID):
         precision = 3
         def format_list(lst):
@@ -2768,6 +2788,7 @@ class environment:
                 else:
                     row += ['', '', '']
                 writer.writerow(row)
+
 
 ### NEES/NIS Data Collection; NOT WORKING RN ###
     def collectNISNEESData(self):

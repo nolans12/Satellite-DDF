@@ -96,8 +96,8 @@ class satellite:
                 if self.ciEstimator:
                     self.update_ci_estimator(measurement, target, self.time)
                         
-                if self.etEstimators:
-                    self.update_et_estimator(measurement, target, self.time)
+            if self.etEstimators:
+                self.update_et_estimator(measurement, target, self.time)
                     
             return collectedFlag
 
