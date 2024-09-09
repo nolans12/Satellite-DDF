@@ -9,7 +9,7 @@ from sensorClass import sensor
 from commClass import comms
 
 class environment:
-    def __init__(self, sats, targs, comms, commandersIntent, localEstimatorBool = None, centralEstimatorBool=None, ciEstimatorBool=None, etEstimatorBool=None):
+    def __init__(self, sats, targs, comms, commandersIntent, localEstimatorBool, centralEstimatorBool, ciEstimatorBool, etEstimatorBool):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
         """
@@ -24,20 +24,20 @@ class environment:
             sat.measurementHist = {targetID: defaultdict(dict) for targetID in targPriorityInitial.keys()} # dictionary of [targetID: {time: measurement}] pairs
 
             # Create estimation algorithms for each satellite
+            self.localEstimatorBool = localEstimatorBool
             if localEstimatorBool:
-                self.localEstimatorBool = localEstimatorBool
                 sat.indeptEstimator = indeptEstimator(commandersIntent[0][sat]) # initialize the independent estimator for these targets
                 
+            self.centralEstimatorBool = centralEstimatorBool
             if centralEstimatorBool:
-                self.centralEstimatorBool = centralEstimatorBool
                 self.centralEstimator = centralEstimator(commandersIntent[0][sat]) # initialize the central estimator for these targets
             
+            self.ciEstimatorBool = ciEstimatorBool
             if ciEstimatorBool:
-                self.ciEstimatorBool = ciEstimatorBool
                 sat.ciEstimator = ciEstimator(commandersIntent[0][sat])
             
+            self.etEstimatorBool = etEstimatorBool
             if etEstimatorBool:
-                self.etEstimatorBool = etEstimatorBool
                 sat.etEstimators = [etEstimator(commandersIntent[0][sat], shareWith=None)]
 
         ## Populate the environment variables   
@@ -60,20 +60,20 @@ class environment:
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
         
-        # # If you want to do clustered case:
-        # self.ax.set_xlim([2000, 8000])
-        # self.ax.set_ylim([-6000, 6000])
-        # self.ax.set_zlim([2000, 8000])
-        # self.ax.view_init(elev=30, azim=0)
-
-        # If you want to do MonoTrack case:
-        self.ax.set_xlim([-15000, 15000])
-        self.ax.set_ylim([-15000, 15000])
-        self.ax.set_zlim([-15000, 15000])
+        # If you want to do clustered case:
+        self.ax.set_xlim([2000, 8000])
+        self.ax.set_ylim([-6000, 6000])
+        self.ax.set_zlim([2000, 8000])
         self.ax.view_init(elev=30, azim=0)
+
+        # # If you want to do MonoTrack case:
+        # self.ax.set_xlim([-15000, 15000])
+        # self.ax.set_ylim([-15000, 15000])
+        # self.ax.set_zlim([-15000, 15000])
+        # self.ax.view_init(elev=30, azim=0)
         
         # auto scale the axis to be equal
-        #self.ax.set_box_aspect([0.5, 1, 0.5])
+        self.ax.set_box_aspect([0.5, 1, 0.5])
         
         # Label the axes and set title
         self.ax.set_xlabel('X (km)')
@@ -98,7 +98,7 @@ class environment:
         self.tempCount = 0
 
 
-    def simulate(self, time_vec, pause_step=0.1, saveName = None, plot_env = False, show_env = False, plot_env_comms = False, show_env_comms = False, plot_estimation_results = False, plot_communication_results = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False):
+    def simulate(self, time_vec, pause_step=0.0001, saveName = None, show_env = False, plot_estimation_results = False, plot_communication_results = False, plot_et_network = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False):
         """
         Simulate the environment over a time range.
         
@@ -106,12 +106,10 @@ class environment:
         - time_vec (array): Array of time steps to simulate over.
         - pause_step (float): Time to pause between each step in the simulation.
         - saveName (str): Name to save the simulation data to.
-        - plot_env (bool): Flag to plot the environment.
-        - show_env (bool): Flag to show the environment plot.
-        - plot_env_comms (bool): Flag to plot the dynamic communication network.
-        - show_env_comms (bool): Flag to show the dynamic communication network plot.
+        - show_env (bool): Flag to show the environment plot at each step.
         - plot_estimation_results (bool): Flag to plot the estimation results.
         - plot_communication_results (bool): Flag to plot the communication results.
+        - plot_et_network (bool): Flag to plot the dynamic communication network in ET.
         - plot_uncertainty_ellipses (bool): Flag to plot the uncertainty ellipses.
         - save_estimation_data (bool): Flag to save the estimation data.
         - save_communication_data (bool): Flag to save the communication data.
@@ -119,7 +117,9 @@ class environment:
         Returns:
         - Data collected during simulation.
         """
+
         print("Simulation Started")
+        
         # Initialize based on the current time
         time_vec = time_vec + self.time
         for t_net in time_vec:
@@ -138,33 +138,37 @@ class environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
-            if plot_env:
+            if show_env:
                 # Update the plot environment
                 self.plot()
-                if show_env:
-                    # Display the plot
-                    plt.pause(pause_step)
-                    plt.draw()
+                # Display the plot
+                plt.pause(pause_step)
+                plt.draw()
                 
-            if plot_env_comms:
+            if plot_et_network:
                 # Update the dynamic comms plot
                 self.plot_dynamic_comms()
-                
-                if show_env_comms:
-                    # Display the plot
-                    plt.pause(pause_step)
-                    plt.draw()
+            
+                # Display the plot
+                plt.pause(pause_step)
+                plt.draw()
 
         print("Simulation Complete")
+
         if plot_estimation_results:
             # Plot the results of the simulation.
             self.plot_estimator_results(time_vec, saveName=saveName) # marginal error, innovation, and NIS/NEES plots
 
         if plot_communication_results:
-            # Plot the comm results
+            # Plot the commm results
+
+            # Make plots for total data sent and used throughout time
             self.plot_global_comms(saveName=saveName)
             self.plot_used_comms(saveName=saveName)
-            self.plot_local_comms(saveName=saveName)
+
+            # For the CI estimators, plot time hist of comms
+            if self.ciEstimatorBool:
+                self.plot_timeHist_comms_ci(saveName=saveName)
            
         if plot_uncertainty_ellipses:
             # Save the uncertainty ellipse plots
@@ -177,8 +181,7 @@ class environment:
         if save_communication_data:
             self.log_comms_data(time_vec, saveName=saveName)
 
-        return self.collectNISNEESData()  # Return the data collected during the simulation
-    
+        return
 
     def propagate(self, time_step):
         """
@@ -222,8 +225,8 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimatorBool:
-            # self.send_estimates_optimize()
-            self.send_estimates()
+            self.send_estimates_optimize()
+            # self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimatorBool:
@@ -628,9 +631,7 @@ class environment:
                                 satTime
                             )
     
-                                                
-                                                            
-                            
+                                                                   
     def central_fusion(self, collectedFlag, measurements):
         """
         Perform central fusion using collected measurements.
@@ -781,9 +782,94 @@ class environment:
 
 
 ### Estimation Errors and Track Uncertainty Plots ###
+
     def plot_estimator_results(self, time_vec, saveName):
         """
-        Create three types of plots: Local vs Central, DDF vs Central, and Local vs DDF vs Central.
+        Makes one plot for each satellite target pairing that shows a comparison between the different estimation algorithms
+
+        Will show local, central, ci, and et estimators for each target, depending on what is available
+
+        Make a subplot showing the state errors, the innovation errors, and the track uncertainty for each estimator
+        """
+
+        plt.close('all')
+        state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
+        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainity [km]']
+
+        # For Each Target
+        for targ in self.targs:
+            for sat in self.sats:
+                if targ.targetID in sat.targetIDs:
+                    # Set up colors
+                    satColor = sat.color
+                    ciColor = '#DC143C'
+                    centralColor = '#070400'
+
+                    targetID = targ.targetID
+                    trueHist = targ.hist
+                    if self.localEstimatorBool:
+                        localEKF = sat.indeptEstimator
+                    if self.centralEstimatorBool:
+                        centralEKF = self.centralEstimator
+                    if self.ciEstimatorBool:
+                        ciEKF = sat.ciEstimator
+                    if self.etEstimatorBool:
+                        etEKF = sat.etEstimators[0]
+
+                    fig = plt.figure(figsize=(15, 8))
+                    fig.suptitle(f"{targ.name}, {sat.name}", fontsize=14)
+                    axes = self.setup_axes(fig, state_labels, meas_labels)
+                    handles = []
+
+                    # Check, do we have local estimates?
+                    if self.localEstimatorBool:
+                        times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = localEKF)
+                        self.plot_errors(axes, times, estHist, trueHist, covHist, label_color=satColor, linewidth=2.5)
+                        # self.plot_innovations(axes, times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
+                        self.plot_track_quality(axes, times, trackErrorHist, targ.tqReq, label_color=satColor, linewidth=2.5)
+                        handles.append(Patch(color=satColor, label=f'{sat.name} Indept. Estimator'))
+
+                    # Check, do we have central estimates?
+                    if self.centralEstimatorBool:
+                        central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = centralEKF)
+                        self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
+                        self.plot_track_quality(axes, central_times, central_trackErrorHist, targ.tqReq, label_color=centralColor, linewidth=1.5)
+                        handles.append(Patch(color=centralColor, label=f'Central Estimator'))
+
+                    # Check, do we have CI estimates?
+                    if self.ciEstimatorBool:
+                        ci_times, ci_estHist, ci_covHist, ci_innovationHist, ci_innovationCovHist, ci_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = ciEKF)
+                        self.plot_errors(axes, ci_times, ci_estHist, trueHist, ci_covHist, label_color=ciColor, linewidth=2.5)
+                        # self.plot_innovations(axes, ci_times, ci_innovationHist, ci_innovationCovHist, label_color=ciColor, linewidth=2.5)
+                        self.plot_track_quality(axes, ci_times, ci_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=2.5)
+                        handles.append(Patch(color=ciColor, label=f'CI Estimator'))
+
+                    # Check, do we have ET estimates?
+                    if self.etEstimatorBool:
+                        et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = etEKF)
+                        self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=ciColor, linewidth=2.5)
+                        # self.plot_innovations(axes, et_times, et_innovationHist, et_innovationCovHist, label_color=ciColor, linewidth=2.5)
+                        self.plot_track_quality(axes, et_times, et_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=2.5)
+                        handles.append(Patch(color=ciColor, label=f'ET Estimator'))
+
+                    # Add the legend
+                    fig.legend(handles=handles, loc='lower right')
+                    plt.tight_layout()
+
+                    # Save the figure
+                    plt.savefig(f'{saveName}_{targ.name}_{sat.name}.png')
+
+                    # Save the Plot with respective suffix
+                    self.save_plot(fig, saveName, targ, sat)
+
+                    # Close the figure
+                    plt.close(fig)
+        
+
+    # TODO: CAN WE JUST CHANGE THIS SO THAT JUST PLOTS EVERYTHING ON ONE PLOT?
+    def plot_estimator_results_old(self, time_vec, saveName):
+        """
+        Create three types of plots: Local vs Central, CI vs Central, and Local vs CI vs Central.
 
         Args:
             time_vec (list): List of time values.
@@ -793,7 +879,7 @@ class environment:
         plt.close('all')
         state_labels = ['X [km]', 'Vx [km/min]', 'Y [km]', 'Vy [km/min]', 'Z [km]', 'Vz [km/min]']
         meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainity [km]']        
-        suffix_vec = ['local', 'ci', 'et', 'et_vs_ddf', 'et_pairwise']
+        suffix_vec = ['local', 'ci', 'et', 'et_vs_ci', 'et_pairwise']
         title_vec = ['Local vs Central', 'CI vs Central', 'ET vs Central', 'ET vs CI']
         title_vec = [title + " Estimator Results" for title in title_vec]
         
@@ -803,15 +889,19 @@ class environment:
                 if targ.targetID in sat.targetIDs:                                        
                     # Set up colors
                     satColor = sat.color
-                    ddfColor = '#DC143C' # Crimson
+                    ciColor = '#DC143C' # Crimson
                     centralColor = '#070400'  #'#228B22' # Forest Green
                     
-                    trueHist = targ.hist
-                    localEKF = sat.indeptEstimator
-                    centralEKF = self.centralEstimator
-                    ciEKF = sat.ciEstimator
-                    etEKF = sat.etEstimators[0]
                     targetID = targ.targetID
+                    trueHist = targ.hist
+                    if self.localEstimatorBool:
+                        localEKF = sat.indeptEstimator
+                    if self.centralEstimatorBool:
+                        centralEKF = self.centralEstimator
+                    if self.ciEstimatorBool:
+                        ciEKF = sat.ciEstimator
+                    if self.etEstimatorBool:
+                        etEKF = sat.etEstimators[0]
                     
                     for plotNum in range(4):
                         
@@ -820,7 +910,12 @@ class environment:
                         axes = self.setup_axes(fig, state_labels, meas_labels)
                         
                         if plotNum == 0:
-                            # First Plot: Local vs Central
+                            """" First Plot: Local vs Central """
+
+                            # First, check if the central estimator was used
+                            if not self.centralEstimatorBool:
+                                continue
+
                             times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = localEKF)#self.getEstimationHistory(sat, targ, time_vec,'local')
                             central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = centralEKF)#self.getEstimationHistory(sat, targ, time_vec, 'central')
                             
@@ -839,26 +934,37 @@ class environment:
                             ]
                         
                         elif plotNum == 1:
-                            # Second Plot: DDF vs Central
-                            ddf_times, ddf_estHist, ddf_covHist, ddf_innovationHist, ddf_innovationCovHist, ddf_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = ciEKF)#self.getEstimationHistory(sat, targ, time_vec, 'ci')
+                            """" Second Plot: CI vs Central """
+
+                            # First check if the CI estimator was used
+                            if not self.ciEstimatorBool:
+                                continue
+
+
+                            ci_times, ci_estHist, ci_covHist, ci_innovationHist, ci_innovationCovHist, ci_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = ciEKF)#self.getEstimationHistory(sat, targ, time_vec, 'ci')
                             central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = centralEKF)#self.getEstimationHistory(sat, targ, time_vec, 'central')
 
-                            # DDF
-                            self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=2.5)
-                            #self.plot_innovations(axes, ddf_times, ddf_innovationHist, ddf_innovationCovHist, label_color=ddfColor, linewidth=2.5)
-                            self.plot_track_quality(axes, ddf_times, ddf_trackErrorHist, targ.tqReq, label_color=ddfColor, linewidth=2.5)
+                            # CI
+                            self.plot_errors(axes, ci_times, ci_estHist, trueHist, ci_covHist, label_color=ciColor, linewidth=2.5)
+                            #self.plot_innovations(axes, ci_times, ci_innovationHist, ci_innovationCovHist, label_color=ciColor, linewidth=2.5)
+                            self.plot_track_quality(axes, ci_times, ci_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=2.5)
                             
                             # Central
                             self.plot_errors(axes, central_times, central_estHist, trueHist, central_covHist, label_color=centralColor, linewidth=1.5)
                             self.plot_track_quality(axes, central_times, central_trackErrorHist, targ.tqReq, label_color=centralColor, linewidth=1.5)
                             
                             handles = [
-                                Patch(color=ddfColor, label=f'{sat.name} DDF Estimator'),
+                                Patch(color=ciColor, label=f'{sat.name} CI Estimator'),
                                 Patch(color=centralColor, label=f'Central Estimator')
                             ]
                             
                         elif plotNum == 2:
-                            
+                            """" Third Plot is ET vs Central """
+
+                            # First check, was the ET estimator used?
+                            if not self.etEstimatorBool:
+                                continue
+
                             # Third Plot is ET vs Central
                             et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = etEKF)#self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
                             central_times, central_estHist, central_covHist, central_innovationHist, central_innovationCovHist, central_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = centralEKF)#self.getEstimationHistory(sat, targ, time_vec, 'central')
@@ -877,21 +983,26 @@ class environment:
                             ]
                         
                         elif plotNum == 3:
-                            # ET vs DDF
+                            # ET vs CI
+
+                            # First check, was the ET estimator used?
+                            if not self.etEstimatorBool or not self.ciEstimatorBool:
+                                continue
+                            
                             et_times, et_estHist, et_covHist, et_innovationHist, et_innovationCovHist, et_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = etEKF)#self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                            ddf_times, ddf_estHist, ddf_covHist, ddf_innovationHist, ddf_innovationCovHist, ddf_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = ciEKF)#self.getEstimationHistory(sat, targ, time_vec, 'ci')
+                            ci_times, ci_estHist, ci_covHist, ci_innovationHist, ci_innovationCovHist, ci_trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = ciEKF)#self.getEstimationHistory(sat, targ, time_vec, 'ci')
                             
                             # ET
                             self.plot_errors(axes, et_times, et_estHist, trueHist, et_covHist, label_color=satColor, linewidth=2.5)
                             self.plot_track_quality(axes, et_times, et_trackErrorHist, targ.tqReq, label_color=satColor, linewidth=2.5)
                             
-                            # DDF
-                            self.plot_errors(axes, ddf_times, ddf_estHist, trueHist, ddf_covHist, label_color=ddfColor, linewidth=1.5)
-                            self.plot_track_quality(axes, ddf_times, ddf_trackErrorHist, targ.tqReq, label_color=ddfColor, linewidth=1.5)
+                            # CI
+                            self.plot_errors(axes, ci_times, ci_estHist, trueHist, ci_covHist, label_color=ciColor, linewidth=1.5)
+                            self.plot_track_quality(axes, ci_times, ci_trackErrorHist, targ.tqReq, label_color=ciColor, linewidth=1.5)
                             
                             handles = [
                                 Patch(color=satColor, label=f'{sat.name} ET Estimator'),
-                                Patch(color=ddfColor, label=f'{sat.name} DDF Estimator')
+                                Patch(color=ciColor, label=f'{sat.name} CI Estimator')
                             ]
                         
                         # Add the legend and tighten the layout
@@ -900,7 +1011,14 @@ class environment:
                             
                         # Save the Plot with respective suffix
                         self.save_plot(fig, saveName, targ, sat, suffix_vec[plotNum])
+
+                        # Close the figure to save memory
+                        plt.close(fig)
                         
+                    ## PLOTTING PAIRWISE ET THINGS ##
+                    if not self.etEstimatorBool:
+                        continue
+                    
                     for sat2 in self.sats:
                         if sat != sat2 and sat2.targetIDs == sat.targetIDs:
                             
@@ -950,8 +1068,6 @@ class environment:
                                 self.plot_errors(axes, et_common_times2, et_common_estHist2, trueHist, et_common_covHist2, label_color=sat2commonColor, linewidth=2.0)
                                 self.plot_track_quality(axes, et_common_times2, et_common_trackErrorHist2, targ.tqReq, label_color=sat2commonColor, linewidth=2.0)
                                 
-                            
-                        
                             # Plot Messages instead of innovations
                             self.plot_messages(axes[6], sat, sat2, targ.targetID, time_vec.value)
                             self.plot_messages(axes[7], sat2, sat, targ.targetID, time_vec.value)
@@ -982,7 +1098,8 @@ class environment:
         trackErrorHist = filter.trackErrorHist[targetID]
         
         return times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist
-    
+
+
     def getEstimationHistory2(self, sat, targ, time_vec, estimatorType, sharewith = None):
         """
         Get the estimation history for a given satellite, target, and estimator type.
@@ -1034,8 +1151,8 @@ class environment:
             trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
             
         return times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist
-        
-                    
+
+
     def plot_errors(self, ax, times, estHist, trueHist, covHist, label_color, linewidth):
         """
         Plot error vector and two sigma bounds for covariance.
@@ -1062,6 +1179,7 @@ class environment:
                     ax[i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
 
 
+    # TODO: BROKEN
     def plot_innovations(self, ax, times, innovationHist, innovationCovHist, label_color, linewidth):
         """
         Plot the innovation in bearings angles.
@@ -1079,10 +1197,13 @@ class environment:
 
             for i in range(2):  # For each measurement [in track, cross track]
                 for segment in segments:
+
+                    segment = [x for x in segment if x is not None]
+
                     innovation = [innovationHist[time][i] for time in segment]
                     upper_bound = [2 * np.sqrt(innovationCovHist[time][i][i]) for time in segment]
                     lower_bound = [-2 * np.sqrt(innovationCovHist[time][i][i]) for time in segment]
-                    
+
                     ax[6 + i].plot(segment, innovation, color=label_color, linewidth=linewidth)
                     ax[6 + i].plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     ax[6 + i].plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
@@ -1159,7 +1280,7 @@ class environment:
                 ax[8].text(min(nonEmptyTime), targQuality + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
 
-    def segment_data(self, times, max_gap = 30):
+    def segment_data(self, times, max_gap = 1/6):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -1278,7 +1399,7 @@ class environment:
         return axes
 
 
-    def save_plot(self, fig, saveName, targ, sat, suffix):
+    def save_plot(self, fig, saveName, targ, sat, suffix = None):
         """
         Save each plot into the "plots" folder with the given suffix.
 
@@ -1294,437 +1415,459 @@ class environment:
         plotPath = os.path.join(filePath, 'plots')
         os.makedirs(plotPath, exist_ok=True)
         if saveName is None:
-            plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
+            if suffix is None:
+                plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}.png"), dpi=300)
+            else:
+                plt.savefig(os.path.join(plotPath, f"{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
         else:
-            plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
+            if suffix is None:
+                plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}.png"), dpi=300)
+            else:
+                plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{sat.name}_{suffix}.png"), dpi=300)
         plt.close()
 
 
 ### Plot communications sent/recieved  
     # Plot the total data sent and received by satellites
     def plot_global_comms(self, saveName):
+        """PLOTS THE TOTAL DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS"""
 
-        # Create a figure
-        fig = plt.figure(figsize=(15, 8))
-        fig.suptitle(f"TOTAL Data Sent and Received by Satellites", fontsize=14) 
-        ax = fig.add_subplot(111)
+        ## Plot comm data sent for CI Algo
+        if self.ciEstimatorBool:
 
-        # Get the names of satellites:
-        satNames = [sat.name for sat in self.sats]
+            # Create a figure
+            fig = plt.figure(figsize=(15, 8))
+            fig.suptitle(f"TOTAL Data Sent and Received by Satellites", fontsize=14) 
+            ax = fig.add_subplot(111)
 
-        # Save previous data, to stack the bars
-        # prev_data = np.zeros(len(satNames))
-        # make prev_data a dictionary
-        prev_data = {sat: 0 for sat in satNames}
+            # Get the names of satellites:
+            satNames = [sat.name for sat in self.sats]
 
-        # Loop through all targets, in order listed in the environment
-        # for target_id in self.comms.total_comm_data:
-        count = 0
-        for targ in self.targs:
+            # Save previous data, to stack the bars
+            # prev_data = np.zeros(len(satNames))
+            # make prev_data a dictionary
+            prev_data = {sat: 0 for sat in satNames}
 
-            sent_data = defaultdict(dict)
-            rec_data = defaultdict(dict)
+            # Loop through all targets, in order listed in the environment
+            # for target_id in self.comms.total_comm_data:
+            count = 0
+            for targ in self.targs:
 
-            # Get the color for the target:
-            color = targ.color
+                sent_data = defaultdict(dict)
+                rec_data = defaultdict(dict)
 
-            # Get the target id
-            target_id = targ.targetID
+                # Get the color for the target:
+                color = targ.color
 
-            # Now check, does that target have any communication data
-            if target_id not in self.comms.total_comm_data:
-                continue
+                # Get the target id
+                target_id = targ.targetID
 
-            count += 1
+                # Now check, does that target have any communication data
+                if target_id not in self.comms.total_comm_data:
+                    continue
 
-            for reciever in self.comms.total_comm_data[target_id]:
+                count += 1
 
-                for sender in self.comms.total_comm_data[target_id][reciever]:
-                    if sender == reciever:
-                        continue
+                for reciever in self.comms.total_comm_data[target_id]:
 
-                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+                    for sender in self.comms.total_comm_data[target_id][reciever]:
+                        if sender == reciever:
+                            continue
 
-                    for time in self.comms.total_comm_data[target_id][reciever][sender]:
+                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
 
-                        # Get the data
-                        data = self.comms.total_comm_data[target_id][reciever][sender][time]
+                        for time in self.comms.total_comm_data[target_id][reciever][sender]:
 
-                        # Count the amount of data receiver by the receiver
-                        if reciever not in rec_data:
-                            rec_data[reciever] = 0
-                        rec_data[reciever] += data
+                            # Get the data
+                            data = self.comms.total_comm_data[target_id][reciever][sender][time]
 
-                        # Count the amount of data sent by the sender
-                        if sender not in sent_data:
-                            sent_data[sender] = 0
-                        sent_data[sender] += data
+                            # Count the amount of data receiver by the receiver
+                            if reciever not in rec_data:
+                                rec_data[reciever] = 0
+                            rec_data[reciever] += data
 
-            # If there are keys that dont exist in sent_data, make them and their value 0
-            for key in prev_data.keys():
-                if key not in sent_data:
-                    sent_data[key] = 0
-                if key not in rec_data:
-                    rec_data[key] = 0
+                            # Count the amount of data sent by the sender
+                            if sender not in sent_data:
+                                sent_data[sender] = 0
+                            sent_data[sender] += data
 
-            # Order the data the same way, according to "sats" variable
-            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
-            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+                # If there are keys that dont exist in sent_data, make them and their value 0
+                for key in prev_data.keys():
+                    if key not in sent_data:
+                        sent_data[key] = 0
+                    if key not in rec_data:
+                        rec_data[key] = 0
 
-            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+                # Order the data the same way, according to "sats" variable
+                sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+                rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
 
-            # Add text labels to show which target is which.
-            for i, v in enumerate(list(sent_data.values())):
-                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
+                p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
 
-            # Add the sent_data values to the prev_data
-            for key in sent_data.keys():
-                prev_data[key] += sent_data[key]
+                # Add text labels to show which target is which.
+                for i, v in enumerate(list(sent_data.values())):
+                    ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
 
-            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+                # Add the sent_data values to the prev_data
+                for key in sent_data.keys():
+                    prev_data[key] += sent_data[key]
+
+                p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+                
+                # Add the rec_data values to the prev_data
+                for key in rec_data.keys():
+                    prev_data[key] += rec_data[key]
+
+                if count == 1:
+                    # Add legend
+                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+
+            # Add the labels
+            ax.set_ylabel('Total Data Sent/Recieved (# of numbers)')
+
+            # Add the x-axis labels
+            ax.set_xticks(np.arange(len(satNames)))
+            ax.set_xticklabels(satNames)
+
+            # Now save the plot
+            if saveName is not None:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                plt.savefig(os.path.join(plotPath, f"{saveName}_total_ci_comms.png"), dpi=300)
+            else:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                plt.savefig(os.path.join(plotPath, f"total_ci_comms.png"), dpi=300)
+                
+                
+        ## Plot comm data sent for ET Algo
+        if self.etEstimatorBool:
+
+            fig = plt.figure(figsize=(15, 8))
+            fig.suptitle(f"ET Data Sent and Received by Satellites", fontsize=14)
             
-            # Add the rec_data values to the prev_data
-            for key in rec_data.keys():
-                prev_data[key] += rec_data[key]
-
-            if count == 1:
-                # Add legend
-                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-        # Add the labels
-        ax.set_ylabel('Total Data Sent/Recieved (# of numbers)')
-
-        # Add the x-axis labels
-        ax.set_xticks(np.arange(len(satNames)))
-        ax.set_xticklabels(satNames)
-
-        # Now save the plot
-        if saveName is not None:
+            ax = fig.add_subplot(111)
+            
+            
+            # Get the names of satellites:
+            satNames = [sat.name for sat in self.sats]
+            
+            # Save previous data, to stack the bars
+            prev_data = {sat: 0 for sat in satNames}
+            
+            # Loop through all targets, in order listed in the environment
+            count = 0
+            for targ in self.targs:
+                
+                sent_data = defaultdict(dict)
+                rec_data = defaultdict(dict)
+                
+                # Get the color for the target:
+                color = targ.color
+                
+                # Get the target id
+                target_id = targ.targetID
+                
+                # Now check, does that target have any communication data
+                if target_id not in self.comms.total_comm_et_data:
+                    continue
+                
+                count += 1
+                
+                for reciever in self.comms.total_comm_et_data[target_id]:
+                    
+                    for sender in self.comms.total_comm_et_data[target_id][reciever]:
+                        if sender == reciever:
+                            continue
+                        
+                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+                        
+                        for time in self.comms.total_comm_et_data[target_id][reciever][sender]:
+                            
+                            # Get the data
+                            data = self.comms.total_comm_et_data[target_id][reciever][sender][time]
+                            
+                            # Count the amount of data receiver by the receiver
+                            if reciever not in rec_data:
+                                rec_data[reciever] = 0
+                            rec_data[reciever] += data
+                            
+                            # Count the amount of data sent by the sender
+                            if sender not in sent_data:
+                                sent_data[sender] = 0
+                            sent_data[sender] += data
+                            
+                # If there are keys that dont exist in sent_data, make them and their value 0
+                for key in prev_data.keys():
+                    if key not in sent_data:
+                        sent_data[key] = 0
+                    if key not in rec_data:
+                        rec_data[key] = 0
+                        
+                # Order the data the same way, according to "sats" variable
+                sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+                rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+                
+                p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+                
+                # Add text labels to show which target is which.
+                for i, v in enumerate(list(sent_data.values())):
+                    ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
+                    
+                # Add the sent_data values to the prev_data
+                for key in sent_data.keys():
+                    prev_data[key] += sent_data[key]
+                
+                p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+                
+                # Add the rec_data values to the prev_data
+                for key in rec_data.keys():
+                    prev_data[key] += rec_data[key]
+                
+                if count == 1:
+                    # Add legend
+                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+                    
+            # Add the labels
+            ax.set_ylabel('ET Data Sent/Recieved (# of numbers)')
+            
+            # Add the x-axis labels
+            ax.set_xticks(np.arange(len(satNames)))
+            ax.set_xticklabels(satNames)
+            
+            # Now save the plot
             filePath = os.path.dirname(os.path.realpath(__file__))
             plotPath = os.path.join(filePath, 'plots')
             os.makedirs(plotPath, exist_ok=True)
-            plt.savefig(os.path.join(plotPath, f"{saveName}_total_comms.png"), dpi=300)
-        else:
-            filePath = os.path.dirname(os.path.realpath(__file__))
-            plotPath = os.path.join(filePath, 'plots')
-            plt.savefig(os.path.join(plotPath, f"total_comms.png"), dpi=300)
-            
-            
-        # Do the exact sane thing fior et data
-        fig = plt.figure(figsize=(15, 8))
-        fig.suptitle(f"ET Data Sent and Received by Satellites", fontsize=14)
-        
-        ax = fig.add_subplot(111)
-        
-        
-        # Get the names of satellites:
-        satNames = [sat.name for sat in self.sats]
-        
-        # Save previous data, to stack the bars
-        prev_data = {sat: 0 for sat in satNames}
-        
-        # Loop through all targets, in order listed in the environment
-        count = 0
-        for targ in self.targs:
-            
-            sent_data = defaultdict(dict)
-            rec_data = defaultdict(dict)
-            
-            # Get the color for the target:
-            color = targ.color
-            
-            # Get the target id
-            target_id = targ.targetID
-            
-            # Now check, does that target have any communication data
-            if target_id not in self.comms.total_comm_et_data:
-                continue
-            
-            count += 1
-            
-            for reciever in self.comms.total_comm_et_data[target_id]:
-                
-                for sender in self.comms.total_comm_et_data[target_id][reciever]:
-                    if sender == reciever:
-                        continue
-                    
-                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-                    
-                    for time in self.comms.total_comm_et_data[target_id][reciever][sender]:
-                        
-                        # Get the data
-                        data = self.comms.total_comm_et_data[target_id][reciever][sender][time]
-                        
-                        # Count the amount of data receiver by the receiver
-                        if reciever not in rec_data:
-                            rec_data[reciever] = 0
-                        rec_data[reciever] += data
-                        
-                        # Count the amount of data sent by the sender
-                        if sender not in sent_data:
-                            sent_data[sender] = 0
-                        sent_data[sender] += data
-                        
-            # If there are keys that dont exist in sent_data, make them and their value 0
-            for key in prev_data.keys():
-                if key not in sent_data:
-                    sent_data[key] = 0
-                if key not in rec_data:
-                    rec_data[key] = 0
-                    
-            # Order the data the same way, according to "sats" variable
-            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
-            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
-            
-            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
-            
-            # Add text labels to show which target is which.
-            for i, v in enumerate(list(sent_data.values())):
-                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
-                
-            # Add the sent_data values to the prev_data
-            for key in sent_data.keys():
-                prev_data[key] += sent_data[key]
-            
-            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
-            
-            # Add the rec_data values to the prev_data
-            for key in rec_data.keys():
-                prev_data[key] += rec_data[key]
-            
-            if count == 1:
-                # Add legend
-                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-                
-        # Add the labels
-        ax.set_ylabel('ET Data Sent/Recieved (# of numbers)')
-        
-        # Add the x-axis labels
-        ax.set_xticks(np.arange(len(satNames)))
-        ax.set_xticklabels(satNames)
-        
-        # Now save the plot
-        filePath = os.path.dirname(os.path.realpath(__file__))
-        plotPath = os.path.join(filePath, 'plots')
-        os.makedirs(plotPath, exist_ok=True)
-        plt.savefig(os.path.join(plotPath, f"{saveName}_total_et_comms.png"), dpi=300)
-
+            plt.savefig(os.path.join(plotPath, f"{saveName}_total_et_comms.png"), dpi=300)
 
     # Plots the actual data amount used by the satellites
     def plot_used_comms(self, saveName):
+        """
+        PLOTS THE USED DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS
+        
+            Used means information used for a sat to meet TQ requirements
+        
+        """
 
-        # Create a figure
-        fig = plt.figure(figsize=(15, 8))
-        fig.suptitle(f"USED Data Sent and Received by Satellites", fontsize=14) 
-        ax = fig.add_subplot(111)
+        ## Plot comm data sent for CI Algo
+        if self.ciEstimatorBool:
 
-        # Get the names of satellites:
-        satNames = [sat.name for sat in self.sats]
+            # Create a figure
+            fig = plt.figure(figsize=(15, 8))
+            fig.suptitle(f"USED Data Sent and Received by Satellites", fontsize=14) 
+            ax = fig.add_subplot(111)
 
-        # Save previous data, to stack the bars
-        # prev_data = np.zeros(len(satNames))
-        # make prev_data a dictionary
-        prev_data = {sat: 0 for sat in satNames}
+            # Get the names of satellites:
+            satNames = [sat.name for sat in self.sats]
 
-        # Loop through all targets, in order listed in the environment
-        # for target_id in self.comms.total_comm_data:
-        count = 0
-        for targ in self.targs:
+            # Save previous data, to stack the bars
+            # prev_data = np.zeros(len(satNames))
+            # make prev_data a dictionary
+            prev_data = {sat: 0 for sat in satNames}
 
-            sent_data = defaultdict(dict)
-            rec_data = defaultdict(dict)
+            # Loop through all targets, in order listed in the environment
+            # for target_id in self.comms.total_comm_data:
+            count = 0
+            for targ in self.targs:
 
-            # Get the color for the target:
-            color = targ.color
+                sent_data = defaultdict(dict)
+                rec_data = defaultdict(dict)
 
-            # Get the target id
-            target_id = targ.targetID
+                # Get the color for the target:
+                color = targ.color
 
-            # Now check, does that target have any communication data
-            if target_id not in self.comms.used_comm_data:
-                continue
+                # Get the target id
+                target_id = targ.targetID
 
-            count += 1
+                # Now check, does that target have any communication data
+                if target_id not in self.comms.used_comm_data:
+                    continue
 
-            for reciever in self.comms.used_comm_data[target_id]:
+                count += 1
 
-                for sender in self.comms.used_comm_data[target_id][reciever]:
-                    if sender == reciever:
-                        continue
+                for reciever in self.comms.used_comm_data[target_id]:
 
-                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+                    for sender in self.comms.used_comm_data[target_id][reciever]:
+                        if sender == reciever:
+                            continue
 
-                    for time in self.comms.used_comm_data[target_id][reciever][sender]:
+                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
 
-                        # Get the data
-                        data = self.comms.used_comm_data[target_id][reciever][sender][time]
+                        for time in self.comms.used_comm_data[target_id][reciever][sender]:
 
-                        # Count the amount of data receiver by the receiver
-                        if reciever not in rec_data:
-                            rec_data[reciever] = 0
-                        rec_data[reciever] += data
+                            # Get the data
+                            data = self.comms.used_comm_data[target_id][reciever][sender][time]
 
-                        # Count the amount of data sent by the sender
-                        if sender not in sent_data:
-                            sent_data[sender] = 0
-                        sent_data[sender] += data
+                            # Count the amount of data receiver by the receiver
+                            if reciever not in rec_data:
+                                rec_data[reciever] = 0
+                            rec_data[reciever] += data
 
-            # If there are keys that dont exist in sent_data, make them and their value 0
-            for key in prev_data.keys():
-                if key not in sent_data:
-                    sent_data[key] = 0
-                if key not in rec_data:
-                    rec_data[key] = 0
+                            # Count the amount of data sent by the sender
+                            if sender not in sent_data:
+                                sent_data[sender] = 0
+                            sent_data[sender] += data
 
-            # Order the data the same way, according to "sats" variable
-            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
-            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+                # If there are keys that dont exist in sent_data, make them and their value 0
+                for key in prev_data.keys():
+                    if key not in sent_data:
+                        sent_data[key] = 0
+                    if key not in rec_data:
+                        rec_data[key] = 0
 
-            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+                # Order the data the same way, according to "sats" variable
+                sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+                rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
 
-            # Add text labels to show which target is which.
-            for i, v in enumerate(list(sent_data.values())):
-                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
+                p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
 
-            # Add the sent_data values to the prev_data
-            for key in sent_data.keys():
-                prev_data[key] += sent_data[key]
+                # Add text labels to show which target is which.
+                for i, v in enumerate(list(sent_data.values())):
+                    ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
 
-            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+                # Add the sent_data values to the prev_data
+                for key in sent_data.keys():
+                    prev_data[key] += sent_data[key]
 
-            # Add the rec_data values to the prev_data
-            for key in rec_data.keys():
-                prev_data[key] += rec_data[key]
+                p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
 
-            if count == 1:
-                # Add legend
-                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+                # Add the rec_data values to the prev_data
+                for key in rec_data.keys():
+                    prev_data[key] += rec_data[key]
 
-        # Add the labels
-        ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
+                if count == 1:
+                    # Add legend
+                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
 
-        # Add the x-axis labels
-        ax.set_xticks(np.arange(len(satNames)))
-        ax.set_xticklabels(satNames)
+            # Add the labels
+            ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
 
-        # Now save the plot
-        if saveName is not None:
-            filePath = os.path.dirname(os.path.realpath(__file__))
-            plotPath = os.path.join(filePath, 'plots')
-            os.makedirs(plotPath, exist_ok=True)
-            plt.savefig(os.path.join(plotPath, f"{saveName}_used_comms.png"), dpi=300)
-        else:
-            filePath = os.path.dirname(os.path.realpath(__file__))
-            plotPath = os.path.join(filePath, 'plots')
-            plt.savefig(os.path.join(plotPath, f"used_comms.png"), dpi=300)
+            # Add the x-axis labels
+            ax.set_xticks(np.arange(len(satNames)))
+            ax.set_xticklabels(satNames)
+
+            # Now save the plot
+            if saveName is not None:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                plt.savefig(os.path.join(plotPath, f"{saveName}_used_ci_comms.png"), dpi=300)
+            else:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                plt.savefig(os.path.join(plotPath, f"used_ci_comms.png"), dpi=300)
+                
             
+        ## Plot comm data sent for ET Algo
+        if self.etEstimatorBool:
+
+            # DO the exact same thing for ET data
+            # Create a figure
+            fig = plt.figure(figsize=(15, 8))
+            fig.suptitle(f"USED ET Data Sent and Received by Satellites", fontsize=14) 
+            ax = fig.add_subplot(111)
+
+            # Get the names of satellites:
+            satNames = [sat.name for sat in self.sats]
+
+            # Save previous data, to stack the bars
+            # prev_data = np.zeros(len(satNames))
+            # make prev_data a dictionary
+            prev_data = {sat: 0 for sat in satNames}
+
+            # Loop through all targets, in order listed in the environment
+            # for target_id in self.comms.total_comm_data:
+            count = 0
+            for targ in self.targs:
+
+                sent_data = defaultdict(dict)
+                rec_data = defaultdict(dict)
+
+                # Get the color for the target:
+                color = targ.color
+
+                # Get the target id
+                target_id = targ.targetID
+
+                # Now check, does that target have any communication data
+                if target_id not in self.comms.used_comm_et_data:
+                    continue
+
+                count += 1
+
+                for reciever in self.comms.used_comm_et_data[target_id]:
+
+                    for sender in self.comms.used_comm_et_data[target_id][reciever]:
+                        if sender == reciever:
+                            continue
+
+                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
+
+                        for time in self.comms.used_comm_et_data[target_id][reciever][sender]:
+
+                            # Get the data
+                            data = self.comms.used_comm_et_data[target_id][reciever][sender][time]
+
+                            # Count the amount of data receiver by the receiver
+                            if reciever not in rec_data:
+                                rec_data[reciever] = 0
+                            rec_data[reciever] += data
+
+                            # Count the amount of data sent by the sender
+                            if sender not in sent_data:
+                                sent_data[sender] = 0
+                            sent_data[sender] += data
+
+                # If there are keys that dont exist in sent_data, make them and their value 0
+                for key in prev_data.keys():
+                    if key not in sent_data:
+                        sent_data[key] = 0
+                    if key not in rec_data:
+                        rec_data[key] = 0
+
+                # Order the data the same way, according to "sats" variable
+                sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
+                rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
+
+                p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
+
+                # Add text labels to show which target is which.
+                for i, v in enumerate(list(sent_data.values())):
+                    ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
+
+                # Add the sent_data values to the prev_data
+                for key in sent_data.keys():
+                    prev_data[key] += sent_data[key]
+
+                p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
+
+                # Add the rec_data values to the prev_data
+                for key in rec_data.keys():
+                    prev_data[key] += rec_data[key]
+
+                if count == 1:
+                    # Add legend
+                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
+
+            # Add the labels
+            ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
+
+            # Add the x-axis labels
+            ax.set_xticks(np.arange(len(satNames)))
+            ax.set_xticklabels(satNames)
+
+            # Now save the plot
+            if saveName is not None:
+                filePath = os.path.dirname(os.path.realpath(__file__))
+                plotPath = os.path.join(filePath, 'plots')
+                os.makedirs(plotPath, exist_ok=True)
+                plt.savefig(os.path.join(plotPath, f"{saveName}_used_et_comms.png"), dpi=300)
             
-        # DO the exact same thing for ET data
-        # Create a figure
-        fig = plt.figure(figsize=(15, 8))
-        fig.suptitle(f"USED ET Data Sent and Received by Satellites", fontsize=14) 
-        ax = fig.add_subplot(111)
-
-        # Get the names of satellites:
-        satNames = [sat.name for sat in self.sats]
-
-        # Save previous data, to stack the bars
-        # prev_data = np.zeros(len(satNames))
-        # make prev_data a dictionary
-        prev_data = {sat: 0 for sat in satNames}
-
-        # Loop through all targets, in order listed in the environment
-        # for target_id in self.comms.total_comm_data:
-        count = 0
-        for targ in self.targs:
-
-            sent_data = defaultdict(dict)
-            rec_data = defaultdict(dict)
-
-            # Get the color for the target:
-            color = targ.color
-
-            # Get the target id
-            target_id = targ.targetID
-
-            # Now check, does that target have any communication data
-            if target_id not in self.comms.used_comm_et_data:
-                continue
-
-            count += 1
-
-            for reciever in self.comms.used_comm_et_data[target_id]:
-
-                for sender in self.comms.used_comm_et_data[target_id][reciever]:
-                    if sender == reciever:
-                        continue
-
-                    # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-
-                    for time in self.comms.used_comm_et_data[target_id][reciever][sender]:
-
-                        # Get the data
-                        data = self.comms.used_comm_et_data[target_id][reciever][sender][time]
-
-                        # Count the amount of data receiver by the receiver
-                        if reciever not in rec_data:
-                            rec_data[reciever] = 0
-                        rec_data[reciever] += data
-
-                        # Count the amount of data sent by the sender
-                        if sender not in sent_data:
-                            sent_data[sender] = 0
-                        sent_data[sender] += data
-
-            # If there are keys that dont exist in sent_data, make them and their value 0
-            for key in prev_data.keys():
-                if key not in sent_data:
-                    sent_data[key] = 0
-                if key not in rec_data:
-                    rec_data[key] = 0
-
-            # Order the data the same way, according to "sats" variable
-            sent_data = dict(sorted(sent_data.items(), key=lambda item: satNames.index(item[0])))
-            rec_data = dict(sorted(rec_data.items(), key=lambda item: satNames.index(item[0])))
-
-            p1 = ax.bar(list(sent_data.keys()), list(sent_data.values()), bottom=list(prev_data.values()), color=color)
-
-            # Add text labels to show which target is which.
-            for i, v in enumerate(list(sent_data.values())):
-                ax.text(i, list(prev_data.values())[i], targ.name, ha='center', va='bottom', color='black')
-
-            # Add the sent_data values to the prev_data
-            for key in sent_data.keys():
-                prev_data[key] += sent_data[key]
-
-            p2 = ax.bar(list(rec_data.keys()), list(rec_data.values()), bottom=list(prev_data.values()), color=color, fill=False, hatch='//', edgecolor=color)
-
-            # Add the rec_data values to the prev_data
-            for key in rec_data.keys():
-                prev_data[key] += rec_data[key]
-
-            if count == 1:
-                # Add legend
-                ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-        # Add the labels
-        ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
-
-        # Add the x-axis labels
-        ax.set_xticks(np.arange(len(satNames)))
-        ax.set_xticklabels(satNames)
-
-        # Now save the plot
-        if saveName is not None:
-            filePath = os.path.dirname(os.path.realpath(__file__))
-            plotPath = os.path.join(filePath, 'plots')
-            os.makedirs(plotPath, exist_ok=True)
-            plt.savefig(os.path.join(plotPath, f"{saveName}_used_et_comms.png"), dpi=300)
-            
-
-
     # Sub plots for each satellite showing the track uncertainty for each target and then the comms sent/recieved about each target vs time
-    def plot_local_comms(self, saveName):
+    def plot_timeHist_comms_ci(self, saveName):
+        """PLOTS A TIME HISTORY OF THE CI COMMS RECIEVED FOR EACH SATELLITE ON EVERY TARGET"""
 
         # For each satellite make a plot:
         for sat in self.sats:
@@ -1891,9 +2034,9 @@ class environment:
                 plt.savefig(os.path.join(plotPath, f"{saveName}_{sat.name}_track_uncertainty.png"), dpi=300)
 
             # plt.close(fig)
-
-
         
+
+    # TODO: IDK WHAT THIS DOES - NOLAN. IT IS ONLINE PLOTITNG FOR THE GRAPH?
     def plot_dynamic_comms(self):
         comms = self.comms
         envTime = self.time.to_value()
@@ -1989,9 +2132,7 @@ class environment:
         elif np.isnan(alpha) or np.isnan(beta):
             return (0, (3, 10, 1, 10))
         else:
-            return (0, (5, 10))
-        
-        
+            return (0, (5, 10))    
     
     def save_comm_plot_to_image(self, fig):
         """
@@ -2009,8 +2150,7 @@ class environment:
         w, h = fig.canvas.get_width_height()
         img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
         return img
-                        
-                      
+                                            
 ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self, time_vec):
         """
@@ -2035,7 +2175,7 @@ class environment:
 
                                 sat1Color = sat.color
                                 sat2Color = sat2.color
-                                ddfColor = '#DC143C' # Crimson
+                                ciColor = '#DC143C' # Crimson
                                 etColor = '#DC143C' # Crimson
                                 centralColor = '#070400'  
                                 alpha = 0.2
@@ -2055,44 +2195,44 @@ class environment:
                                     sat2_times = sat2.indeptEstimator.estHist[targ.targetID].keys()
                                     stereo_times = [time for time in sat1_times if time in sat2_times]
                                     
-                                    ddf_times = sat.ciEstimator.estHist[targ.targetID].keys()
-                                    times = [time for time in stereo_times if time in ddf_times]
+                                    ci_times = sat.ciEstimator.estHist[targ.targetID].keys()
+                                    times = [time for time in stereo_times if time in ci_times]
                                     
                                     if bigTime in times:
                                         true_pos = targ.hist[time][[0, 2, 4]]
                                         est_pos1 = np.array([sat.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
                                         est_pos2 = np.array([sat2.indeptEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
-                                        ddf_pos = np.array([sat.ciEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
+                                        ci_pos = np.array([sat.ciEstimator.estHist[targ.targetID][time][i] for i in [0, 2, 4]])
 
                                         cov_matrix1 = sat.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
                                         cov_matrix2 = sat2.indeptEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
-                                        ddf_cov = sat.ciEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
+                                        ci_cov = sat.ciEstimator.covarianceHist[targ.targetID][time][[0, 2, 4]][:, [0, 2, 4]]
 
                                         eigenvalues1, eigenvectors1 = np.linalg.eigh(cov_matrix1)
                                         eigenvalues2, eigenvectors2 = np.linalg.eigh(cov_matrix2)
-                                        ddf_eigenvalues, ddf_eigenvectors = np.linalg.eigh(ddf_cov)
+                                        ci_eigenvalues, ci_eigenvectors = np.linalg.eigh(ci_cov)
 
                                         error1 = np.linalg.norm(true_pos - est_pos1)
                                         error2 = np.linalg.norm(true_pos - est_pos2)
-                                        ddf_error = np.linalg.norm(true_pos - ddf_pos)
+                                        ci_error = np.linalg.norm(true_pos - ci_pos)
 
                                         LOS_vec1 = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
                                         LOS_vec2 = -sat2.orbitHist[time] / np.linalg.norm(sat2.orbitHist[time])
 
                                         self.plot_ellipsoid(ax1, est_pos1, cov_matrix1, color=sat1Color, alpha=alpha)
                                         self.plot_ellipsoid(ax1, est_pos2, cov_matrix2, color=sat2Color, alpha=alpha)
-                                        self.plot_ellipsoid(ax1, ddf_pos, ddf_cov, color=ddfColor, alpha=alpha+0.1)
+                                        self.plot_ellipsoid(ax1, ci_pos, ci_cov, color=ciColor, alpha=alpha+0.1)
 
                                         self.plot_estimate(ax1, est_pos1, true_pos, sat1Color)
                                         self.plot_estimate(ax1, est_pos2, true_pos, sat2Color)
-                                        self.plot_estimate(ax1, ddf_pos, true_pos, ddfColor)
+                                        self.plot_estimate(ax1, ci_pos, true_pos, ciColor)
 
                                         self.plot_LOS(ax1, est_pos1, LOS_vec1)
                                         self.plot_LOS(ax1, est_pos2, LOS_vec2)
                                         
-                                        self.set_axis_limits(ax1, ddf_pos, np.sqrt(ddf_eigenvalues),  margin=50.0)
+                                        self.set_axis_limits(ax1, ci_pos, np.sqrt(ci_eigenvalues),  margin=50.0)
                                         self.plot_labels(ax1, time)
-                                        self.make_legened1(ax1, sat, sat1Color, sat2, sat2Color, ddfColor, error1, error2, ddf_error, 'CI')
+                                        self.make_legened1(ax1, sat, sat1Color, sat2, sat2Color, ciColor, error1, error2, ci_error, 'CI')
       
                                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                                     times = [time for time in stereo_times if time in et_times]
@@ -2135,9 +2275,9 @@ class environment:
                                         self.plot_labels(ax2, time)
                                         
                                         
-                                    ddf_times = sat.ciEstimator.estHist[targ.targetID].keys()
+                                    ci_times = sat.ciEstimator.estHist[targ.targetID].keys()
                                     central_times = self.centralEstimator.estHist[targ.targetID].keys()
-                                    times = [time for time in ddf_times if time in central_times]
+                                    times = [time for time in ci_times if time in central_times]
                                     
                                     if bigTime in times:
                                         true_pos = targ.hist[time][[0, 2, 4]]
@@ -2155,7 +2295,7 @@ class environment:
 
                                         LOS_vec = -sat.orbitHist[time] / np.linalg.norm(sat.orbitHist[time])
 
-                                        self.plot_ellipsoid(ax3, est_pos, cov_matrix, color=ddfColor, alpha=alpha)
+                                        self.plot_ellipsoid(ax3, est_pos, cov_matrix, color=ciColor, alpha=alpha)
                                         self.plot_ellipsoid(ax3, central_pos, central_cov, color=centralColor, alpha=alpha)
 
                                         self.plot_estimate(ax3, est_pos, true_pos, sat1Color)
@@ -2164,7 +2304,7 @@ class environment:
                                         self.plot_LOS(ax3, est_pos, LOS_vec)
                                         self.set_axis_limits(ax3, est_pos, np.sqrt(eigenvalues), margin=50.0)
                                         self.plot_labels(ax3, time)
-                                        self.make_legened2(ax3, ddfColor, centralColor, error, central_error, 'CI')
+                                        self.make_legened2(ax3, ciColor, centralColor, error, central_error, 'CI')
                                         
                                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                                     central_times = self.centralEstimator.estHist[targ.targetID].keys()
@@ -2200,7 +2340,7 @@ class environment:
                                     handles = [
                                         Patch(color=sat1Color, label=f'{sat.name} Local Estimator'),
                                         Patch(color=sat2Color, label=f'{sat2.name} Local Estimator'),
-                                        Patch(color=ddfColor, label=f'DDF Estimator'),
+                                        Patch(color=ciColor, label=f'CI Estimator'),
                                         Patch(color=etColor, label=f'ET Estimator'),
                                         Patch(color=centralColor, label=f'Central Estimator')
                                     ]
@@ -2217,7 +2357,6 @@ class environment:
                                     ax4.cla()
                                     
                                 plt.close(fig)                            
-
 
     def plot_ellipsoid(self, ax, est_pos, cov_matrix, color, alpha):
         """
@@ -2247,7 +2386,6 @@ class environment:
         z_transformed = transformed_points[:, 2].reshape(z.shape)
         ax.plot_surface(x_transformed, y_transformed, z_transformed, color=color, alpha=alpha)
 
-
     def plot_estimate(self, ax, est_pos, true_pos, satColor):
         """
         Plots the estimated and true positions on the given axes.
@@ -2263,7 +2401,6 @@ class environment:
         """
         ax.scatter(est_pos[0], est_pos[1], est_pos[2], color=satColor, marker='o')
         ax.scatter(true_pos[0], true_pos[1], true_pos[2], color='g', marker='o')
-
 
     def plot_LOS(self, ax, est_pos, LOS_vec):
         """
@@ -2290,7 +2427,6 @@ class environment:
                 color='k', length=arrow_length, normalize=True)
         #ax.quiver(est_pos[0], est_pos[1], est_pos[2], LOS_vec[0], LOS_vec[1], LOS_vec[2], color='k', length=10, normalize=True)
 
-
     def plot_labels(self, ax, time):
         """
         Plots labels on the given axes.
@@ -2311,31 +2447,28 @@ class environment:
         ax.set_zlabel('Z')
         ax.view_init(elev=10, azim=30)
 
-
-    def make_legened1(self, ax, sat1, sat1color, sat2, sat2color, ddfcolor, error1, error2, ddf_error, ddf_type=None):
-        if ddf_type == 'CI':
-            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'CI Error: {ddf_error:.2f} km']
-            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ddfcolor, label=labels[2])]
+    def make_legened1(self, ax, sat1, sat1color, sat2, sat2color, ciColor, error1, error2, ci_error, ci_type=None):
+        if ci_type == 'CI':
+            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'CI Error: {ci_error:.2f} km']
+            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ciColor, label=labels[2])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
         
-        elif ddf_type == 'ET':
-            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'ET Error: {ddf_error:.2f} km']
-            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ddfcolor, label=labels[2])]
+        elif ci_type == 'ET':
+            labels = [f'{sat1.name} Error: {error1:.2f} km', f'{sat2.name} Error: {error2:.2f} km', f'ET Error: {ci_error:.2f} km']
+            handles = [Patch(color=sat1color, label=labels[0]), Patch(color=sat2color, label=labels[1]), Patch(color=ciColor, label=labels[2])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
-
-    def make_legened2(self, ax, ddfColor, centralColor, error1, error2, ddf_type=None):
-        if ddf_type == 'CI':
+    def make_legened2(self, ax, ciColor, centralColor, error1, error2, ci_type=None):
+        if ci_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
-            handles = [Patch(color=ddfColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
+            handles = [Patch(color=ciColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
         
-        elif ddf_type == 'ET':
+        elif ci_type == 'ET':
             labels = [f'ET Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
-            handles = [Patch(color=ddfColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
+            handles = [Patch(color=ciColor, label=labels[0]), Patch(color=centralColor, label=labels[1])]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
-
-        
+     
     def set_axis_limits(self, ax, est_pos, radii, margin=50.0):
         """
         Sets the limits of the axes.
@@ -2356,7 +2489,6 @@ class environment:
         ax.set_zlim(min_vals[2], max_vals[2])
         ax.set_box_aspect([1, 1, 1])
 
-
     def save_GEplot_to_image(self, fig):
         """
         Saves the plot to an image.
@@ -2374,7 +2506,6 @@ class environment:
         img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
         return img
       
-
     def render_gif(self, fileType, saveName, filePath=os.path.dirname(os.path.realpath(__file__)), fps=1):
         """
         Renders and saves GIFs based on the specified file type.
@@ -2413,10 +2544,8 @@ class environment:
                 with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                     for img in self.imgs_dyn_comms:
                         writer.append_data(img)
-                                            
-    
-                                
-  
+                                                                          
+
 ### Data Dump File ###        
     def log_data(self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))):
         """
@@ -2451,14 +2580,14 @@ class environment:
                     innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
                     innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
 
-                    ddf_times = sat.ciEstimator.estHist[targ.targetID].keys()
-                    ddf_estHist = sat.ciEstimator.estHist[targ.targetID]
-                    ddf_covHist = sat.ciEstimator.covarianceHist[targ.targetID]
-                    ddf_trackError = sat.ciEstimator.trackErrorHist[targ.targetID]
+                    ci_times = sat.ciEstimator.estHist[targ.targetID].keys()
+                    ci_estHist = sat.ciEstimator.estHist[targ.targetID]
+                    ci_covHist = sat.ciEstimator.covarianceHist[targ.targetID]
+                    ci_trackError = sat.ciEstimator.trackErrorHist[targ.targetID]
 
-                    ddf_innovation_times = sat.ciEstimator.innovationHist[targ.targetID].keys()
-                    ddf_innovationHist = sat.ciEstimator.innovationHist[targ.targetID]
-                    ddf_innovationCovHist = sat.ciEstimator.innovationCovHist[targ.targetID]
+                    ci_innovation_times = sat.ciEstimator.innovationHist[targ.targetID].keys()
+                    ci_innovationHist = sat.ciEstimator.innovationHist[targ.targetID]
+                    ci_innovationCovHist = sat.ciEstimator.innovationCovHist[targ.targetID]
                     
                     et_times = sat.etEstimator.estHist[targ.targetID][sat][sat].keys()
                     et_estHist = sat.etEstimator.estHist[targ.targetID][sat][sat]
@@ -2472,17 +2601,16 @@ class environment:
                     self.format_data(
                         filename, targ.targetID, times, sat_hist, trueHist,
                         sat_measHistTimes, sat_measHist, estTimes, estHist, covHist,
-                        trackError, innovationHist, innovationCovHist, ddf_times,
-                        ddf_estHist, ddf_covHist, ddf_trackError, ddf_innovation_times,
-                        ddf_innovationHist, ddf_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError
+                        trackError, innovationHist, innovationCovHist, ci_times,
+                        ci_estHist, ci_covHist, ci_trackError, ci_innovation_times,
+                        ci_innovationHist, ci_innovationCovHist, et_times, et_estHist, et_covHist, et_trackError
                     )
-
 
     def format_data(
         self, filename, targetID, times, sat_hist, trueHist, sat_measHistTimes,
         sat_measHist, estTimes, estHist, covHist, trackError, innovationHist,
-        innovationCovHist, ddf_times, ddf_estHist, ddf_covHist, ddf_trackError,
-        ddf_innovation_times, ddf_innovationHist, ddf_innovationCovHist, et_times,
+        innovationCovHist, ci_times, ci_estHist, ci_covHist, ci_trackError,
+        ci_innovation_times, ci_innovationHist, ci_innovationCovHist, et_times,
         et_estHist, et_covHist, et_trackError
     ):
         """
@@ -2502,13 +2630,13 @@ class environment:
         - trackError (dict): Track quality history.
         - innovationHist (dict): Innovation history.
         - innovationCovHist (dict): Innovation covariance history.
-        - ddf_times (dict_keys): DDF estimation times.
-        - ddf_estHist (dict): DDF estimation history.
-        - ddf_covHist (dict): DDF covariance history.
-        - ddf_trackError (dict): DDF track quality history.
-        - ddf_innovation_times (dict_keys): DDF innovation times.
-        - ddf_innovationHist (dict): DDF innovation history.
-        - ddf_innovationCovHist (dict): DDF innovation covariance history.
+        - ci_times (dict_keys): DDF estimation times.
+        - ci_estHist (dict): DDF estimation history.
+        - ci_covHist (dict): DDF covariance history.
+        - ci_trackError (dict): DDF track quality history.
+        - ci_innovation_times (dict_keys): DDF innovation times.
+        - ci_innovationHist (dict): DDF innovation history.
+        - ci_innovationCovHist (dict): DDF innovation covariance history.
         - et_times (dict_keys): ET estimation times.
         - et_estHist (dict): ET estimation history.
         - et_covHist (dict): ET covariance history.
@@ -2539,9 +2667,9 @@ class environment:
                 'InTrackAngle', 'CrossTrackAngle', 'Est_x', 'Est_vx', 'Est_y', 'Est_vy', 'Est_z', 'Est_vz',
                 'Cov_xx', 'Cov_vxvx', 'Cov_yy', 'Cov_vyvy', 'Cov_zz', 'Cov_vzvz', 'Track Uncertainty',
                 'Innovation_ITA', 'Innovation_CTA', 'InnovationCov_ITA', 'InnovationCov_CTA',
-                'DDF_Est_x', 'DDF_Est_vx', 'DDF_Est_y', 'DDF_Est_vy', 'DDF_Est_z', 'DDF_Est_vz',
-                'DDF_Cov_xx', 'DDF_Cov_vxvx', 'DDF_Cov_yy', 'DDF_Cov_vyvy', 'DDF_Cov_zz', 'DDF_Cov_vzvz', 'DDF Track Uncertainty',
-                'DDF_Innovation_ITA', 'DDF_Innovation_CTA', 'DDF_InnovationCov_ITA', 'DDF_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
+                'ci_Est_x', 'ci_Est_vx', 'ci_Est_y', 'ci_Est_vy', 'ci_Est_z', 'ci_Est_vz',
+                'ci_Cov_xx', 'ci_Cov_vxvx', 'ci_Cov_yy', 'ci_Cov_vyvy', 'ci_Cov_zz', 'ci_Cov_vzvz', 'DDF Track Uncertainty',
+                'ci_Innovation_ITA', 'ci_Innovation_CTA', 'ci_InnovationCov_ITA', 'ci_InnovationCov_CTA', 'ET_Est_x', 'ET_Est_vx',
                 'ET_Est_y', 'ET_Est_vy', 'ET_Est_z', 'ET_Est_vz', 'ET_Cov_xx', 'ET_Cov_vxvx', 'ET_Cov_yy', 'ET_Cov_vyvy', 'ET_Cov_zz',
                 'ET_Cov_vzvz', 'ET_Track Error'
             ])
@@ -2562,14 +2690,14 @@ class environment:
                     row += format_list(innovationHist[time])
                     row += format_list(np.diag(innovationCovHist[time]))
 
-                if time in ddf_times:
-                    row += format_list(ddf_estHist[time])
-                    row += format_list(np.diag(ddf_covHist[time]))
-                    row += format_list(ddf_trackError[time])
+                if time in ci_times:
+                    row += format_list(ci_estHist[time])
+                    row += format_list(np.diag(ci_covHist[time]))
+                    row += format_list(ci_trackError[time])
 
-                if time in ddf_innovation_times:
-                    row += format_list(ddf_innovationHist[time])
-                    row += format_list(np.diag(ddf_innovationCovHist[time]))
+                if time in ci_innovation_times:
+                    row += format_list(ci_innovationHist[time])
+                    row += format_list(np.diag(ci_innovationCovHist[time]))
                     
                 if time in et_times:
                     row += format_list(et_estHist[time])
@@ -2578,7 +2706,6 @@ class environment:
 
                 writer.writerow(row)
                 
-
     def log_comms_data(self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))):
         for sat in self.sats:
             for targ in self.targs:
@@ -2627,7 +2754,9 @@ class environment:
                     row += ['', '', '']
                 writer.writerow(row)
 
+### NEES/NIS Data Collection; NOT WORKING RN ###
     def collectNISNEESData(self):
+    # TODO: THIS ONLY WORKS FOR CI ESTIMATOR AT THE MOMENT, DONT USE OTHERWISE!
         """
         Collects NEES and NIS data for the simulation in an easy-to-read format.
 

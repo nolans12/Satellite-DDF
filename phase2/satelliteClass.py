@@ -26,6 +26,13 @@ class satellite:
         self.name = name
         self.color = color
 
+    # Set the estimators to None on initalization
+        self.indeptEstimator = None
+        self.ciEstimator = None
+        self.etEstimators = None
+        
+
+
     # Create the orbit
         # Check if already in units, if not convert
         if type(a) == int:
@@ -53,6 +60,7 @@ class satellite:
         self.velHist = defaultdict(dict) # contains time and xyz of velocity history
         self.time = 0
 
+
     def collect_measurements_and_filter(self, target):
         """
         Collect measurements from the sensor for a specified target and update local filters.
@@ -66,6 +74,7 @@ class satellite:
         Returns:
             int: Flag indicating whether measurements were successfully collected (1) or not (0).
         """
+
         # Assume no measurement is collected on this target
         collectedFlag = False
 

@@ -83,11 +83,11 @@ def create_environment():
     
 
     # Define a random target:
-    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(1))
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(1))
     targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(2))
-    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(3))
-    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(4))
-    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20,  uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(5))
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(3))
+    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(4))
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = reds(5))
    
     targs = [targ1, targ2, targ3, targ4, targ5]
 
@@ -112,19 +112,26 @@ def create_environment():
                            sat2a: {        2: 100, 3: 300}, 
                            sat2b: {1: 100, 2: 220, 3: 240, 4: 300, 5: 280}}
     
-
-    local = True#indeptEstimator(targPriorities = commandersIntent)
-
-    ci = True#ciEstimator(targPriorities = commandersIntent)
+    commandersIntent[4] = {sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
+                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
+                           sat2a: {        2: 300, 3: 100},
+                           sat2b: {1: 300, 2: 220, 3: 240, 4: 100, 5: 280}}
     
-    et = True#etEstimator(targPriorities = commandersIntent, shareWith=None)
 
-    central = True#centralEstimator(targPriorities = commandersIntent)
+    local = True
+
+    ci = True 
+    
+    et = False
+
+    central = True
+
     # Define the communication network: 
     comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
     
     # Create and return an environment instance:
-    return environment(sats, targs, comms_network, commandersIntent, local, central, ci, et)
+    return environment(sats, targs, comms_network, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
+
 
 ### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####
 def create_environment_mono():
@@ -325,19 +332,21 @@ def plot_NEES_NIS(simData, fileName):
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "Merge"
+    fileName = "test"
 
+    # Create the environment
     env = create_environment()
+
     # Simulate the satellites through the vector of time:
-    # env.simulate(time_vec, plotComms = True, plotEstimators= True, showSim = False, saveName = fileName)
-    env.simulate(time_vec, saveName = fileName, plot_env = False, show_env = False, plot_env_comms = False, show_env_comms = False, plot_estimation_results = True, plot_communication_results = False, plot_uncertainty_ellipses= False, save_estimation_data = False, save_communication_data = False)
+    env.simulate(time_vec, saveName = fileName, show_env = True, plot_estimation_results = True, plot_communication_results = True)
+
     # Save the gif:
-    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
-    #env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    #env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
+    # env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
+    # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
+    # env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
 
     # ### Do formal NEES and NIS test:
     # time_vec = np.linspace(36, 51, 15 + 1) * u.minute
