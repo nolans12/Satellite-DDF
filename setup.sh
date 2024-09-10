@@ -48,11 +48,14 @@ function update_requirements() {
     # Append `# <hash of requirements.txt>` to `requirements_lock.txt`
     hash=$(sha256sum requirements.txt)
     echo "# $hash" >> requirements_lock.txt
+
+    # Re-install requirements but don't bother recursing
+    pip install -r requirements_lock.txt
 }
 
 function install_requirements() {
     # Install requirements
-    python3 -m pip install -r requirements_lock.txt
+    pip install -r requirements_lock.txt
 
     # Ensure the requirements lock file is up-to-date;
     # use the hash of `requirements.txt` stored at the end
