@@ -1,32 +1,33 @@
 from import_libraries import *
+from numpy import typing as npt
 
 
-class target:
+class Target:
     def __init__(
         self,
-        name,
-        targetID,
-        coords,
-        heading,
-        speed,
-        color,
-        uncertainty=np.array([0, 0, 0, 0, 0]),
-        climbrate=0,
-        changeAoA=False,
-        tqReq=0,
+        name: str,
+        targetID: int,
+        coords: npt.NDArray,
+        heading: float,
+        speed: float,
+        color: str,
+        uncertainty: npt.NDArray = np.array([0, 0, 0, 0, 0]),
+        climbrate: float = 0,
+        changeAoA: bool = False,
+        tqReq: int = 0,
     ):
         """Target class that moves linearly around the earth with constant angular velocity.
 
         Args:
-            name (str): Name of the target.
-            targetID (int): ID of the target.
-            coords (np.array): Initial position [latitude, longitude, altitude].
-            heading (float): Heading direction in degrees.
-            speed (float): Speed in km/h.
-            uncertainty (np.array): Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
-            color (str): Color representation of the target.
-            climbrate (float): Climbing rate in km/h. Defaults to 0.
-            changeAoA (bool): Whether the target should change Angle of Attack. Defaults to False.
+            name: Name of the target.
+            targetID: ID of the target.
+            coords: Initial position [latitude, longitude, altitude].
+            heading: Heading direction in degrees.
+            speed: Speed in km/h.
+            uncertainty: Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
+            color: Color representation of the target.
+            climbrate: Climbing rate in km/h. Defaults to 0.
+            changeAoA: Whether the target should change Angle of Attack. Defaults to False.
         """
 
         # Initialize the target's parameters
@@ -77,7 +78,9 @@ class target:
             dict
         )  # Contains time, xyz, and velocity history in ECI [x xdot y ydot z zdot]
 
-    def propagate(self, time_step, time, initialState=None):
+    def propagate(
+        self, time_step: float, time: float, initialState: npt.NDArray | None = None
+    ) -> None:
         """Linearly propagate target state in spherical coordinates then transform back to ECI.
 
         Args:
