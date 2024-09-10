@@ -1,0 +1,16 @@
+[project]
+name = "satellite_ddf"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["phase1", "phase2", "phase3"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
