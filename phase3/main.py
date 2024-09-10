@@ -14,10 +14,6 @@ from groundStationClass import groundStation
 def create_environment():
 
     # Define the targets for the satellites to track:
-    # We will use the Reds color map for the targets
-    # reds = plt.get_cmap('Reds', 7)
-    # reds = reds.reversed() # inverse the order so that 0 is most intense, 7 is least intense
-
     targ1_color = '#e71714'
     targ2_color = '#eea62a'
     targ3_color = '#58b428'
@@ -67,8 +63,10 @@ def create_environment():
 
     groundStations = [gs1, gs2]
 
+
     # Define the communication network: 
     comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+
 
     # Define the estimators used:
     central = False
@@ -87,7 +85,7 @@ if __name__ == "__main__":
     time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "godMode"
+    fileName = "God Mode"
 
     # Create the environment
     env = create_environment()

@@ -885,7 +885,7 @@ class environment:
 
                     # Create a 2x3 grid of subplots, where the second row will have 2 plots
                     fig = plt.figure(figsize=(15, 8))
-                    fig.suptitle(f"{gs.name}, {targ.name}", fontsize=14)
+                    fig.suptitle(f"{saveName}: {gs.name}, {targ.name}", fontsize=14)
                     grid = gridspec.GridSpec(2, 6)
 
                     # Make the subplots:
@@ -943,6 +943,11 @@ class environment:
                                     axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
                                     prevData += 1
                         
+                    # Make a patch for legend for the satellite colors
+                    handles = [Patch(color=gs.color, label=f'{gs.name} Estimator')]
+                    for sat in self.sats:
+                        handles.append(Patch(color=sat.color, label=sat.name))
+                    axComm.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
 
                     # Adjust layout for better spacing
                     plt.tight_layout()
