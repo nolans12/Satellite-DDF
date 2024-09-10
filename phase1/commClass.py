@@ -1,11 +1,14 @@
-
 from import_libraries import *
+
 
 class comms:
     """
     Communication network class.
     """
-    def __init__(self, sats, maxNeighbors, maxRange, minRange, dataRate=0, displayStruct=False):
+
+    def __init__(
+        self, sats, maxNeighbors, maxRange, minRange, dataRate=0, displayStruct=False
+    ):
         """Initialize the communications network.
                 Using networkx, a python library, to create a graph of the satellites and their connections.
 
@@ -52,26 +55,31 @@ class comms:
         """
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
-            return 
-        
+            return
+
         # Initialize the target_id key in the receiver's queued data if not present
         if time not in self.G.nodes[receiver]['queued_data']:
             self.G.nodes[receiver]['queued_data'][time] = {}
-        
+
         # Initialize the time key in the target_id's queued data if not present
         if target_id not in self.G.nodes[receiver]['queued_data'][time]:
-            self.G.nodes[receiver]['queued_data'][time][target_id] = {'est': [], 'cov': [], 'sender': []}
+            self.G.nodes[receiver]['queued_data'][time][target_id] = {
+                'est': [],
+                'cov': [],
+                'sender': [],
+            }
 
         # Add the estimate to the receiver's queued data at the specified target_id and time
         self.G.nodes[receiver]['queued_data'][time][target_id]['est'].append(est_meas)
         self.G.nodes[receiver]['queued_data'][time][target_id]['cov'].append(cov_meas)
-        self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(sender.name)
-
+        self.G.nodes[receiver]['queued_data'][time][target_id]['sender'].append(
+            sender.name
+        )
 
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
                 Performs double loop through all satellites to check known pairs.
-                An edge represnts a theorical communication link between two satellites. 
+                An edge represnts a theorical communication link between two satellites.
 
         Args:
             sats (list): List of satellites.
@@ -101,10 +109,16 @@ class comms:
                 neighbors = list(self.G.neighbors(sat))
 
                 # Get the distances to each neighbor
-                dists = [np.linalg.norm(neighbor.orbit.r - sat.orbit.r) for neighbor in neighbors]
+                dists = [
+                    np.linalg.norm(neighbor.orbit.r - sat.orbit.r)
+                    for neighbor in neighbors
+                ]
 
                 # Sort the neighbors by distance
-                sorted_neighbors = [x for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])]
+                sorted_neighbors = [
+                    x
+                    for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
+                ]
 
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
@@ -125,14 +139,18 @@ class comms:
         line = (sat2.orbit.r - sat1.orbit.r).value  # This is from sat1 to sat2
 
         # Check if there is an intersection with the Earth
-        if self.sphere_line_intersection([0, 0, 0], 6378, sat1.orbit.r.value, line) is not None:
+        if (
+            self.sphere_line_intersection([0, 0, 0], 6378, sat1.orbit.r.value, line)
+            is not None
+        ):
             return True
 
         # If there is no intersection, return False
         return False
 
-    
-    def sphere_line_intersection(self, sphere_center, sphere_radius, line_point, line_direction):
+    def sphere_line_intersection(
+        self, sphere_center, sphere_radius, line_point, line_direction
+    ):
         """Check if a line intersects with a sphere.
                 Uses known fomrula for line-sphere intersection in 3D space.
 
@@ -148,19 +166,19 @@ class comms:
         # Unpack sphere parameters
         x0, y0, z0 = sphere_center
         r = sphere_radius
-        
+
         # Unpack line parameters
         x1, y1, z1 = line_point
         dx, dy, dz = line_direction
-        
+
         # Compute coefficients for the quadratic equation
         a = dx**2 + dy**2 + dz**2
         b = 2 * (dx * (x1 - x0) + dy * (y1 - y0) + dz * (z1 - z0))
-        c = (x1 - x0)**2 + (y1 - y0)**2 + (z1 - z0)**2 - r**2
-        
+        c = (x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2 - r**2
+
         # Compute discriminant
         discriminant = b**2 - 4 * a * c
-        
+
         if discriminant < 0:
             # No intersection
             return None
@@ -175,11 +193,11 @@ class comms:
             t2 = (-b - np.sqrt(discriminant)) / (2 * a)
             intersection_point1 = np.array([x1 + t1 * dx, y1 + t1 * dy, z1 + t1 * dz])
             intersection_point2 = np.array([x1 + t2 * dx, y1 + t2 * dy, z1 + t2 * dz])
-            
+
             # Calculate distances
             dist1 = np.linalg.norm(intersection_point1 - line_point)
             dist2 = np.linalg.norm(intersection_point2 - line_point)
-            
+
             if dist1 < dist2:
                 return intersection_point1
             else:

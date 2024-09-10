@@ -11,10 +11,10 @@ g.add_nodes_from(["Sat1a", "Sat1b", "Sat2a", "Sat2b"])
 
 # Add node attributes for trackUncertainty
 track_uncertainty = {
-    "Sat1a": {1:  80, 2:  90, 3:  90, 4:  90, 5:  90},
+    "Sat1a": {1: 80, 2: 90, 3: 90, 4: 90, 5: 90},
     "Sat1b": {1: 105, 2: 130, 3: 130, 4: 135, 5: 135},
     "Sat2a": {1: 150, 2: 155, 3: 161, 4: 162, 5: 165},
-    "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290}
+    "Sat2b": {1: 200, 2: 275, 3: 280, 4: 280, 5: 290},
 }
 
 nx.set_node_attributes(g, track_uncertainty, 'trackUncertainty')
@@ -24,10 +24,18 @@ edgeBandwidth = 60
 
 # Add directed edges with banxdwidth constraints of X
 edges_with_bandwidth = [
-    ("Sat1a", "Sat1b", edgeBandwidth), ("Sat1a", "Sat2a", edgeBandwidth), ("Sat1a", "Sat2b", edgeBandwidth),
-    ("Sat1b", "Sat1a", edgeBandwidth), ("Sat1b", "Sat2a", edgeBandwidth), ("Sat1b", "Sat2b", edgeBandwidth),
-    ("Sat2a", "Sat1a", edgeBandwidth), ("Sat2a", "Sat1b", edgeBandwidth), ("Sat2a", "Sat2b", edgeBandwidth),
-    ("Sat2b", "Sat1a", edgeBandwidth), ("Sat2b", "Sat1b", edgeBandwidth), ("Sat2b", "Sat2a", edgeBandwidth)
+    ("Sat1a", "Sat1b", edgeBandwidth),
+    ("Sat1a", "Sat2a", edgeBandwidth),
+    ("Sat1a", "Sat2b", edgeBandwidth),
+    ("Sat1b", "Sat1a", edgeBandwidth),
+    ("Sat1b", "Sat2a", edgeBandwidth),
+    ("Sat1b", "Sat2b", edgeBandwidth),
+    ("Sat2a", "Sat1a", edgeBandwidth),
+    ("Sat2a", "Sat1b", edgeBandwidth),
+    ("Sat2a", "Sat2b", edgeBandwidth),
+    ("Sat2b", "Sat1a", edgeBandwidth),
+    ("Sat2b", "Sat1b", edgeBandwidth),
+    ("Sat2b", "Sat2a", edgeBandwidth),
 ]
 g.add_weighted_edges_from(edges_with_bandwidth, weight='bandwidth')
 
@@ -35,7 +43,9 @@ g.add_weighted_edges_from(edges_with_bandwidth, weight='bandwidth')
 pos = nx.spring_layout(g)  # or nx.circular_layout(g) for a circular layout
 
 # Draw the graph
-nx.draw(g, pos, with_labels=True, node_color='lightblue', font_weight='bold', arrows=True)
+nx.draw(
+    g, pos, with_labels=True, node_color='lightblue', font_weight='bold', arrows=True
+)
 
 # Draw edge labels for bandwidth constraints
 edge_labels = nx.get_edge_attributes(g, 'bandwidth')
@@ -51,6 +61,7 @@ nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels)
 # You only send data to a satellite pair that has a track uncertainty less than a certain amount
 # You consider bandwidth constraints on the edges
 
+
 def goodness(s, t, targetID):
     """Calculate the goodness between nodes s and t based on track uncertainty."""
 
@@ -64,15 +75,16 @@ def goodness(s, t, targetID):
     recieverTrackUncertainty = track_uncertainty[t][targetID]
 
     # Check, if the sats track uncertainty on that targetID needs help or not
-    if recieverTrackUncertainty < (50 + 50*targetID):
+    if recieverTrackUncertainty < (50 + 50 * targetID):
         return 0
-   
+
     # Else, calculate the goodness, + if the source is better, 0 if the sat is better
     if recieverTrackUncertainty - sourceTrackUncertainty < 0:
-        return 0 # Source has higher uncertaninty than sat, no benefit
-    
+        return 0  # Source has higher uncertaninty than sat, no benefit
+
     # Else, add the goodness to the total goodness, taking the difference in track uncertainty
     return recieverTrackUncertainty - sourceTrackUncertainty
+
 
 # Define a dictionary to store the goodness values
 goodness_dict = {}
@@ -97,11 +109,11 @@ selection_vars = pulp.LpVariable.dicts(
 objective_expression = pulp.LpAffineExpression()
 
 # Loop through all source, target, and targetID combinations in goodness_dict
-for (s, r, targetID) in goodness_dict:
-    
+for s, r, targetID in goodness_dict:
+
     # Multiply the selection variable by the corresponding goodness value
     term = selection_vars[(s, r, targetID)] * goodness_dict[(s, r, targetID)]
-    
+
     # Add this term to the objective function expression
     objective_expression += term
 
@@ -120,12 +132,17 @@ for edge in g.edges():
 
     # Loop through each targetID associated with the source node u
     for targetID in track_uncertainty[u]:
-        
+
         # Add the bandwidth consumption for the current targetID to the total bandwidth consumption
-        total_bandwidth_consumption += selection_vars[(u, v, targetID)] * fixed_bandwidth_consumption
+        total_bandwidth_consumption += (
+            selection_vars[(u, v, targetID)] * fixed_bandwidth_consumption
+        )
 
     # Add the constraint to ensure the total bandwidth on edge (u, v) does not exceed the available bandwidth
-    prob += total_bandwidth_consumption <= g[u][v]["bandwidth"], f"Bandwidth_constraint_{u}_{v}"
+    prob += (
+        total_bandwidth_consumption <= g[u][v]["bandwidth"],
+        f"Bandwidth_constraint_{u}_{v}",
+    )
 
 
 # Solve the problem
@@ -141,29 +158,24 @@ selected_pairs = [
 # Print the selected pairs
 # also print the total goodness value of the path
 print("Selected pairs:")
-for (s, t, targetID) in selected_pairs:
-    print(f"{s} -> {t} (targetID: {targetID}, goodness: {goodness_dict[(s, t, targetID)]})")
+for s, t, targetID in selected_pairs:
+    print(
+        f"{s} -> {t} (targetID: {targetID}, goodness: {goodness_dict[(s, t, targetID)]})"
+    )
     # print(f"Goodness: {goodness_dict[(s, t, targetID)]}")
 
 
 # Print hte total goodness value
 total_goodness = sum(
-    goodness_dict[(s, t, targetID)]
-    for (s, t, targetID) in selected_pairs
+    goodness_dict[(s, t, targetID)] for (s, t, targetID) in selected_pairs
 )
 
 print(f"Total goodness: {total_goodness}")
 
 # Now sum up the total bandwidth usage
-total_bandwidth_usage = sum(
-    fixed_bandwidth_consumption
-    for (s, t, _) in selected_pairs
-)
+total_bandwidth_usage = sum(fixed_bandwidth_consumption for (s, t, _) in selected_pairs)
 
 print(f"Total bandwidth usage: {total_bandwidth_usage}")
 # Also figure out how much bandwidth is left
-total_bandwidth = sum(
-    g[u][v]['bandwidth']
-    for (u, v) in g.edges()
-)
+total_bandwidth = sum(g[u][v]['bandwidth'] for (u, v) in g.edges())
 print(f"Total bandwidth available: {total_bandwidth}")

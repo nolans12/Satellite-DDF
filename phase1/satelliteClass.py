@@ -1,8 +1,24 @@
 from import_libraries import *
+
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
+
 class satellite:
-    def __init__(self, a, ecc, inc, raan, argp, nu, sensor, targetIDs, indeptEstimator, name, color, ddfEstimator = None):
+    def __init__(
+        self,
+        a,
+        ecc,
+        inc,
+        raan,
+        argp,
+        nu,
+        sensor,
+        targetIDs,
+        indeptEstimator,
+        name,
+        color,
+        ddfEstimator=None,
+    ):
         """Initialize a Satellite object.
 
         Args:
@@ -20,50 +36,54 @@ class satellite:
             ddf_estimator (object, optional): DDF estimator to test. Defaults to None.
         """
 
-    # Sensor to use
+        # Sensor to use
         self.sensor = sensor
-        self.measurementHist = {targetID: defaultdict(dict) for targetID in targetIDs} # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
-    
-    # Targets to track:
+        self.measurementHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # Initialize as a dictionary of dictornies for raw measurements. Index with targetID and time: t, sat ECI pos, sensor measurements
+
+        # Targets to track:
         self.targetIDs = targetIDs
 
-    # Estimator to use to benchmark against, worst case
+        # Estimator to use to benchmark against, worst case
         self.indeptEstimator = indeptEstimator
-    
-    # DDF estimator to test
+
+        # DDF estimator to test
         if ddfEstimator:
             self.ddfEstimator = ddfEstimator
         else:
             self.ddfEstimator = None
 
-    # Other parameters
+        # Other parameters
         self.name = name
         self.color = color
 
-    # Create the orbit
+        # Create the orbit
         # Check if already in units, if not convert
         if type(a) == int:
             a = a * u.km
         self.a = a
         if type(ecc) == int:
             ecc = ecc * u.dimensionless_unscaled
-        self.ecc = ecc 
+        self.ecc = ecc
         if type(inc) == int:
             inc = inc * u.deg
-        self.inc = inc 
+        self.inc = inc
         if type(raan) == int:
             raan = raan * u.deg
-        self.raan = raan 
+        self.raan = raan
         if type(argp) == int:
             argp = argp * u.deg
-        self.argp = argp 
+        self.argp = argp
         if type(nu) == int:
             nu = nu * u.deg
-        self.nu = nu 
-        
+        self.nu = nu
+
         # Create the poliastro orbit
-        self.orbit = Orbit.from_classical(Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu)
-        self.orbitHist = defaultdict(dict) # contains time and xyz of orbit history
+        self.orbit = Orbit.from_classical(
+            Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu
+        )
+        self.orbitHist = defaultdict(dict)  # contains time and xyz of orbit history
         self.time = 0
 
     def collect_measurements_and_filter(self, target):
@@ -80,12 +100,12 @@ class satellite:
         """
         collectedFlag = 0
         if target.targetID in self.targetIDs:
-        # Is the current target one of the ones to track?
+            # Is the current target one of the ones to track?
             # If so, get the measurement
             measurement = self.sensor.get_measurement(self, target)
             # Make sure its not just a default 0, means target isnt visible
             if not isinstance(measurement, int):
-            # If target is visible, save relavent data
+                # If target is visible, save relavent data
                 collectedFlag = 1
 
                 # Save the measurement
@@ -109,7 +129,7 @@ class satellite:
         """
         # Update the local filters using the independent estimator
         self.indeptEstimator.EKF([self], [measurement], target, time)
-        
-        # If a DDF estimator is present, update the DDF filters using a local EKF 
+
+        # If a DDF estimator is present, update the DDF filters using a local EKF
         if self.ddfEstimator:
             self.ddfEstimator.EKF([self], [measurement], target, time)
