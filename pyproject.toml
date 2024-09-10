@@ -20,4 +20,4 @@ skip-string-normalization = true
 
 [tool.isort]
 force_single_line = true
-single_line_exclusions = typing
+single_line_exclusions = ["typing"]

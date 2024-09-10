@@ -20,10 +20,5 @@
         "editor.formatOnSaveMode": "file",
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnType": false
-    },
-    "isort.args": [
-        "--force-single-line-imports",
-        "--single-line-exclusions",
-        "typing",
-    ]
+    }
 }
