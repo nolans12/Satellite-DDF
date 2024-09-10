@@ -1,26 +1,29 @@
 from commClass import Comms
-from estimatorClass import centralEstimator, ciEstimator, etEstimator, indeptEstimator
+from estimatorClass import CentralEstimator
+from estimatorClass import CiEstimator
+from estimatorClass import EtEstimator
+from estimatorClass import IndeptEstimator
 from import_libraries import *
+from sensorClass import Sensor
+from targetClass import Target
 
 # Import classes
-from satelliteClass import satellite
-from sensorClass import sensor
-from targetClass import target
+from phase3 import satelliteClass
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 
-class environment:
+class Environment:
     def __init__(
         self,
-        sats,
+        sats: list[satelliteClass.Satellite],
         targs,
         comms,
         commandersIntent,
-        localEstimatorBool,
-        centralEstimatorBool,
-        ciEstimatorBool,
-        etEstimatorBool,
+        localEstimatorBool: bool,
+        centralEstimatorBool: bool,
+        ciEstimatorBool: bool,
+        etEstimatorBool: bool,
     ):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
@@ -44,24 +47,24 @@ class environment:
             # Create estimation algorithms for each satellite
             self.localEstimatorBool = localEstimatorBool
             if localEstimatorBool:
-                sat.indeptEstimator = indeptEstimator(
+                sat.indeptEstimator = IndeptEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the independent estimator for these targets
 
             self.centralEstimatorBool = centralEstimatorBool
             if centralEstimatorBool:
-                self.centralEstimator = centralEstimator(
+                self.centralEstimator = CentralEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the central estimator for these targets
 
             self.ciEstimatorBool = ciEstimatorBool
             if ciEstimatorBool:
-                sat.ciEstimator = ciEstimator(commandersIntent[0][sat])
+                sat.ciEstimator = CiEstimator(commandersIntent[0][sat])
 
             self.etEstimatorBool = etEstimatorBool
             if etEstimatorBool:
                 sat.etEstimators = [
-                    etEstimator(commandersIntent[0][sat], shareWith=None)
+                    EtEstimator(commandersIntent[0][sat], shareWith=None)
                 ]
 
         ## Populate the environment variables
@@ -648,6 +651,7 @@ class environment:
                     ):
                         # This means satellite has a measurement for this target, now send it to neighbors
                         for neighbor in self.comms.G.neighbors(sat):
+                            neighbor: satelliteClass.Satellite
                             # If target is not in neighbors priority list, skip
                             if targetID not in neighbor.targPriority.keys():
                                 continue
@@ -669,7 +673,7 @@ class environment:
                             if (
                                 commonEKF is None
                             ):  # or make a common filter if one doesn't exist
-                                commonEKF = etEstimator(
+                                commonEKF = EtEstimator(
                                     local_EKF.targetPriorities, shareWith=neighbor.name
                                 )
                                 commonEKF.et_EKF_initialize(target, envTime)
@@ -698,7 +702,7 @@ class environment:
                             if (
                                 commonEKF is None
                             ):  # if I don't, create one and add it to etEstimators list
-                                commonEKF = etEstimator(
+                                commonEKF = EtEstimator(
                                     neighbor.targPriority, shareWith=sat.name
                                 )
                                 commonEKF.et_EKF_initialize(target, envTime)

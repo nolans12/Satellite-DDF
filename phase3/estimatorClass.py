@@ -1,8 +1,14 @@
 from import_libraries import *
+from jax import typing as jnpt
+from numpy import typing as npt
+
+from phase3 import commClass
+from phase3 import satelliteClass
+from phase3 import targetClass
 
 
 class BaseEstimator:
-    def __init__(self, targetPriorities):
+    def __init__(self, targetPriorities: dict[int, int]):
         """
         Initialize the BaseEstimator object.
 
@@ -45,7 +51,7 @@ class BaseEstimator:
             targetID: defaultdict(dict) for targetID in targetPriorities.keys()
         }  # History of track quality metric
 
-    def EKF_initialize(self, target, envTime):
+    def EKF_initialize(self, target: targetClass.Target, envTime: float) -> None:
         prior_pos = np.array(
             [target.pos[0], target.pos[1], target.pos[2]]
         ) + np.random.normal(0, 15, 3)
@@ -80,7 +86,7 @@ class BaseEstimator:
             target.targetID, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
         )
 
-    def EKF_pred(self, targetID, envTime):
+    def EKF_pred(self, targetID: int, envTime: float) -> None:
         # Get most recent estimate and covariance
         time_prior = max(self.estHist[targetID].keys())
         est_prior = self.estHist[targetID][time_prior]
@@ -122,7 +128,13 @@ class BaseEstimator:
         self.estPredHist[targetID][envTime] = est_pred
         self.covariancePredHist[targetID][envTime] = P_pred
 
-    def EKF_update(self, sats, measurements, targetID, envTime):
+    def EKF_update(
+        self,
+        sats: list[satelliteClass.Satellite],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
 
         if not isinstance(measurements[0], np.ndarray):
             return
@@ -179,18 +191,18 @@ class BaseEstimator:
             targetID, envTime, est, P, innovation, innovationCov
         )
 
-    def state_transition(self, estPrior, dt):
+    def state_transition(self, estPrior: npt.NDArray, dt: float) -> jnpt.ArrayLike:
         """
         State Transition Function: Converts ECI Cartesian state to spherical coordinates,
         propagates state over time using Runge-Kutta 4th order integration, and converts
         back to Cartesian. Inputs current state and time step, returns next state.
 
         Parameters:
-        - estPrior (array-like): Current state in Cartesian coordinates [x, vx, y, vy, z, vz].
-        - dt (float): Time step for integration.
+        - estPrior: Current state in Cartesian coordinates [x, vx, y, vy, z, vz].
+        - dt: Time step for integration.
 
         Returns:
-        - array-like: Next state in Cartesian coordinates [x, vx, y, vy, z, vz].
+        - Next state in Cartesian coordinates [x, vx, y, vy, z, vz].
         """
         x, vx, y, vy, z, vz = estPrior
 
@@ -216,7 +228,7 @@ class BaseEstimator:
         )
 
         # Define function to compute derivatives for Runge-Kutta method
-        def derivatives(spherical_state):
+        def derivatives(spherical_state: npt.NDArray) -> jnpt.ArrayLike:
             """
             Computes derivatives of spherical state variables.
 
@@ -287,16 +299,16 @@ class BaseEstimator:
         # Return the next state in Cartesian coordinates
         return jnp.array([x, vx, y, vy, z, vz])
 
-    def state_transition_jacobian(self, estPrior, dt):
+    def state_transition_jacobian(self, estPrior: npt.NDArray, dt: float) -> jnpt.Array:
         """
         Calculates the Jacobian matrix of the state transition function.
 
         Parameters:
-        - estPrior (array-like): Current state in Cartesian coordinates [x, vx, y, vy, z, vz].
-        - dt (float): Time step for integration.
+        - estPrior: Current state in Cartesian coordinates [x, vx, y, vy, z, vz].
+        - dt: Time step for integration.
 
         Returns:
-        - array-like: Jacobian matrix of the state transition function.
+        - Jacobian matrix of the state transition function.
         """
         jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(
             jnp.array(estPrior)
@@ -304,7 +316,7 @@ class BaseEstimator:
 
         return jacobian
 
-    def calcTrackError(self, est, cov):
+    def calcTrackError(self, est: npt.NDArray, cov: npt.NDArray) -> float:
         """
         Calculate the track quality metric for the current estimate.
 
@@ -339,18 +351,24 @@ class BaseEstimator:
         return posError
 
     def save_current_estimation_data(
-        self, targetID, time, est, cov, innovation, innovationCov
-    ):
+        self,
+        targetID: int,
+        time: float,
+        est: npt.NDArray,
+        cov: npt.NDArray,
+        innovation: npt.NDArray,
+        innovationCov: npt.NDArray,
+    ) -> None:
         """
         Save the current estimation data for the target.
 
         Args:
-        - targetID (int): Target ID.
-        - time (float): Current environment time.
-        - est (array-like): Current estimate for the target ECI state = [x, vx, y, vy, z, vz].
-        - cov (array-like): Current covariance matrix for the target ECI state.
-        - innovation (array-like): Innovation vector.
-        - innovationCov (array-like): Innovation covariance matrix.
+        - targetID: Target ID.
+        - time: Current environment time.
+        - est: Current estimate for the target ECI state = [x, vx, y, vy, z, vz].
+        - cov: Current covariance matrix for the target ECI state.
+        - innovation: Innovation vector.
+        - innovationCov: Innovation covariance matrix.
         """
 
         self.estHist[targetID][time] = est
@@ -364,8 +382,8 @@ class BaseEstimator:
 
 
 ### Central Estimator Class
-class centralEstimator(BaseEstimator):
-    def __init__(self, targPriorities):
+class CentralEstimator(BaseEstimator):
+    def __init__(self, targPriorities: dict[int, int]):
         """
         Initialize Central Estimator object.
 
@@ -376,7 +394,9 @@ class centralEstimator(BaseEstimator):
 
         self.R_factor = 1  # Factor to scale the sensor noise matrix
 
-    def central_EKF_initialize(self, target, envTime):
+    def central_EKF_initialize(
+        self, target: targetClass.Target, envTime: float
+    ) -> None:
         """
         Centralized Extended Kalman Filter initialization step.
 
@@ -386,7 +406,7 @@ class centralEstimator(BaseEstimator):
         """
         super().EKF_initialize(target, envTime)
 
-    def central_EKF_pred(self, targetID, envTime):
+    def central_EKF_pred(self, targetID: int, envTime: float) -> None:
         """
         Centralized Extended Kalman Filter prediction step.
 
@@ -396,7 +416,13 @@ class centralEstimator(BaseEstimator):
         """
         super().EKF_pred(targetID, envTime)
 
-    def central_EKF_update(self, sats, measurements, targetID, envTime):
+    def central_EKF_update(
+        self,
+        sats: list[satelliteClass.Satellite],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
         """
         Centralized Extended Kalman Filter update step.
 
@@ -410,8 +436,8 @@ class centralEstimator(BaseEstimator):
 
 
 ### Independent Estimator Class
-class indeptEstimator(BaseEstimator):
-    def __init__(self, targPriorities):
+class IndeptEstimator(BaseEstimator):
+    def __init__(self, targPriorities: dict[int, int]):
         """
         Initialize Independent Estimator object.
 
@@ -422,7 +448,7 @@ class indeptEstimator(BaseEstimator):
 
         self.R_factor = 1
 
-    def local_EKF_initialize(self, target, envTime):
+    def local_EKF_initialize(self, target: targetClass.Target, envTime: float) -> None:
         """
         Local Extended Kalman Filter initialization step.
 
@@ -432,7 +458,7 @@ class indeptEstimator(BaseEstimator):
         """
         super().EKF_initialize(target, envTime)
 
-    def local_EKF_pred(self, targetID, envTime):
+    def local_EKF_pred(self, targetID: int, envTime: float) -> None:
         """
         Local Extended Kalman Filter prediction step.
 
@@ -442,7 +468,13 @@ class indeptEstimator(BaseEstimator):
         """
         super().EKF_pred(targetID, envTime)
 
-    def local_EKF_update(self, sats, measurements, targetID, envTime):
+    def local_EKF_update(
+        self,
+        sats: list[satelliteClass.Satellite],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
         """
         Local Extended Kalman Filter update step.
 
@@ -456,8 +488,8 @@ class indeptEstimator(BaseEstimator):
 
 
 ### CI Estimator Class
-class ciEstimator(BaseEstimator):
-    def __init__(self, targPriorities):
+class CiEstimator(BaseEstimator):
+    def __init__(self, targPriorities: dict[int, int]):
         """
         Initialize DDF Estimator object.
 
@@ -468,7 +500,7 @@ class ciEstimator(BaseEstimator):
 
         self.R_factor = 1  # Factor to scale the sensor noise matrix
 
-    def ci_EKF_initialize(self, target, envTime):
+    def ci_EKF_initialize(self, target: targetClass.Target, envTime: float) -> None:
         """
         Covariance Intersection Extended Kalman Filter initialization step.
 
@@ -478,7 +510,7 @@ class ciEstimator(BaseEstimator):
         """
         super().EKF_initialize(target, envTime)
 
-    def ci_EKF_pred(self, targetID, envTime):
+    def ci_EKF_pred(self, targetID: int, envTime: float) -> None:
         """
         Covariance Intersection Extended Kalman Filter prediction step.
 
@@ -488,7 +520,13 @@ class ciEstimator(BaseEstimator):
         """
         super().EKF_pred(targetID, envTime)
 
-    def ci_EKF_update(self, sats, measurements, targetID, envTime):
+    def ci_EKF_update(
+        self,
+        sats: list[satelliteClass.Satellite],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
         """
         Covariance Intersection Extended Kalman Filter update step.
 
@@ -500,7 +538,7 @@ class ciEstimator(BaseEstimator):
         """
         super().EKF_update(sats, measurements, targetID, envTime)
 
-    def CI(self, sat, comms):
+    def CI(self, sat: satelliteClass.Satellite, comms) -> None:
         """
         Covariance Intersection function to conservatively combine received estimates and covariances
         into updated target state and covariance.
@@ -613,7 +651,9 @@ class ciEstimator(BaseEstimator):
                     est_prior, cov_prior
                 )
 
-    def det_of_fused_covariance(self, omega, cov1, cov2):
+    def det_of_fused_covariance(
+        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
+    ) -> float:
         """
         Calculate the determinant of the fused covariance matrix.
 
@@ -633,8 +673,8 @@ class ciEstimator(BaseEstimator):
 
 
 ### Event Triggered Estimator Class
-class etEstimator(BaseEstimator):
-    def __init__(self, targPriorities, shareWith=None):
+class EtEstimator(BaseEstimator):
+    def __init__(self, targPriorities: dict[int, int], shareWith=None):
         """
         Initialize Event Triggered Estimator object.
 
@@ -656,7 +696,7 @@ class etEstimator(BaseEstimator):
         self.delta_alpha = 1
         self.delta_beta = 1
 
-    def et_EKF_initialize(self, target, envTime):
+    def et_EKF_initialize(self, target: targetClass.Target, envTime: float) -> None:
         """
         Event Triggered Extended Kalman Filter initialization step.
 
@@ -666,7 +706,7 @@ class etEstimator(BaseEstimator):
         """
         super().EKF_initialize(target, envTime)
 
-    def et_EKF_pred(self, targetID, envTime):
+    def et_EKF_pred(self, targetID: int, envTime: float) -> None:
         """
         Event Triggered Extended Kalman Filter prediction step.
 
@@ -676,7 +716,13 @@ class etEstimator(BaseEstimator):
         """
         super().EKF_pred(targetID, envTime)
 
-    def et_EKF_update(self, sats, measurements, targetID, envTime):
+    def et_EKF_update(
+        self,
+        sats: list[satelliteClass.Satellite],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
         """
         Event Triggered Extended Kalman Filter update step.
 
@@ -688,14 +734,16 @@ class etEstimator(BaseEstimator):
         """
         super().EKF_update(sats, measurements, targetID, envTime)
 
-    def event_trigger_processing(self, sat, envTime, comms):
+    def event_trigger_processing(
+        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+    ) -> None:
         """
         Event Triggered Estimator processing step for new measurements received from other agents
 
         Args:
-        - sat (object): Satellite object.
-        - envTime (float): Current environment time.
-        - comms (object): Communications object.
+        - sat: Satellite object.
+        - envTime: Current environment time.
+        - comms: Communications object.
 
         """
         commNode = comms.G.nodes[sat]
@@ -703,14 +751,16 @@ class etEstimator(BaseEstimator):
         if envTime in commNode['received_measurements']:
             self.process_new_measurements(sat, envTime, comms)
 
-    def event_trigger_updating(self, sat, envTime, comms):
+    def event_trigger_updating(
+        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+    ) -> None:
         """
         Event Triggered Estimator Updating step for new measurments sent to other agents
 
         Args:
-        - sat (object): Satellite object.
-        - envTime (float): Current environment time.
-        - comms (object): Communications object.
+        - sat: Satellite object.
+        - envTime: Current environment time.
+        - comms: Communications object.
         """
 
         commNode = comms.G.nodes[sat]
@@ -718,14 +768,16 @@ class etEstimator(BaseEstimator):
         if envTime in commNode['sent_measurements']:
             self.update_common_filters(sat, envTime, comms)
 
-    def process_new_measurements(self, sat, envTime, comms):
+    def process_new_measurements(
+        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+    ) -> None:
         '''
         This should process new measurements for this satellites commNode and update the local and common filters
 
         Args:
-        - sat (object): Satellite object.
-        - envTime (float): Current environment time.
-        - comms (object): Communications object.
+        - sat: Satellite object.
+        - envTime: Current environment time.
+        - comms: Communications object.
         '''
         # Get the communcation node for the satellite
         commNode = comms.G.nodes[sat]
@@ -848,7 +900,9 @@ class etEstimator(BaseEstimator):
                     time_sent
                 ] = measVec_size
 
-    def update_common_filters(self, sat, envTime, comms):
+    def update_common_filters(
+        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+    ) -> None:
         commNode = comms.G.nodes[sat]
         time_sent = max(
             commNode['sent_measurements'].keys()
@@ -924,8 +978,15 @@ class etEstimator(BaseEstimator):
                 )
 
     def explicit_measurement_update(
-        self, sat, sender, measurement, type, targetID, envTime, filter=None
-    ):
+        self,
+        sat: satelliteClass.Satellite,
+        sender: satelliteClass.Satellite,
+        measurement,
+        type: str,
+        targetID: int,
+        envTime: float,
+        filter: BaseEstimator | None =None,
+    ) -> None:
         '''
         Explicit measurement updates  the estimate with a measurement from a sender satellite.
         Note satellites can send themselves measurements for local filter.

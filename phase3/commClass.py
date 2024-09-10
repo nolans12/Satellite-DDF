@@ -1,31 +1,34 @@
 from import_libraries import *
+from numpy import typing as npt
+
+from phase3 import satelliteClass
 
 
-class comms:
+class Comms:
     """
     Communication network class.
     """
 
     def __init__(
         self,
-        sats,
-        maxNeighbors,
-        maxRange,
-        minRange,
-        maxBandwidth=100000000,
-        dataRate=0,
-        displayStruct=False,
+        sats: list[satelliteClass.Satellite],
+        maxNeighbors: int,
+        maxRange: float,
+        minRange: float,
+        maxBandwidth: int = 100000000,
+        dataRate: int = 0,
+        displayStruct: bool = False,
     ):
         """Initialize the communications network.
                 Using networkx, a python library, to create a graph of the satellites and their connections.
 
         Args:
-            sats (list): List of satellites.
-            max_neighbors (int): Maximum number of neighbors.
-            max_range (float): Maximum range for communication.
-            min_range (float): Minimum range for communication.
-            data_rate (int, optional): Data rate. Defaults to 0.
-            display_struct (bool, optional): Flag to display structure. Defaults to False.
+            sats: List of satellites.
+            max_neighbors: Maximum number of neighbors.
+            max_range: Maximum range for communication.
+            min_range: Minimum range for communication.
+            data_rate: Data rate. Defaults to 0.
+            display_struct: Flag to display structure. Defaults to False.
         """
         # Create a graph instance with the satellites as nodes
         self.G = nx.DiGraph()
@@ -53,8 +56,13 @@ class comms:
         self.displayStruct = displayStruct
 
     def send_estimate_path(
-        self, path, est_meas_source, cov_meas_source, target_id, time
-    ):
+        self,
+        path: list[satelliteClass.Satellite],
+        est_meas_source: npt.NDArray,
+        cov_meas_source: npt.NDArray,
+        target_id: int,
+        time: float,
+    ) -> None:
         """Send an estimate along a path of satellites.
         Includes ferrying the data!!!
         """
@@ -67,7 +75,15 @@ class comms:
             # Activate that edge
             # self.G.edges[path[i-1], path[i]]['active'] = True
 
-    def send_estimate(self, sender, receiver, est_meas, cov_meas, target_id, time):
+    def send_estimate(
+        self,
+        sender: satelliteClass.Satellite,
+        receiver: satelliteClass.Satellite,
+        est_meas: npt.NDArray,
+        cov_meas: npt.NDArray,
+        target_id: int,
+        time: float,
+    ) -> None:
         """Send an estimate from one satellite to another
                 First checks if two satellits are neighbors,
                 then, if they are neighbors, we want to share the most recent estimate
@@ -80,12 +96,12 @@ class comms:
                 the second key is the target ID, and the list contains the estimates, covariances, and who sent them.
 
         Args:
-            sender (Satellite): Satellite sending the estimate.
-            receiver (Satellite): Satellite receiving the estimate.
-            est_meas (array): Estimate to send.
-            cov_meas (array): Covariance estimate to send.
-            target_id (int): ID of the target the estimate is from.
-            time (float): Time the estimate was taken.
+            sender: Satellite sending the estimate.
+            receiver): Satellite receiving the estimate.
+            est_meas: Estimate to send.
+            cov_meas: Covariance estimate to send.
+            target_id: ID of the target the estimate is from.
+            time: Time the estimate was taken.
         """
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
@@ -130,7 +146,14 @@ class comms:
             est_meas.size * 2 + cov_meas.size / 2
         )
 
-    def send_measurements(self, sender, receiver, meas_vector, target_id, time):
+    def send_measurements(
+        self,
+        sender: satelliteClass.Satellite,
+        receiver: satelliteClass.Satellite,
+        meas_vector: npt.NDArray,
+        target_id: int,
+        time: float,
+    ) -> None:
         """Send a vector of measurements from one satellite to another.
                 First checks if two satellites are neighbors,
                 then, if they are neighbors, we share the measurement vector
@@ -142,11 +165,11 @@ class comms:
                 and the list contains the measurement vectors and who sent them.
 
         Args:
-            sender (Satellite): Satellite sending the measurements.
-            receiver (Satellite): Satellite receiving the measurements.
-            meas_vector (array): Measurement vector to send.
-            target_id (int): ID of the target the measurements are from.
-            time (float): Time the measurements were taken.
+            sender: Satellite sending the measurements.
+            receiver: Satellite receiving the measurements.
+            meas_vector: Measurement vector to send.
+            target_id: ID of the target the measurements are from.
+            time: Time the measurements were taken.
         """
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
@@ -201,13 +224,13 @@ class comms:
 
     # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
-    def make_edges(self, sats):
+    def make_edges(self, sats: list[satelliteClass.Satellite]) -> None:
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
                 Performs double loop through all satellites to check known pairs.
                 An edge represnts a theorical communication link between two satellites.
 
         Args:
-            sats (list): List of satellites.
+            sats: List of satellites.
         """
         # Clear all edges in the graph
         self.G.clear_edges()
@@ -263,13 +286,15 @@ class comms:
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
 
-    def intersect_earth(self, sat1, sat2):
+    def intersect_earth(
+        self, sat1: satelliteClass.Satellite, sat2: satelliteClass.Satellite
+    ) -> bool:
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
 
         Args:
-            sat1 (Satellite): The first satellite.
-            sat2 (Satellite): The second satellite.
+            sat1: The first satellite.
+            sat2: The second satellite.
 
         Returns:
             bool: True if the Earth is blocking the line of sight, False otherwise.
@@ -288,7 +313,11 @@ class comms:
         return False
 
     def sphere_line_intersection(
-        self, sphere_center, sphere_radius, line_point, line_direction
+        self,
+        sphere_center: tuple[float, float, float],
+        sphere_radius: float,
+        line_point: tuple[float, float, float],
+        line_direction: tuple[float, float, float],
     ):
         """Check if a line intersects with a sphere.
                 Uses known fomrula for line-sphere intersection in 3D space.

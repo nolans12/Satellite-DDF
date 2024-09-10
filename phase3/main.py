@@ -1,13 +1,16 @@
 # Import pre-defined libraries
-from commClass import comms
+from commClass import Comms
 
 # Import classes
-from environmentClass import environment
-from estimatorClass import centralEstimator, ciEstimator, etEstimator, indeptEstimator
+from environmentClass import Environment
+from estimatorClass import CentralEstimator
+from estimatorClass import CiEstimator
+from estimatorClass import EtEstimator
+from estimatorClass import IndeptEstimator
 from import_libraries import *
-from satelliteClass import satellite
-from sensorClass import sensor
-from targetClass import target
+from satelliteClass import Satellite
+from sensorClass import Sensor
+from targetClass import Target
 
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
@@ -27,7 +30,7 @@ def create_environment():
     targ5_color = '#b228b4'
 
     # Define the targets
-    targ1 = target(
+    targ1 = Target(
         name='Targ1',
         tqReq=1,
         targetID=1,
@@ -37,7 +40,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ1_color,
     )
-    targ2 = target(
+    targ2 = Target(
         name='Targ2',
         tqReq=2,
         targetID=2,
@@ -47,7 +50,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ2_color,
     )
-    targ3 = target(
+    targ3 = Target(
         name='Targ3',
         tqReq=3,
         targetID=3,
@@ -57,7 +60,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ3_color,
     )
-    targ4 = target(
+    targ4 = Target(
         name='Targ4',
         tqReq=4,
         targetID=4,
@@ -67,7 +70,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ4_color,
     )
-    targ5 = target(
+    targ5 = Target(
         name='Targ5',
         tqReq=5,
         targetID=5,
@@ -81,14 +84,14 @@ def create_environment():
     targs = [targ1, targ2, targ3, targ4, targ5]
 
     # Define the satellite structure:
-    sens_good = sensor(
+    sens_good = Sensor(
         name='Sensor', fov=115, bearingsError=np.array([115 * 0.01, 115 * 0.01])
     )  # 1% error on FOV bearings
-    sens_bad = sensor(
+    sens_bad = Sensor(
         name='Sensor', fov=115, bearingsError=np.array([115 * 0.1, 115 * 0.1])
     )  # 10% error on FOV bearings
 
-    sat1a = satellite(
+    sat1a = Satellite(
         name='Sat1a',
         sensor=deepcopy(sens_good),
         a=Earth.R + 1000 * u.km,
@@ -99,7 +102,7 @@ def create_environment():
         nu=0,
         color='#669900',
     )
-    sat1b = satellite(
+    sat1b = Satellite(
         name='Sat1b',
         sensor=deepcopy(sens_good),
         a=Earth.R + 1000 * u.km,
@@ -110,7 +113,7 @@ def create_environment():
         nu=0,
         color='#66a3ff',
     )
-    sat2a = satellite(
+    sat2a = Satellite(
         name='Sat2a',
         sensor=deepcopy(sens_bad),
         a=Earth.R + 1000 * u.km,
@@ -121,7 +124,7 @@ def create_environment():
         nu=0,
         color='#9966ff',
     )
-    sat2b = satellite(
+    sat2b = Satellite(
         name='Sat2b',
         sensor=deepcopy(sens_bad),
         a=Earth.R + 1000 * u.km,
@@ -160,7 +163,7 @@ def create_environment():
     et = False
 
     # Define the communication network:
-    comms_network = comms(
+    comms_network = Comms(
         sats,
         maxBandwidth=60,
         maxNeighbors=3,
@@ -170,7 +173,7 @@ def create_environment():
     )
 
     # Create and return an environment instance:
-    return environment(
+    return Environment(
         sats,
         targs,
         comms_network,
