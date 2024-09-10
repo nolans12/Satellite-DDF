@@ -1,0 +1,7 @@
+# Ignore Mac OS Finder files
+.DS_Store
+
+# Ignore Python products
+__pycache__/
+venv/
+*.egg-info/
