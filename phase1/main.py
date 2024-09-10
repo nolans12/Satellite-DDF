@@ -1,13 +1,12 @@
 # Import pre-defined libraries
+from commClass import comms
+from environmentClass import environment
+from estimatorClass import centralEstimator, ddfEstimator, indeptEstimator
 from import_libraries import *
-
 # Import classes
 from satelliteClass import satellite
-from targetClass import target
-from environmentClass import environment
-from estimatorClass import centralEstimator, indeptEstimator, ddfEstimator
 from sensorClass import sensor
-from commClass import comms
+from targetClass import target
 
 
 ### This environment is used for sampling mono tracks and other intresting edge cases, only 3 sats at 12000 km ####

@@ -1,13 +1,13 @@
 # Import pre-defined libraries
-from import_libraries import *
+from commClass import comms
 
 # Import classes
 from environmentClass import environment
+from estimatorClass import centralEstimator, ciEstimator, etEstimator, indeptEstimator
+from import_libraries import *
 from satelliteClass import satellite
 from sensorClass import sensor
 from targetClass import target
-from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator
-from commClass import comms
 
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations

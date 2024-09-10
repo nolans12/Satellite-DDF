@@ -1,13 +1,13 @@
+from commClass import Comms
+from estimatorClass import centralEstimator, ciEstimator, etEstimator, indeptEstimator
 from import_libraries import *
-
-## Creates the environment class, which contains a vector of satellites all other parameters
 
 # Import classes
 from satelliteClass import satellite
-from targetClass import target
-from estimatorClass import centralEstimator, indeptEstimator, ciEstimator, etEstimator
 from sensorClass import sensor
-from commClass import comms
+from targetClass import target
+
+## Creates the environment class, which contains a vector of satellites all other parameters
 
 
 class environment:
