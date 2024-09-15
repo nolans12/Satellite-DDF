@@ -21,11 +21,11 @@ def create_environment():
     targ5_color = '#b228b4'
     
     # Define the targets
-    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = targ1_color)
-    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = targ2_color)
-    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = targ3_color)
-    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = targ4_color)
-    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20, uncertainty=np.array([3, 7.5, 0, 90, 0.1]), color = targ5_color)
+    targ1 = target(name = 'Targ1', tqReq = 1, targetID=1, coords = np.array([45,0,0]), heading=0, speed= 80, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = targ1_color)
+    targ2 = target(name = 'Targ2', tqReq = 2, targetID=2, coords = np.array([45,0,0]), heading=0, speed= 50, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = targ2_color)
+    targ3 = target(name = 'Targ3', tqReq = 3, targetID=3, coords = np.array([45,0,0]), heading=0, speed= 40, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = targ3_color)
+    targ4 = target(name = 'Targ4', tqReq = 4, targetID=4, coords = np.array([45,0,0]), heading=0, speed= 30, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = targ4_color)
+    targ5 = target(name = 'Targ5', tqReq = 5, targetID=5, coords = np.array([45,0,0]), heading=0, speed= 20, uncertainty=np.array([3, 3, 0, 90, 0.1]), color = targ5_color)
    
     targs = [targ1, targ2, targ3, targ4, targ5]
 
@@ -40,6 +40,7 @@ def create_environment():
     sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color='#ffff33')
 
     sats = [sat1a, sat1b, sat2a, sat2b]
+    # sats = [sat1a]
 
 
     # Define the goal of the system:
@@ -47,25 +48,25 @@ def create_environment():
     
     # For minute 0+: We want the following tracks:
     commandersIntent[0] = {sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
-                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
+                           sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},  
                            sat2a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
                            sat2b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}}
-    
-    commandersIntent[4] = {sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125}}
+
+    # commandersIntent[0] = {sat1a: {1: 100}}
     
 
     # Define the ground stations
-    gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS1', color = 'black')
-    gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS2', color = 'gray')
+    # gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G1', color = 'black')
+    # gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G2', color = 'gray')
+
+    gs1 = groundStation(lat = 60, long = 10, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G1', color = 'black')
+    gs2 = groundStation(lat = 35, long = -15, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G2', color = 'gray')
 
     groundStations = [gs1, gs2]
-
+    # groundStations = [gs1]
 
     # Define the communication network: 
-    comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    comms_network = comms(sats, maxBandwidth = 30, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
 
 
     # Define the estimators used:
@@ -81,20 +82,23 @@ def create_environment():
 ### Main code to run the simulation
 if __name__ == "__main__":
 
+    # Fix random seed for reproducibility
+    np.random.seed(0)
+
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10*24 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "God Mode"
+    fileName = "Best Sat Sends CI, Network Used Optimal CI"
 
     # Create the environment
     env = create_environment()
 
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, saveName = fileName, show_env = False, plot_groundStation_results = True)
+    env.simulate(time_vec, saveName = fileName, show_env = False, plot_communication_results = True, plot_groundStation_results = True)
 
     # Save gifs:
-    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
+    # env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
     # env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
 

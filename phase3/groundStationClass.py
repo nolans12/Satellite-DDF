@@ -8,6 +8,8 @@ class groundStation:
         Args:
             lat (float): Latitude of the ground station.
             long (float): Longitude of the ground station.
+            fov (float): Spherical field of view of the groundStation
+            commRange (float): Communication range of the ground station (km).
             estimator (object): Estimator to use for the ground station.
             name (str): Name of the ground station.
             color (str): Color of the ground station for visualization.
@@ -63,7 +65,7 @@ class groundStation:
 
         # First, figure out what data is available
         meas_data = self.queued_data['meas']
-        est_data = self.queued_data['est']
+        est_data = self.queued_data['ci']
 
         if meas_data:
         # DO STANDARD EKF HERE WITH QUEUE MEASUREMENTS
@@ -113,27 +115,23 @@ class groundStation:
                         # Store the queued data into the commData, for post processing
                         self.commData[targ.targetID][time][sat.name] = {'est': est, 'cov': cov}
                         
-
         # Clear the queued data
         self.queued_data = NestedDict()
 
 
-    def canCommunicate(self, sat):
+    def canCommunicate(self, x_sat, y_sat, z_sat):
         """
         Check if the ground station can communicate with a satellite.
         Based on FOV of the ground station and the communication range.
            
         Args:
-            sat (object): Satellite object to check communication with.
+            x_sat, y_sat, z_sat (float): Position of the satellite in ECEF coordinates.
 
         Returns:
             bool: True if the ground station can communicate with the satellite, False otherwise.
         """
 
         # Create two lines, one from the center of earth to GS and one from GS to satellite
-
-        # Get the satellite position
-        x_sat, y_sat, z_sat = sat.orbit.r.value
 
         # Get the ground station position
         x_gs, y_gs, z_gs = self.loc
@@ -150,7 +148,6 @@ class groundStation:
         # Now check, can the satellite talk with the ground station
         if angle < np.deg2rad(self.fov):
             if np.linalg.norm(gs_to_sat_vec) < self.commRange:
-                # print("Satellite " + sat.name + " can communicate with ground station " + self.name)
                 return True
             
         return False

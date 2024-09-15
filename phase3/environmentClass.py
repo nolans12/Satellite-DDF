@@ -140,7 +140,10 @@ class environment:
             self.data_fusion()
 
             # Have the network send information to the ground station
-            self.send_to_ground_god_mode()
+            # self.send_to_ground_god_mode()
+            # self.send_to_ground_centralized()
+            # self.send_to_ground_avaliable_sats()
+            self.send_to_ground_best_sat()
 
             # Update the plot environment
             if show_env:
@@ -712,14 +715,35 @@ class environment:
             send the measurement for that target to the ground station.
         """
 
-    def send_to_ground_best_sat(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
-        
-        DDF, BEST SAT:
-            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
-            For that sat, send a CI fusion estimate to the ground station.
-        """
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a measurement for that targetID at the given time
+                for sat in self.sats:
+                    
+                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+
+                        # Check, can the satellite communicate with the ground station?
+                        x_sat, y_sat, z_sat = sat.orbit.r.value
+
+                        if gs.canCommunicate(x_sat, y_sat, z_sat):
+                        
+                            # Get the measurement
+                            meas = sat.measurementHist[targ.targetID][self.time.to_value()]
+
+                            # Make a dictionary containing [type][time][target][sat] = measurement
+                            data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+
+                            # Now, add that data to the queued data onboard the ground station
+                            gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
 
     def send_to_ground_avaliable_sats(self):
         """
@@ -729,9 +753,89 @@ class environment:
             All satellites in the network that can communicate with ground station send a CI fusion estimate to the ground station.
         """
     
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a estimate for that targetID at the given time
+                for sat in self.sats:
 
+                    # Is time in the estimate history? # CANT DO IS INSTANCE OTHERWISE CREATES AN EMPTY DICT
+                    if len(sat.ciEstimator.estHist[targ.targetID].keys()) > 0:
 
+                        # Check, can the satellite communicate with the ground station?
+                        x_sat, y_sat, z_sat = sat.orbit.r.value
 
+                        if gs.canCommunicate(x_sat, y_sat, z_sat):
+
+                            # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                            timePrior = max(sat.ciEstimator.estHist[targ.targetID].keys())
+                        
+                            # Get the estimate and covariance
+                            est = sat.ciEstimator.estHist[targ.targetID][timePrior]
+                            cov = sat.ciEstimator.covarianceHist[targ.targetID][timePrior]
+
+                            # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                            data_dict = {'ci' : {self.time.to_value(): {targ: {sat: {'est': est, 'cov': cov}}}}}
+
+                            # Now, add that data to the queued data onboard the ground station
+                            gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_best_sat(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.ciEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.canCommunicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.ciEstimator.trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.ciEstimator.trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+                   
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.ciEstimator.estHist[targ.targetID].keys())
+                    
+                    # Get the estimate and covariance
+                    est = bestSat.ciEstimator.estHist[targ.targetID][timePrior]
+                    cov = bestSat.ciEstimator.covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
                      
 ### 3D Dynamic Environment Plot ###
     def plot(self):
@@ -928,21 +1032,38 @@ class environment:
                     for targetID in gs.commData:
                         if targetID != targ.targetID:
                             continue
-                        # Loop through the time
-                        for time in gs.commData[targetID]:
-                            # Create a stack for the time
+                        
+                        # Find the target that has that targetID:
+                        targ = [targ for targ in self.targs if targ.targetID == targetID][0]
+
+                        # Now, loop through all times for that targs history
+                        for time in targ.hist.keys():
                             prevData = 0
-                            for sat in self.sats:
-                                # If the satellite communicated with the ground station at that time
-                                if sat.name in gs.commData[targetID][time]:
-                                    axComm.bar(time, 1, bottom = prevData, color=sat.color, edgecolor = 'k', width = self.delta_t)
-                                    prevData += 1
-                                # If the satellite didint communcate with the ground station at that time
-                                else:
-                                    # TODO: ALSO ADD A CASE HERE WHERE IF SATELLITE COULD COMM WITH GROUND STATION BUT DIDNT!
+                            if time in gs.commData[targetID]:
+                                # If the ground station recieved information at that time:
+                                for sat in self.sats:
+                                    # IF THE SATELLITE DID COMMUNICATE, PLOT A SOLID BOX WITH SAT COLOR
+                                    if sat.name in gs.commData[targetID][time]:
+                                        axComm.bar(time, 1, bottom = prevData, color=sat.color, edgecolor = 'k', width = self.delta_t)
+                                        prevData += 1
+                                    # If the satellite didint communcate with the ground station at that time
+                                    else:
+                                        # Get the position of the satellite at that time, use sat.orbitHist
+                                        x_sat, y_sat, z_sat = sat.orbitHist[time]
+                                        if gs.canCommunicate(x_sat, y_sat, z_sat):
+                                            # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
+                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor=sat.color, hatch = '//', linewidth = 0, width = self.delta_t)
+                                            prevData += 1
+                                        else:
+                                            # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
+                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                            prevData += 1
+                            else:
+                                # Case where no sats communicated to gs, plot black hatches for all
+                                for i in range(len(self.sats)):
                                     axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
                                     prevData += 1
-                        
+                            
                     # Make a patch for legend for the satellite colors
                     handles = [Patch(color=gs.color, label=f'{gs.name} Estimator')]
                     for sat in self.sats:
