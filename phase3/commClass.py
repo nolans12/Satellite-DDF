@@ -1,7 +1,9 @@
-from import_libraries import *
+import networkx as nx
+import numpy as np
 from numpy import typing as npt
 
 from phase3 import satelliteClass
+from phase3 import util
 
 
 class Comms:
@@ -42,12 +44,12 @@ class Comms:
         self.maxBandwidth = maxBandwidth
 
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        self.total_comm_data = NestedDict()
-        self.used_comm_data = NestedDict()
+        self.total_comm_data = util.NestedDict()
+        self.used_comm_data = util.NestedDict()
 
-        self.total_comm_et_data = NestedDict()
-        self.used_comm_et_data = NestedDict()
-        self.used_comm_et_data_values = NestedDict()
+        self.total_comm_et_data = util.NestedDict()
+        self.used_comm_et_data = util.NestedDict()
+        self.used_comm_et_data_values = util.NestedDict()
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange

@@ -1,14 +1,27 @@
-from commClass import Comms
-from estimatorClass import CentralEstimator
-from estimatorClass import CiEstimator
-from estimatorClass import EtEstimator
-from estimatorClass import IndeptEstimator
-from import_libraries import *
-from sensorClass import Sensor
-from targetClass import Target
-
 # Import classes
+import csv
+import io
+import os
+import random
+from collections import defaultdict
+
+import imageio
+import jax.numpy as jnp
+import networkx as nx
+import numpy as np
+import pulp
+from astropy import units as u
+from matplotlib import gridspec
+from matplotlib import patches
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import art3d
+from numpy import typing as npt
+
+from phase3 import commClass
+from phase3 import estimatorClass
 from phase3 import satelliteClass
+from phase3 import targetClass
+from phase3 import util
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -17,9 +30,9 @@ class Environment:
     def __init__(
         self,
         sats: list[satelliteClass.Satellite],
-        targs,
-        comms,
-        commandersIntent,
+        targs: list[targetClass.Target],
+        comms: commClass.Comms,
+        commandersIntent: util.CommandersIndent,
         localEstimatorBool: bool,
         centralEstimatorBool: bool,
         ciEstimatorBool: bool,
@@ -39,7 +52,7 @@ class Environment:
             sat.targPriority = (
                 targPriorityInitial  # dictionary of [targetID: priority] pairs
             )
-            sat.targetIDs = targPriorityInitial.keys()  # targetID to track
+            sat.targetIDs = list(targPriorityInitial.keys())  # targetID to track
             sat.measurementHist = {
                 targetID: defaultdict(dict) for targetID in targPriorityInitial.keys()
             }  # dictionary of [targetID: {time: measurement}] pairs
@@ -47,24 +60,24 @@ class Environment:
             # Create estimation algorithms for each satellite
             self.localEstimatorBool = localEstimatorBool
             if localEstimatorBool:
-                sat.indeptEstimator = IndeptEstimator(
+                sat.indeptEstimator = estimatorClass.IndeptEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the independent estimator for these targets
 
             self.centralEstimatorBool = centralEstimatorBool
             if centralEstimatorBool:
-                self.centralEstimator = CentralEstimator(
+                self.centralEstimator = estimatorClass.CentralEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the central estimator for these targets
 
             self.ciEstimatorBool = ciEstimatorBool
             if ciEstimatorBool:
-                sat.ciEstimator = CiEstimator(commandersIntent[0][sat])
+                sat.ciEstimator = estimatorClass.CiEstimator(commandersIntent[0][sat])
 
             self.etEstimatorBool = etEstimatorBool
             if etEstimatorBool:
                 sat.etEstimators = [
-                    EtEstimator(commandersIntent[0][sat], shareWith=None)
+                    estimatorClass.EtEstimator(commandersIntent[0][sat], shareWith=None)
                 ]
 
         ## Populate the environment variables
@@ -77,11 +90,11 @@ class Environment:
         self.comms = comms  # define the communication network
 
         # Define variables to track the comms
-        self.comms.total_comm_data = NestedDict()
-        self.used_comm_data = NestedDict()
+        self.comms.total_comm_data = util.NestedDict()
+        self.used_comm_data = util.NestedDict()
 
         # Initialize time parameter to 0
-        self.time = 0
+        self.time: u.Quantity[u.minute] = 0 * u.minute
         self.delta_t = None
 
         # Environemnt Plotting parameters
@@ -104,12 +117,12 @@ class Environment:
         self.ax.set_title('Satellite Orbit Visualization')
 
         # Earth parameters for plotting
-        u = np.linspace(0, 2 * np.pi, 100)
-        v = np.linspace(0, np.pi, 100)
+        u_earth = np.linspace(0, 2 * np.pi, 100)
+        v_earth = np.linspace(0, np.pi, 100)
         self.earth_r = 6378.0
-        self.x_earth = self.earth_r * np.outer(np.cos(u), np.sin(v))
-        self.y_earth = self.earth_r * np.outer(np.sin(u), np.sin(v))
-        self.z_earth = self.earth_r * np.outer(np.ones(np.size(u)), np.cos(v))
+        self.x_earth = self.earth_r * np.outer(np.cos(u_earth), np.sin(v_earth))
+        self.y_earth = self.earth_r * np.outer(np.sin(u_earth), np.sin(v_earth))
+        self.z_earth = self.earth_r * np.outer(np.ones(np.size(u_earth)), np.cos(v_earth))
 
         # Empty lists and dictionaries for simulation images
         self.imgs = []  # dictionary for 3D gif images
@@ -123,31 +136,31 @@ class Environment:
 
     def simulate(
         self,
-        time_vec,
-        pause_step=0.0001,
-        saveName=None,
-        show_env=False,
-        plot_estimation_results=False,
-        plot_communication_results=False,
-        plot_et_network=False,
-        plot_uncertainty_ellipses=False,
-        save_estimation_data=False,
-        save_communication_data=False,
+        time_vec: npt.NDArray,
+        pause_step: float = 0.0001,
+        saveName: str | None = None,
+        show_env: bool = False,
+        plot_estimation_results: bool = False,
+        plot_communication_results: bool = False,
+        plot_et_network: bool = False,
+        plot_uncertainty_ellipses: bool = False,
+        save_estimation_data: bool = False,
+        save_communication_data: bool = False,
     ):
         """
         Simulate the environment over a time range.
 
         Args:
-        - time_vec (array): Array of time steps to simulate over.
-        - pause_step (float): Time to pause between each step in the simulation.
-        - saveName (str): Name to save the simulation data to.
-        - show_env (bool): Flag to show the environment plot at each step.
-        - plot_estimation_results (bool): Flag to plot the estimation results.
-        - plot_communication_results (bool): Flag to plot the communication results.
-        - plot_et_network (bool): Flag to plot the dynamic communication network in ET.
-        - plot_uncertainty_ellipses (bool): Flag to plot the uncertainty ellipses.
-        - save_estimation_data (bool): Flag to save the estimation data.
-        - save_communication_data (bool): Flag to save the communication data.
+        - time_vec: Array of time steps to simulate over.
+        - pause_step: Time to pause between each step in the simulation.
+        - saveName: Name to save the simulation data to.
+        - show_env: Flag to show the environment plot at each step.
+        - plot_estimation_results: Flag to plot the estimation results.
+        - plot_communication_results: Flag to plot the communication results.
+        - plot_et_network: Flag to plot the dynamic communication network in ET.
+        - plot_uncertainty_ellipses: Flag to plot the uncertainty ellipses.
+        - save_estimation_data: Flag to save the estimation data.
+        - save_communication_data: Flag to save the communication data.
 
         Returns:
         - Data collected during simulation.
@@ -223,7 +236,7 @@ class Environment:
 
         return
 
-    def propagate(self, time_step):
+    def propagate(self, time_step: u.Quantity[u.minute]) -> None:
         """
         Propagate the satellites and targets over the given time step.
         """
@@ -259,7 +272,7 @@ class Environment:
         # Update the communication network for the new sat positions
         self.comms.make_edges(self.sats)
 
-    def data_fusion(self):
+    def data_fusion(self) -> None:
         """
         Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
         """
@@ -293,7 +306,7 @@ class Environment:
             if self.etEstimatorBool:
                 etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
 
-    def collect_all_measurements(self):
+    def collect_all_measurements(self) -> tuple[defaultdict, defaultdict]:
         """
         Collect measurements from satellites for all available targets.
 
@@ -798,7 +811,7 @@ class Environment:
 
             box = np.array([points[0], points[3], points[1], points[2], points[0]])
             self.ax.add_collection3d(
-                Poly3DCollection(
+                art3d.Poly3DCollection(
                     [box],
                     facecolors=sat.color,
                     linewidths=1,
@@ -834,7 +847,7 @@ class Environment:
         # ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
         # self.ax.plot_surface(self.x_earth*0.9, self.y_earth*0.9, self.z_earth*0.9, color = 'white', alpha=1)
 
-    def plotCommunication(self):
+    def plotCommunication(self) -> None:
         """
         Plot the communication structure between satellites.
         """
@@ -863,7 +876,7 @@ class Environment:
                         linewidth=1,
                     )
 
-    def plotLegend_Time(self):
+    def plotLegend_Time(self) -> None:
         """
         Plot the legend and the current simulation time.
         """
@@ -877,7 +890,7 @@ class Environment:
         # Uncomment this for a POV sat1 viewing angle for mono-track case
         # self.calcViewingAngle()
 
-    def calcViewingAngle(self):
+    def calcViewingAngle(self) -> None:
         '''
         Calculate the viewing angle for the 3D plot in MonoTrack Case
         '''
@@ -890,7 +903,7 @@ class Environment:
 
         self.ax.view_init(elev=30, azim=azimuth)
 
-    def save_envPlot_to_imgs(self):
+    def save_envPlot_to_imgs(self) -> None:
         ios = io.BytesIO()
         self.fig.savefig(ios, format='raw')
         ios.seek(0)
@@ -901,7 +914,9 @@ class Environment:
         self.imgs.append(img)
 
     ### Estimation Errors and Track Uncertainty Plots ###
-    def plot_estimator_results(self, time_vec, saveName):
+    def plot_estimator_results(
+        self, time_vec: u.Quantity[u.minute], saveName: str
+    ) -> None:
         """
         Makes one plot for each satellite target pairing that shows a comparison between the different estimation algorithms
 
@@ -994,7 +1009,9 @@ class Environment:
                             linewidth=2.5,
                         )
                         handles.append(
-                            Patch(color=satColor, label=f'{sat.name} Indept. Estimator')
+                            patches.Patch(
+                                color=satColor, label=f'{sat.name} Indept. Estimator'
+                            )
                         )
 
                     # Check, do we have central estimates?
@@ -1037,7 +1054,9 @@ class Environment:
                             linewidth=1.5,
                         )
                         handles.append(
-                            Patch(color=centralColor, label=f'Central Estimator')
+                            patches.Patch(
+                                color=centralColor, label=f'Central Estimator'
+                            )
                         )
 
                     # Check, do we have CI estimates?
@@ -1086,7 +1105,9 @@ class Environment:
                             label_color=ciColor,
                             linewidth=2.5,
                         )
-                        handles.append(Patch(color=ciColor, label=f'CI Estimator'))
+                        handles.append(
+                            patches.Patch(color=ciColor, label=f'CI Estimator')
+                        )
 
                     # Check, do we have ET estimates?
                     if self.etEstimatorBool:
@@ -1125,7 +1146,9 @@ class Environment:
                             label_color=etColor,
                             linewidth=2.5,
                         )
-                        handles.append(Patch(color=etColor, label=f'ET Estimator'))
+                        handles.append(
+                            patches.Patch(color=etColor, label=f'ET Estimator')
+                        )
 
                     # Add the legend
                     fig.legend(handles=handles, loc='lower right')
@@ -1138,14 +1161,15 @@ class Environment:
                     plt.close(fig)
 
     # TODO: THIS IS ORIGINAL VERSION USING DIFFERENT PLOTS DEPENDING ON ESTIMATOR COMBO
-    def plot_estimator_results_2(self, time_vec, saveName):
+    def plot_estimator_results_2(
+        self, time_vec: u.Quantity[u.minute], saveName: str
+    ) -> None:
         """
         Create three types of plots: Local vs Central, CI vs Central, and Local vs CI vs Central.
 
         Args:
-            time_vec (list): List of time values.
-            plotEstimators (bool): Flag indicating whether to save the plot.
-            saveName (str): Name for the saved plot file.
+            time_vec: List of time values.
+            saveName: Name for the saved plot file.
         """
         plt.close('all')
         state_labels = [
@@ -1257,11 +1281,13 @@ class Environment:
                             )
 
                             handles = [
-                                Patch(
+                                patches.Patch(
                                     color=satColor,
                                     label=f'{sat.name} Indept. Estimator',
                                 ),
-                                Patch(color=centralColor, label=f'Central Estimator'),
+                                patches.Patch(
+                                    color=centralColor, label=f'Central Estimator'
+                                ),
                             ]
 
                         elif plotNum == 1:
@@ -1332,8 +1358,12 @@ class Environment:
                             )
 
                             handles = [
-                                Patch(color=ciColor, label=f'{sat.name} CI Estimator'),
-                                Patch(color=centralColor, label=f'Central Estimator'),
+                                patches.Patch(
+                                    color=ciColor, label=f'{sat.name} CI Estimator'
+                                ),
+                                patches.Patch(
+                                    color=centralColor, label=f'Central Estimator'
+                                ),
                             ]
 
                         elif plotNum == 2:
@@ -1404,8 +1434,12 @@ class Environment:
                             )
 
                             handles = [
-                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
-                                Patch(color=centralColor, label=f'Central Estimator'),
+                                patches.Patch(
+                                    color=satColor, label=f'{sat.name} ET Estimator'
+                                ),
+                                patches.Patch(
+                                    color=centralColor, label=f'Central Estimator'
+                                ),
                             ]
 
                         elif plotNum == 3:
@@ -1475,8 +1509,12 @@ class Environment:
                             )
 
                             handles = [
-                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
-                                Patch(color=ciColor, label=f'{sat.name} CI Estimator'),
+                                patches.Patch(
+                                    color=satColor, label=f'{sat.name} ET Estimator'
+                                ),
+                                patches.Patch(
+                                    color=ciColor, label=f'{sat.name} CI Estimator'
+                                ),
                             ]
 
                         # Add the legend and tighten the layout
@@ -1656,15 +1694,17 @@ class Environment:
                             )
 
                             handles = [
-                                Patch(color=satColor, label=f'{sat.name} ET Estimator'),
-                                Patch(
+                                patches.Patch(
+                                    color=satColor, label=f'{sat.name} ET Estimator'
+                                ),
+                                patches.Patch(
                                     color=sat2Color, label=f'{sat2.name} ET Estimator'
                                 ),
-                                Patch(
+                                patches.Patch(
                                     color=sat1commonColor,
                                     label=f'{sat.name}, {sat2.name} Common ET Estimator',
                                 ),
-                                Patch(
+                                patches.Patch(
                                     color=sat2commonColor,
                                     label=f'{sat2.name}, {sat.name} Common ET Estimator',
                                 ),
@@ -2725,9 +2765,13 @@ class Environment:
                 if (
                     targ.targetID in sat.targetIDs
                 ):  # Change such that it is only the targets that the satellite is tracking
-                    handles.append(Patch(color=targ.color, label=f"{targ.name}"))
+                    handles.append(
+                        patches.Patch(color=targ.color, label=f"{targ.name}")
+                    )
             for tempSat in self.sats:
-                handles.append(Patch(color=tempSat.color, label=f"{tempSat.name}"))
+                handles.append(
+                    patches.Patch(color=tempSat.color, label=f"{tempSat.name}")
+                )
 
             # Create a legend
             fig.legend(
@@ -2982,7 +3026,9 @@ class Environment:
         nx.draw_networkx_labels(diComms, pos, ax=ax, labels=labels)
         # Add Title
         ax.set_title(f"Dynamic Communications at Time {envTime} min")
-        handles = [Patch(color=targ.color, label=targ.name) for targ in self.targs]
+        handles = [
+            patches.Patch(color=targ.color, label=targ.name) for targ in self.targs
+        ]
         fig.legend(
             handles=handles, loc='lower right', ncol=1, bbox_to_anchor=(0.9, 0.1)
         )
@@ -3542,17 +3588,21 @@ class Environment:
                                         )
 
                                     handles = [
-                                        Patch(
+                                        patches.Patch(
                                             color=sat1Color,
                                             label=f'{sat.name} Local Estimator',
                                         ),
-                                        Patch(
+                                        patches.Patch(
                                             color=sat2Color,
                                             label=f'{sat2.name} Local Estimator',
                                         ),
-                                        Patch(color=ciColor, label=f'CI Estimator'),
-                                        Patch(color=etColor, label=f'ET Estimator'),
-                                        Patch(
+                                        patches.Patch(
+                                            color=ciColor, label=f'CI Estimator'
+                                        ),
+                                        patches.Patch(
+                                            color=etColor, label=f'ET Estimator'
+                                        ),
+                                        patches.Patch(
                                             color=centralColor,
                                             label=f'Central Estimator',
                                         ),
@@ -3697,9 +3747,9 @@ class Environment:
                 f'CI Error: {ci_error:.2f} km',
             ]
             handles = [
-                Patch(color=sat1color, label=labels[0]),
-                Patch(color=sat2color, label=labels[1]),
-                Patch(color=ciColor, label=labels[2]),
+                patches.Patch(color=sat1color, label=labels[0]),
+                patches.Patch(color=sat2color, label=labels[1]),
+                patches.Patch(color=ciColor, label=labels[2]),
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
@@ -3710,9 +3760,9 @@ class Environment:
                 f'ET Error: {ci_error:.2f} km',
             ]
             handles = [
-                Patch(color=sat1color, label=labels[0]),
-                Patch(color=sat2color, label=labels[1]),
-                Patch(color=ciColor, label=labels[2]),
+                patches.Patch(color=sat1color, label=labels[0]),
+                patches.Patch(color=sat2color, label=labels[1]),
+                patches.Patch(color=ciColor, label=labels[2]),
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
@@ -3720,16 +3770,16 @@ class Environment:
         if ci_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
             handles = [
-                Patch(color=ciColor, label=labels[0]),
-                Patch(color=centralColor, label=labels[1]),
+                patches.Patch(color=ciColor, label=labels[0]),
+                patches.Patch(color=centralColor, label=labels[1]),
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
         elif ci_type == 'ET':
             labels = [f'ET Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
             handles = [
-                Patch(color=ciColor, label=labels[0]),
-                Patch(color=centralColor, label=labels[1]),
+                patches.Patch(color=ciColor, label=labels[0]),
+                patches.Patch(color=centralColor, label=labels[1]),
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
@@ -3940,7 +3990,7 @@ class Environment:
         et_estHist,
         et_covHist,
         et_trackError,
-    ):
+    ) -> None:
         """
         Formats and writes data to a CSV file.
 
@@ -4089,8 +4139,11 @@ class Environment:
                 writer.writerow(row)
 
     def log_comms_data(
-        self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))
-    ):
+        self,
+        time_vec: u.Quantity[u.minute],
+        saveName: str,
+        filePath: str = os.path.dirname(os.path.realpath(__file__)),
+    ) -> None:
         for sat in self.sats:
             for targ in self.targs:
                 if targ.targetID in sat.targetIDs:
@@ -4102,7 +4155,14 @@ class Environment:
                         filename, time_vec.value, sat, commNode, targ.targetID
                     )
 
-    def format_comms_data(self, filename, time_vec, sat, commNode, targetID):
+    def format_comms_data(
+        self,
+        filename: str,
+        time_vec: u.Quantity[u.minute],
+        sat: satelliteClass.Satellite,
+        commNode: commClass.Comms,
+        targetID: int,
+    ) -> None:
         precision = 3
 
         def format_list(lst):
@@ -4170,7 +4230,7 @@ class Environment:
                 writer.writerow(row)
 
     ### NEES/NIS Data Collection; NOT WORKING RN ###
-    def collectNISNEESData(self):
+    def collectNISNEESData(self) -> dict[int, defaultdict]:
         # TODO: THIS ONLY WORKS FOR CI ESTIMATOR AT THE MOMENT, DONT USE OTHERWISE!
         """
         Collects NEES and NIS data for the simulation in an easy-to-read format.

@@ -1,9 +1,20 @@
-from import_libraries import *
+from collections import defaultdict
+from typing import TYPE_CHECKING
+
+import jax
+import jax.numpy as jnp
+import numpy as np
 from jax import typing as jnpt
 from numpy import typing as npt
+from scipy import optimize
+from scipy import stats
 
 from phase3 import commClass
-from phase3 import satelliteClass
+
+if TYPE_CHECKING:
+    # Circular import resolution
+    from phase3 import satelliteClass
+
 from phase3 import targetClass
 
 
@@ -130,7 +141,7 @@ class BaseEstimator:
 
     def EKF_update(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list['satelliteClass.Satellite'],
         measurements,
         targetID: int,
         envTime: float,
@@ -299,7 +310,9 @@ class BaseEstimator:
         # Return the next state in Cartesian coordinates
         return jnp.array([x, vx, y, vy, z, vz])
 
-    def state_transition_jacobian(self, estPrior: npt.NDArray, dt: float) -> jnpt.Array:
+    def state_transition_jacobian(
+        self, estPrior: npt.NDArray, dt: float
+    ) -> jnpt.ArrayLike:
         """
         Calculates the Jacobian matrix of the state transition function.
 
@@ -418,7 +431,7 @@ class CentralEstimator(BaseEstimator):
 
     def central_EKF_update(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list['satelliteClass.Satellite'],
         measurements,
         targetID: int,
         envTime: float,
@@ -470,7 +483,7 @@ class IndeptEstimator(BaseEstimator):
 
     def local_EKF_update(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list['satelliteClass.Satellite'],
         measurements,
         targetID: int,
         envTime: float,
@@ -522,7 +535,7 @@ class CiEstimator(BaseEstimator):
 
     def ci_EKF_update(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list['satelliteClass.Satellite'],
         measurements,
         targetID: int,
         envTime: float,
@@ -538,7 +551,7 @@ class CiEstimator(BaseEstimator):
         """
         super().EKF_update(sats, measurements, targetID, envTime)
 
-    def CI(self, sat: satelliteClass.Satellite, comms) -> None:
+    def CI(self, sat: 'satelliteClass.Satellite', comms) -> None:
         """
         Covariance Intersection function to conservatively combine received estimates and covariances
         into updated target state and covariance.
@@ -625,7 +638,7 @@ class CiEstimator(BaseEstimator):
                 cov_prior = np.dot(F, np.dot(cov_prior, F.T))
 
                 # Minimize the covariance determinant
-                omega_opt = minimize(
+                omega_opt = optimize.minimize(
                     self.det_of_fused_covariance,
                     [0.5],
                     args=(cov_prior, cov_sent),
@@ -718,7 +731,7 @@ class EtEstimator(BaseEstimator):
 
     def et_EKF_update(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list['satelliteClass.Satellite'],
         measurements,
         targetID: int,
         envTime: float,
@@ -735,7 +748,7 @@ class EtEstimator(BaseEstimator):
         super().EKF_update(sats, measurements, targetID, envTime)
 
     def event_trigger_processing(
-        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+        self, sat: 'satelliteClass.Satellite', envTime: float, comms: commClass.Comms
     ) -> None:
         """
         Event Triggered Estimator processing step for new measurements received from other agents
@@ -752,7 +765,7 @@ class EtEstimator(BaseEstimator):
             self.process_new_measurements(sat, envTime, comms)
 
     def event_trigger_updating(
-        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+        self, sat: 'satelliteClass.Satellite', envTime: float, comms: commClass.Comms
     ) -> None:
         """
         Event Triggered Estimator Updating step for new measurments sent to other agents
@@ -769,7 +782,7 @@ class EtEstimator(BaseEstimator):
             self.update_common_filters(sat, envTime, comms)
 
     def process_new_measurements(
-        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+        self, sat: 'satelliteClass.Satellite', envTime: float, comms: commClass.Comms
     ) -> None:
         '''
         This should process new measurements for this satellites commNode and update the local and common filters
@@ -901,7 +914,7 @@ class EtEstimator(BaseEstimator):
                 ] = measVec_size
 
     def update_common_filters(
-        self, sat: satelliteClass.Satellite, envTime: float, comms: commClass.Comms
+        self, sat: 'satelliteClass.Satellite', envTime: float, comms: commClass.Comms
     ) -> None:
         commNode = comms.G.nodes[sat]
         time_sent = max(
@@ -979,13 +992,13 @@ class EtEstimator(BaseEstimator):
 
     def explicit_measurement_update(
         self,
-        sat: satelliteClass.Satellite,
-        sender: satelliteClass.Satellite,
+        sat: 'satelliteClass.Satellite',
+        sender: 'satelliteClass.Satellite',
         measurement,
         type: str,
         targetID: int,
         envTime: float,
-        filter: BaseEstimator | None =None,
+        filter: BaseEstimator | None = None,
     ) -> None:
         '''
         Explicit measurement updates  the estimate with a measurement from a sender satellite.
@@ -1142,12 +1155,12 @@ class EtEstimator(BaseEstimator):
         vplus = (delta + alpha - mu) / np.sqrt(Qe)
 
         # Probability Density Function
-        phi1 = norm.pdf(vminus)
-        phi2 = norm.pdf(vplus)
+        phi1 = stats.norm.pdf(vminus)
+        phi2 = stats.norm.pdf(vplus)
 
         # Cumulative Density Function
-        Q1 = 1 - norm.cdf(vminus)
-        Q2 = 1 - norm.cdf(vplus)
+        Q1 = 1 - stats.norm.cdf(vminus)
+        Q2 = 1 - stats.norm.cdf(vplus)
 
         # Compute Expected Value of Measurement
         zbar = (phi1 - phi2) / (Q1 - Q2) * np.sqrt(Qe)
@@ -1287,7 +1300,7 @@ class EtEstimator(BaseEstimator):
         neighbor_est = neighbor_localEKF.estHist[targetID][neighbor_time]
         neighbor_cov = neighbor_localEKF.covarianceHist[targetID][neighbor_time]
 
-        omega_opt = minimize(
+        omega_opt = optimize.minimize(
             self.det_of_fused_covariance,
             [0.5],
             args=(local_cov, neighbor_cov),

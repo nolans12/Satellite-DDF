@@ -1,7 +1,15 @@
-from import_libraries import *
+from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from phase3 import estimatorClass
-from phase3 import sensorClass
+import numpy as np
+from astropy import units as u
+from poliastro import bodies
+from poliastro import twobody
+
+if TYPE_CHECKING:
+    from phase3 import estimatorClass
+    from phase3 import sensorClass
+
 from phase3 import targetClass
 
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
@@ -16,7 +24,7 @@ class Satellite:
         raan: float,
         argp: float,
         nu: float,
-        sensor: sensorClass.Sensor,
+        sensor: 'sensorClass.Sensor',
         name: str,
         color: str,
     ):
@@ -42,9 +50,13 @@ class Satellite:
         self.color = color
 
         # Set the estimators to None on initalization
-        self.indeptEstimator: estimatorClass.IndeptEstimator | None = None
-        self.ciEstimator: estimatorClass.CiEstimator | None = None
-        self.etEstimators: list[estimatorClass.EtEstimator] | None = None
+        self.indeptEstimator: 'estimatorClass.IndeptEstimator | None' = None
+        self.ciEstimator: 'estimatorClass.CiEstimator | None' = None
+        self.etEstimators: list['estimatorClass.EtEstimator'] | None = None
+
+        self.targPriority: dict[int, int] = {}
+        self.targetIDs: list[int] = []
+        self.measurementHist: dict[int, defaultdict] = {}
 
         # Create the orbit
         # Check if already in units, if not convert
@@ -68,8 +80,8 @@ class Satellite:
         self.nu = nu
 
         # Create the poliastro orbit
-        self.orbit = Orbit.from_classical(
-            Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu
+        self.orbit = twobody.Orbit.from_classical(
+            bodies.Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu
         )
         self.orbitHist = defaultdict(dict)  # contains time and xyz of orbit history
         self.velHist = defaultdict(dict)  # contains time and xyz of velocity history

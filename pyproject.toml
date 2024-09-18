@@ -21,3 +21,6 @@ skip-string-normalization = true
 [tool.isort]
 force_single_line = true
 single_line_exclusions = ["typing"]
+
+[project.scripts]
+satellite_ddf = "phase3:main"
