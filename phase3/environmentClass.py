@@ -143,7 +143,8 @@ class environment:
             # self.send_to_ground_god_mode()
             # self.send_to_ground_centralized()
             # self.send_to_ground_avaliable_sats()
-            self.send_to_ground_best_sat()
+            # self.send_to_ground_best_sat()
+            self.send_to_ground_best_sat_et()
 
             # Update the plot environment
             if show_env:
@@ -162,6 +163,10 @@ class environment:
         # Plot the ground station results:
         if plot_groundStation_results:
             self.plot_gs_results(time_vec, saveName=saveName)
+
+            # Also now prints for CDR results
+            self.print_gs_comms_used(time_vec)
+            self.print_gs_avg_track(time_vec)
 
         # Plot the filter results
         if plot_estimation_results:
@@ -236,8 +241,8 @@ class environment:
 
         # Now send estimates for future CI
         if self.ciEstimatorBool:
-            self.send_estimates_optimize()
-            # self.send_estimates()
+            # self.send_estimates_optimize()
+            self.send_estimates()
 
         # Now send measurements for future ET
         if self.etEstimatorBool:
@@ -362,7 +367,7 @@ class environment:
         allPaths = generate_all_paths(self.comms.G, 4)
 
         # Define the fixed bandwidth consumption per CI
-        fixed_bandwidth_consumption = 30
+        fixed_bandwidth_consumption = 50
 
         # Define the optimization problem
         prob = pulp.LpProblem("Path_Optimization", pulp.LpMaximize)
@@ -730,6 +735,8 @@ class environment:
                         x_sat, y_sat, z_sat = sat.orbit.r.value
 
                         if gs.canCommunicate(x_sat, y_sat, z_sat):
+
+                            # print(f"Satellite {sat.name} can communicate with ground station {gs.name}")
                         
                             # Get the measurement
                             meas = sat.measurementHist[targ.targetID][self.time.to_value()]
@@ -787,6 +794,7 @@ class environment:
         for gs in self.groundStations:
             gs.process_queued_data(self.time.to_value())
 
+
     def send_to_ground_best_sat(self):
         """
         Planner for sending data from the satellite network to the ground station.
@@ -836,7 +844,61 @@ class environment:
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
             gs.process_queued_data(self.time.to_value())
-                     
+
+ 
+    def send_to_ground_best_sat_et(self):
+        # TODO: MERGE SUCH THAT DONT NEED SEPERATE ET CALL?
+        
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.etEstimators[0].trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.canCommunicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.etEstimators[0].trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.etEstimators[0].trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+                   
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.etEstimators[0].trackErrorHist[targ.targetID].keys())
+                    
+                    # Get the estimate and covariance
+                    est = bestSat.etEstimators[0].estHist[targ.targetID][timePrior]
+                    cov = bestSat.etEstimators[0].covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    
 ### 3D Dynamic Environment Plot ###
     def plot(self):
         """
@@ -1081,6 +1143,60 @@ class environment:
                     plt.close()
 
 
+    def print_gs_comms_used(self, time_vec):
+        """
+        Prints the total number of numbers sent to the ground station over the time vec!
+
+        Used for CDR plotting    
+        """
+
+        for gs in self.groundStations:
+            totalComms = 0
+            for targetID in gs.commData:
+                for time in gs.commData[targetID]:
+                    for sat in gs.commData[targetID][time]:
+                        if 'est' in gs.commData[targetID][time][sat]:
+                            # A CI was sent
+                            # totalComms += gs.commData[targetID][time][sat]['est'].size + gs.commData[targetID][time][sat]['cov'].size
+                            totalComms += 30
+                        else: 
+                            # A measurement was sent, count this as 2 bearings measurements plus 6 for the state of the satellite 
+                            # totalComms += gs.commData[targetID][time][sat].size + 6
+
+                            # TODO: just say sending a measurement is equivalent to sending 30 numbers?
+                            totalComms += 30
+
+            print(f"{gs.name} Total Comms: {totalComms}")
+
+
+    def print_gs_avg_track(self, time_vec):
+        """
+        Prints the average xyz norm error for the ground station over the time vec!
+
+        Will loop over all targets required to track in the GS. 
+        Then also loop over all times in the time_vec for each target.
+        Then, compare to the truth target value and get the error in x, y, z.
+        Then, we will say track error is the norm of x, y, z. 
+        And average it over all time and all targets.
+        """
+
+        totalTrackError = 0
+        totalTrackErrorCount = 0
+        for gs in self.groundStations:
+            for targ in self.targs:
+                if targ.targetID in gs.estimator.targs:
+                    for time in time_vec:
+                        time = time.value
+                        if time in targ.hist.keys():
+                            truePos = targ.hist[time]
+                            estPos = gs.estimator.estHist[targ.targetID][time]
+                            if len(estPos) > 0 and len(truePos) > 0:
+                                trackError = np.linalg.norm(truePos - estPos)
+                                totalTrackError += trackError
+                                totalTrackErrorCount += 1
+
+        avgTrackError = totalTrackError / totalTrackErrorCount
+        print(f"{gs.name} Avg Track Error: {avgTrackError}")
 
 
     def plot_estimator_results(self, time_vec, saveName):
@@ -1491,6 +1607,9 @@ class environment:
             if times:  # If there is an estimate on target
                 segments = self.segment_data(times, max_gap = self.delta_t*2)
                 for segment in segments:
+
+                    if i == 6:
+                        return                    
                     est_errors = [estHist[time][i] - trueHist[time][i] for time in segment]
                     upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
                     lower_bound = [-2 * np.sqrt(covHist[time][i][i]) for time in segment]
@@ -1498,6 +1617,7 @@ class environment:
                     axis.plot(segment, est_errors, color=label_color, linewidth=linewidth)
                     axis.plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
                     axis.plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+
                     i += 1
 
 
@@ -1758,10 +1878,14 @@ class environment:
 ### Plot communications sent/recieved  
     # Plot the total data sent and received by satellites
     def plot_global_comms(self, saveName):
-        """PLOTS THE TOTAL DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS"""
+        """PLOTS THE TOTAL DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS
+           ALSO PRINTS TO TERMINAL THE TOTAL AMOUNT
+        """
 
         ## Plot comm data sent for CI Algo
         if self.ciEstimatorBool:
+
+            total_sent_ci_data = 0
 
             # Create a figure
             fig = plt.figure(figsize=(15, 8))
@@ -1819,6 +1943,8 @@ class environment:
                                 sent_data[sender] = 0
                             sent_data[sender] += data
 
+                            total_sent_ci_data += data
+
                 # If there are keys that dont exist in sent_data, make them and their value 0
                 for key in prev_data.keys():
                     if key not in sent_data:
@@ -1867,10 +1993,14 @@ class environment:
                 filePath = os.path.dirname(os.path.realpath(__file__))
                 plotPath = os.path.join(filePath, 'plots')
                 plt.savefig(os.path.join(plotPath, f"total_ci_comms.png"), dpi=300)
-                
+
+            print(f"Total Data Sent by Satellites in CI Algorithm: {total_sent_ci_data}")
+
                 
         ## Plot comm data sent for ET Algo
         if self.etEstimatorBool:
+
+            total_sent_et_data = 0
 
             fig = plt.figure(figsize=(15, 8))
             fig.suptitle(f"ET Data Sent and Received by Satellites", fontsize=14)
@@ -1925,6 +2055,8 @@ class environment:
                             if sender not in sent_data:
                                 sent_data[sender] = 0
                             sent_data[sender] += data
+
+                            total_sent_et_data += data
                             
                 # If there are keys that dont exist in sent_data, make them and their value 0
                 for key in prev_data.keys():
@@ -1969,6 +2101,8 @@ class environment:
             plotPath = os.path.join(filePath, 'plots')
             os.makedirs(plotPath, exist_ok=True)
             plt.savefig(os.path.join(plotPath, f"{saveName}_total_et_comms.png"), dpi=300)
+
+            print(f"Total Data Sent by Satellites in ET Algorithm: {total_sent_et_data}")
 
 
     # Plots the actual data amount used by the satellites

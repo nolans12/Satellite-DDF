@@ -98,7 +98,10 @@ class comms:
         self.G.nodes[receiver]['estimate_data'][time][target_id]['cov'].append(cov_meas)
         self.G.nodes[receiver]['estimate_data'][time][target_id]['sender'].append(sender.name)
 
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
+        # Count a covariance intersection as 50
+        ci_data_size = 50
+
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = ci_data_size
 
 
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
@@ -145,13 +148,15 @@ class comms:
             self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
             self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
             
-            measVector_size = 2 + 2 # 2 for the meas vector, 2 for the sensor noise
-            if np.isnan(meas_vector[0]):
-                measVector_size -= 1
-            
-            if np.isnan(meas_vector[1]):
-                measVector_size -= 1
-                
+            measVector_size = 0
+            for i in range(len(meas_vector)):
+                if np.isnan(meas_vector[i]):
+                    # print("Sent implicit data")
+                    measVector_size += 1
+                else:
+                    # print("Sent explicit data")
+                    measVector_size += 50
+
             self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
         
 

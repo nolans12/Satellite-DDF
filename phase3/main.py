@@ -33,14 +33,14 @@ def create_environment():
     # Define the satellite structure:
     sens_good = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.01, 115 * 0.01])) # 1% error on FOV bearings
     sens_bad = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.1, 115 * 0.1])) # 10% error on FOV bearings
+    sens_unknown = sensor(name = 'Sensor', fov = 115, bearingsError = np.array([115 * 0.05, 115 * 0.05]), unknownError = np.array([115 * 0.25, 115 * 0.25])) # 10% error on FOV bearings
 
-    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color='#669900')
-    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color='#66a3ff')
-    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color='#9966ff')
-    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color='#ffff33')
+    sat1a = satellite(name = 'Sat1a', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 45, nu = 0, color='#669900') # has bad sensor for unknown sensor
+    sat1b = satellite(name = 'Sat1b', sensor = deepcopy(sens_bad), a = Earth.R + 1000 * u.km, ecc = 0, inc = 60, raan = -45, argp = 30, nu = 0, color='#66a3ff')
+    sat2a = satellite(name = 'Sat2a', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 45 + 7, nu = 0, color='#9966ff')
+    sat2b = satellite(name = 'Sat2b', sensor = deepcopy(sens_good), a = Earth.R + 1000 * u.km, ecc = 0, inc = 120, raan = 45, argp = 30 + 7, nu = 0, color='#ffff33')
 
     sats = [sat1a, sat1b, sat2a, sat2b]
-    # sats = [sat1a]
 
 
     # Define the goal of the system:
@@ -51,29 +51,22 @@ def create_environment():
                            sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},  
                            sat2a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
                            sat2b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}}
-
-    # commandersIntent[0] = {sat1a: {1: 100}}
     
 
     # Define the ground stations
-    # gs1 = groundStation(lat = 55, long = 10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G1', color = 'black')
-    # gs2 = groundStation(lat = 35, long = -10, fov = 90, commRange = 2500, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G2', color = 'gray')
-
     gs1 = groundStation(lat = 60, long = 10, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G1', color = 'black')
-    gs2 = groundStation(lat = 35, long = -15, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'G2', color = 'gray')
 
-    groundStations = [gs1, gs2]
-    # groundStations = [gs1]
+    groundStations = [gs1]
 
     # Define the communication network: 
-    comms_network = comms(sats, maxBandwidth = 30, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    comms_network = comms(sats, maxBandwidth = 50, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
 
 
     # Define the estimators used:
     central = False
-    local = True
-    ci = True 
-    et = False
+    local = False
+    ci = False 
+    et = True
 
     # Create and return an environment instance:
     return environment(sats, targs, comms_network, groundStations, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
@@ -82,14 +75,18 @@ def create_environment():
 ### Main code to run the simulation
 if __name__ == "__main__":
 
+    seed = 1
+
     # Fix random seed for reproducibility
-    np.random.seed(0)
+    np.random.seed(seed)
+    # Also set the rand see for the random library
+    random.seed(seed)
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*24 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 10*12 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "Best Sat Sends CI, Network Used Optimal CI"
+    fileName = "ddf_compare_ET_1"
 
     # Create the environment
     env = create_environment()
@@ -100,5 +97,5 @@ if __name__ == "__main__":
     # Save gifs:
     # env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    # env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
+    # env.render_gif(fileType='dynamic_comms', saveNam  e=fileName, fps = 1)
 

@@ -496,7 +496,7 @@ class ciEstimator(BaseEstimator):
                     continue
 
                 # We will now use the estimate and covariance that were sent, so we should store this
-                comms.used_comm_data[targetID][sat.name][senderName][time_sent] = est_sent.size*2 + cov_sent.size/2
+                comms.used_comm_data[targetID][sat.name][senderName][time_sent] = 50
 
                 # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
                 if time_sent - time_prior > 5:
@@ -564,8 +564,8 @@ class etEstimator(BaseEstimator):
         self.R_factor = 1
         
         # ET Parameters
-        self.delta_alpha = 1
-        self.delta_beta = 1
+        self.delta_alpha = 5
+        self.delta_beta = 5
 
     
     def et_EKF_initialize(self, target, envTime):
@@ -818,6 +818,8 @@ class etEstimator(BaseEstimator):
         filter.estHist[targetID][envTime] = est
         filter.covarianceHist[targetID][envTime] = P
         filter.trackErrorHist[targetID][envTime] = self.calcTrackError(est, P)
+        filter.innovationHist[targetID][envTime][scalarIdx] = innovation
+        filter.innovationCovHist[targetID][envTime][scalarIdx] = innovationCov
         
     def implicit_measurement_update(self, sat, sender, local_est_pred, local_P_pred, type, update, targetID, envTime, filters = [None, None]):
         """
@@ -903,15 +905,21 @@ class etEstimator(BaseEstimator):
             localEKF.estHist[targetID][envTime] = est
             localEKF.covarianceHist[targetID][envTime] = cov
             localEKF.trackErrorHist[targetID][envTime] = self.calcTrackError(est, cov)
+            localEKF.innovationHist[targetID][envTime][scalarIdx] = zbar
+            localEKF.innovationCovHist[targetID][envTime][scalarIdx] = Qe
             
             commonEKF.estHist[targetID][envTime] = est
             commonEKF.covarianceHist[targetID][envTime] = cov
             commonEKF.trackErrorHist[targetID][envTime] = self.calcTrackError(est, cov)
+            commonEKF.innovationHist[targetID][envTime][scalarIdx] = zbar
+            commonEKF.innovationCovHist[targetID][envTime][scalarIdx] = Qe
         
         elif update == 'common':
             commonEKF.estHist[targetID][envTime] = est
             commonEKF.covarianceHist[targetID][envTime] = cov
             commonEKF.trackErrorHist[targetID][envTime] = self.calcTrackError(est, cov)
+            commonEKF.innovationHist[targetID][envTime][scalarIdx] = zbar
+            commonEKF.innovationCovHist[targetID][envTime][scalarIdx] = Qe
     
     def event_trigger(self, sat, neighbor, targetID, time):
         """
@@ -966,23 +974,28 @@ class etEstimator(BaseEstimator):
         # Is my measurment surprising based on the prediction?
         send_alpha = np.nan
         send_beta = np.nan
-                
-        if neighbor_localEKF.trackErrorHist[targetID][time] > int(targetID)*50 + 50:
-            send_alpha = alpha
+
+        # Use the innovation to determine if the measurement is surprising
+        innovation = np.array([alpha - pred_alpha, beta - pred_beta])
+
+        # Get the innovation and covariance from the common filter 
+        innovationCov = commonEKF.innovationCovHist[targetID][time]
+
+        # Now calculate the NIS
+        nis_alpha = innovation[0]**2 / innovationCov[0, 0]
+        nis_beta = innovation[1]**2 / innovationCov[1, 1]
+
+        # Now, we check with the deltas if we should send
+        if nis_alpha > self.delta_alpha:
+            send_alpha = alpha  
+
+        if nis_beta > self.delta_beta:
             send_beta = beta
-        
-        else:
-            
-            # If the difference between the measurement and the prediction is greater than delta, send the measurement
-            if np.abs(alpha - pred_alpha) > self.delta_alpha:
-                send_alpha = alpha
-                
-            if np.abs(beta - pred_beta) > self.delta_beta:
-                send_beta = beta
-            
+
         # print("Predicted Alpha: ", pred_alpha, "Predicted Beta: ", pred_beta)
         # print("Measured Alpha: ", alpha, "Measured Beta: ", beta)
         # print("Send Alpha: ", send_alpha, "Send Beta: ", send_beta)
+
         return send_alpha, send_beta
     
     

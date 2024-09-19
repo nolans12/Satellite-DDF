@@ -9,7 +9,7 @@ class target:
             targetID (int): ID of the target.
             coords (np.array): Initial position [latitude, longitude, altitude].
             heading (float): Heading direction in degrees.
-            speed (float): Speed in km/h.
+            speed (float): Speed in km/min.
             uncertainty (np.array): Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
             color (str): Color representation of the target.
             climbrate (float): Climbing rate in km/h. Defaults to 0.

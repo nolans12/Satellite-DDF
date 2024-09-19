@@ -5,19 +5,24 @@ class sensor:
     Class representing a bearings only sensor.
     """
 
-    def __init__(self, fov, bearingsError, name, detectChance=0, resolution=720):
+    def __init__(self, fov, bearingsError, name, unknownError = None, detectChance=0, resolution=720):
         """
         Initialize a sensor instance.
 
         Args:
             fov (float): Field of view of the sensor [deg].
             bearingsError (float): Error associated with bearings [deg].
+            unknownError (float): Error that is not known, but does exist.
             name (str): Name of the sensor.
             detectChance (float, optional): Detection probability chance (default is 0).
             resolution (int, optional): Resolution of the sensor (default is 720).
         """
+        if unknownError is None:
+            unknownError = bearingsError
+
         self.fov = fov
         self.bearingsError = bearingsError
+        self.unknownError = unknownError
         self.detectChance = detectChance
         self.name = name
         self.resolution = resolution
@@ -61,8 +66,8 @@ class sensor:
         in_track_truth, cross_track_truth = self.convert_to_bearings(sat, targ.pos)
         
         # Add Sensor Error in terms of Gaussian Noise [deg] 
-        in_track_meas = in_track_truth + np.random.normal(0, self.bearingsError[0])
-        cross_track_meas = cross_track_truth + np.random.normal(0, self.bearingsError[1])
+        in_track_meas = in_track_truth + np.random.normal(0, self.unknownError[0])
+        cross_track_meas = cross_track_truth + np.random.normal(0, self.unknownError[1])
         
         # Return the noisy sensor measurement
         return np.array([in_track_meas, cross_track_meas])
