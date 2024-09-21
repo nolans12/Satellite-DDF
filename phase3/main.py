@@ -282,7 +282,7 @@ def main(
     )
 
     # Save gifs:
-    env.render_gifs(plot_config=cfg.plot, save_name=cfg.output_prefix)
+    env.render_gifs(plot_config=cfg.plot, save_name=cfg.plot.output_prefix)
 
 
 if __name__ == '__main__':
