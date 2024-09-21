@@ -2,7 +2,7 @@ import networkx as nx
 import numpy as np
 from numpy import typing as npt
 
-from phase3 import satelliteClass
+from phase3 import satellite
 from phase3 import util
 
 
@@ -13,7 +13,7 @@ class Comms:
 
     def __init__(
         self,
-        sats: list[satelliteClass.Satellite],
+        sats: list[satellite.Satellite],
         maxNeighbors: int,
         maxRange: float,
         minRange: float,
@@ -59,7 +59,7 @@ class Comms:
 
     def send_estimate_path(
         self,
-        path: list[satelliteClass.Satellite],
+        path: list[satellite.Satellite],
         est_meas_source: npt.NDArray,
         cov_meas_source: npt.NDArray,
         target_id: int,
@@ -79,8 +79,8 @@ class Comms:
 
     def send_estimate(
         self,
-        sender: satelliteClass.Satellite,
-        receiver: satelliteClass.Satellite,
+        sender: satellite.Satellite,
+        receiver: satellite.Satellite,
         est_meas: npt.NDArray,
         cov_meas: npt.NDArray,
         target_id: int,
@@ -150,8 +150,8 @@ class Comms:
 
     def send_measurements(
         self,
-        sender: satelliteClass.Satellite,
-        receiver: satelliteClass.Satellite,
+        sender: satellite.Satellite,
+        receiver: satellite.Satellite,
         meas_vector: npt.NDArray,
         target_id: int,
         time: float,
@@ -226,7 +226,7 @@ class Comms:
 
     # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
-    def make_edges(self, sats: list[satelliteClass.Satellite]) -> None:
+    def make_edges(self, sats: list[satellite.Satellite]) -> None:
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
                 Performs double loop through all satellites to check known pairs.
                 An edge represnts a theorical communication link between two satellites.
@@ -289,7 +289,7 @@ class Comms:
                     self.G.remove_edge(sat, sorted_neighbors[i])
 
     def intersect_earth(
-        self, sat1: satelliteClass.Satellite, sat2: satelliteClass.Satellite
+        self, sat1: satellite.Satellite, sat2: satellite.Satellite
     ) -> bool:
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.

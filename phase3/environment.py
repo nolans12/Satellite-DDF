@@ -2,6 +2,7 @@
 import csv
 import io
 import os
+import pathlib
 import random
 from collections import defaultdict
 
@@ -17,10 +18,12 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import art3d
 from numpy import typing as npt
 
-from phase3 import commClass
-from phase3 import estimatorClass
-from phase3 import satelliteClass
-from phase3 import targetClass
+from common import path_utils
+from phase3 import comms
+from phase3 import estimator
+from phase3 import satellite
+from phase3 import sim_config
+from phase3 import target
 from phase3 import util
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
@@ -29,9 +32,9 @@ from phase3 import util
 class Environment:
     def __init__(
         self,
-        sats: list[satelliteClass.Satellite],
-        targs: list[targetClass.Target],
-        comms: commClass.Comms,
+        sats: list[satellite.Satellite],
+        targs: list[target.Target],
+        comms: comms.Comms,
         commandersIntent: util.CommandersIndent,
         localEstimatorBool: bool,
         centralEstimatorBool: bool,
@@ -60,24 +63,24 @@ class Environment:
             # Create estimation algorithms for each satellite
             self.localEstimatorBool = localEstimatorBool
             if localEstimatorBool:
-                sat.indeptEstimator = estimatorClass.IndeptEstimator(
+                sat.indeptEstimator = estimator.IndeptEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the independent estimator for these targets
 
             self.centralEstimatorBool = centralEstimatorBool
             if centralEstimatorBool:
-                self.centralEstimator = estimatorClass.CentralEstimator(
+                self.centralEstimator = estimator.CentralEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the central estimator for these targets
 
             self.ciEstimatorBool = ciEstimatorBool
             if ciEstimatorBool:
-                sat.ciEstimator = estimatorClass.CiEstimator(commandersIntent[0][sat])
+                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat])
 
             self.etEstimatorBool = etEstimatorBool
             if etEstimatorBool:
                 sat.etEstimators = [
-                    estimatorClass.EtEstimator(commandersIntent[0][sat], shareWith=None)
+                    estimator.EtEstimator(commandersIntent[0][sat], shareWith=None)
                 ]
 
         ## Populate the environment variables
@@ -122,7 +125,9 @@ class Environment:
         self.earth_r = 6378.0
         self.x_earth = self.earth_r * np.outer(np.cos(u_earth), np.sin(v_earth))
         self.y_earth = self.earth_r * np.outer(np.sin(u_earth), np.sin(v_earth))
-        self.z_earth = self.earth_r * np.outer(np.ones(np.size(u_earth)), np.cos(v_earth))
+        self.z_earth = self.earth_r * np.outer(
+            np.ones(np.size(u_earth)), np.cos(v_earth)
+        )
 
         # Empty lists and dictionaries for simulation images
         self.imgs = []  # dictionary for 3D gif images
@@ -137,13 +142,8 @@ class Environment:
     def simulate(
         self,
         time_vec: npt.NDArray,
+        plot_config: sim_config.PlotConfig,
         pause_step: float = 0.0001,
-        saveName: str | None = None,
-        show_env: bool = False,
-        plot_estimation_results: bool = False,
-        plot_communication_results: bool = False,
-        plot_et_network: bool = False,
-        plot_uncertainty_ellipses: bool = False,
         save_estimation_data: bool = False,
         save_communication_data: bool = False,
     ):
@@ -153,12 +153,7 @@ class Environment:
         Args:
         - time_vec: Array of time steps to simulate over.
         - pause_step: Time to pause between each step in the simulation.
-        - saveName: Name to save the simulation data to.
-        - show_env: Flag to show the environment plot at each step.
-        - plot_estimation_results: Flag to plot the estimation results.
-        - plot_communication_results: Flag to plot the communication results.
-        - plot_et_network: Flag to plot the dynamic communication network in ET.
-        - plot_uncertainty_ellipses: Flag to plot the uncertainty ellipses.
+        - plot_config: Plotting configuration
         - save_estimation_data: Flag to save the estimation data.
         - save_communication_data: Flag to save the communication data.
 
@@ -192,13 +187,13 @@ class Environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
-            if show_env:
+            if plot_config.show_env:
                 # Update the plot environment
                 self.plot()
                 plt.pause(pause_step)
                 plt.draw()
 
-            if plot_et_network:
+            if plot_config.plot_et_network:
                 # Update the dynamic comms plot
                 self.plot_dynamic_comms()
                 plt.pause(pause_step)
@@ -207,32 +202,32 @@ class Environment:
         print("Simulation Complete")
 
         # Plot the filter results
-        if plot_estimation_results:
+        if plot_config.plot_estimation:
             self.plot_estimator_results(
-                time_vec, saveName=saveName
+                time_vec, saveName=plot_config.output_prefix
             )  # marginal error, innovation, and NIS/NEES plots
 
         # Plot the commm results
-        if plot_communication_results:
+        if plot_config.plot_communication:
 
             # Make plots for total data sent and used throughout time
-            self.plot_global_comms(saveName=saveName)
-            self.plot_used_comms(saveName=saveName)
+            self.plot_global_comms(saveName=plot_config.output_prefix)
+            self.plot_used_comms(saveName=plot_config.output_prefix)
 
             # For the CI estimators, plot time hist of comms
             if self.ciEstimatorBool:
-                self.plot_timeHist_comms_ci(saveName=saveName)
+                self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
 
         # Save the uncertainty ellipse plots
-        if plot_uncertainty_ellipses:
+        if plot_config.plot_uncertainty_ellipses:
             self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
 
         # Log the Data
         if save_estimation_data:
-            self.log_data(time_vec, saveName=saveName)
+            self.log_data(time_vec, saveName=plot_config.output_prefix)
 
         if save_communication_data:
-            self.log_comms_data(time_vec, saveName=saveName)
+            self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
 
         return
 
@@ -664,7 +659,7 @@ class Environment:
                     ):
                         # This means satellite has a measurement for this target, now send it to neighbors
                         for neighbor in self.comms.G.neighbors(sat):
-                            neighbor: satelliteClass.Satellite
+                            neighbor: satellite.Satellite
                             # If target is not in neighbors priority list, skip
                             if targetID not in neighbor.targPriority.keys():
                                 continue
@@ -3822,44 +3817,43 @@ class Environment:
         )[:, :, 0:4]
         return img
 
-    def render_gif(
+    def render_gifs(
         self,
-        fileType,
-        saveName,
-        filePath=os.path.dirname(os.path.realpath(__file__)),
-        fps=1,
+        plot_config: sim_config.PlotConfig,
+        save_name: str,
+        out_dir: pathlib.Path = path_utils.PHASE_3 / 'gifs',
+        fps: int = 5,
     ):
         """
         Renders and saves GIFs based on the specified file type.
 
         Parameters:
-        - fileType (str): The type of GIF to render. Options are 'satellite_simulation' or 'uncertainty_ellipse'.
-        - saveName (str): The base name for the saved GIF files.
-        - filePath (str): The directory path where the GIF files will be saved. Defaults to the directory of the script.
-        - fps (int): Frames per second for the GIF. Defaults to 10.
+        - plot_config: The type of GIF to render. Options are 'satellite_simulation' or 'uncertainty_ellipse'.
+        - save_name: The base name for the saved GIF files.
+        - out_dir: The directory path where the GIF files will be saved. Defaults to the directory of the script.
+        - fps: Frames per second for the GIF. Defaults to 10.
 
         Returns:
         None
         """
         frame_duration = 1000 / fps  # in ms
 
-        if fileType == 'satellite_simulation':
-            file = os.path.join(filePath, 'gifs', f'{saveName}_satellite_sim.gif')
+        if sim_config.GifType.SATELLITE_SIMULATION in plot_config.gifs:
+            file = out_dir / f'{save_name}_satellite_sim.gif'
             with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                 for img in self.imgs:
                     writer.append_data(img)
 
-        if fileType == 'uncertainty_ellipse':
+        if sim_config.GifType.UNCERTAINTY_ELLIPSE in plot_config.gifs:
             for targ in self.targs:
                 for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
                         for sat2 in self.sats:
                             if targ.targetID in sat2.targetIDs:
                                 if sat != sat2:
-                                    file = os.path.join(
-                                        filePath,
-                                        'gifs',
-                                        f"{saveName}_{targ.name}_{sat.name}_{sat2.name}_stereo_GE.gif",
+                                    file = (
+                                        out_dir
+                                        / f"{save_name}_{targ.name}_{sat.name}_{sat2.name}_stereo_GE.gif"
                                     )
                                     with imageio.get_writer(
                                         file, mode='I', duration=frame_duration
@@ -3869,8 +3863,8 @@ class Environment:
                                         ][sat2]:
                                             writer.append_data(img)
 
-        if fileType == 'dynamic_comms':
-            file = os.path.join(filePath, 'gifs', f"{saveName}_dynamic_comms.gif")
+        if sim_config.GifType.DYNAMIC_COMMS in plot_config.gifs:
+            file = out_dir / f"{save_name}_dynamic_comms.gif"
             with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                 for img in self.imgs_dyn_comms:
                     writer.append_data(img)
@@ -4159,8 +4153,8 @@ class Environment:
         self,
         filename: str,
         time_vec: u.Quantity[u.minute],
-        sat: satelliteClass.Satellite,
-        commNode: commClass.Comms,
+        sat: satellite.Satellite,
+        commNode: comms.Comms,
         targetID: int,
     ) -> None:
         precision = 3

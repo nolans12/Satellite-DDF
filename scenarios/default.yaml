@@ -1,0 +1,14 @@
+sim_duration_m: 10
+
+plot:
+  output_prefix: "test"
+
+  show_env: true
+
+  plot_estimation: true
+  plot_communication: true
+  plot_et_network: false
+  plot_uncertainty_ellipses: false
+
+  gifs:
+    - "SATELLITE_SIMULATION"
