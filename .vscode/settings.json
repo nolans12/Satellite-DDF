@@ -1,0 +1,24 @@
+{
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true,
+    "files.trimFinalNewlines": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file",
+    "python.defaultInterpreterPath": "venv/bin/python",
+    "files.exclude": {
+        "**/__pycache__": true,
+    },
+    "python.analysis.exclude": [
+        "venv/**",
+    ],
+    "python.analysis.typeCheckingMode": "standard",
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "always",
+        },
+        "editor.formatOnSave": true,
+        "editor.formatOnSaveMode": "file",
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnType": false
+    }
+}

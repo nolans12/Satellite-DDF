@@ -1,21 +1,37 @@
-from import_libraries import *
+from collections import defaultdict
 
-class target:    
-    def __init__(self, name, targetID, coords, heading, speed, color, uncertainty=np.array([0, 0, 0, 0, 0]), climbrate=0, changeAoA=False, tqReq = 0):
+import numpy as np
+from numpy import typing as npt
+
+
+class Target:
+    def __init__(
+        self,
+        name: str,
+        targetID: int,
+        coords: npt.NDArray,
+        heading: float,
+        speed: float,
+        color: str,
+        uncertainty: npt.NDArray = np.array([0, 0, 0, 0, 0]),
+        climbrate: float = 0,
+        changeAoA: bool = False,
+        tqReq: int = 0,
+    ):
         """Target class that moves linearly around the earth with constant angular velocity.
 
         Args:
-            name (str): Name of the target.
-            targetID (int): ID of the target.
-            coords (np.array): Initial position [latitude, longitude, altitude].
-            heading (float): Heading direction in degrees.
-            speed (float): Speed in km/h.
-            uncertainty (np.array): Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
-            color (str): Color representation of the target.
-            climbrate (float): Climbing rate in km/h. Defaults to 0.
-            changeAoA (bool): Whether the target should change Angle of Attack. Defaults to False.
+            name: Name of the target.
+            targetID: ID of the target.
+            coords: Initial position [latitude, longitude, altitude].
+            heading: Heading direction in degrees.
+            speed: Speed in km/h.
+            uncertainty: Uncertainty in the coordinates, heading, and speed of the target. [lat (deg), lon (deg), alt (km), heading (deg), speed (km/min)]
+            color: Color representation of the target.
+            climbrate: Climbing rate in km/h. Defaults to 0.
+            changeAoA: Whether the target should change Angle of Attack. Defaults to False.
         """
-        
+
         # Initialize the target's parameters
         self.tqReq = tqReq
         self.targetID = targetID
@@ -28,7 +44,9 @@ class target:
         self.initialCovMat = np.diag(uncertainty**2)
 
         # Now sample from the uncertainty matrix to get the initial parameters
-        initialParameters = np.random.multivariate_normal(self.initialParams, self.initialCovMat)
+        initialParameters = np.random.multivariate_normal(
+            self.initialParams, self.initialCovMat
+        )
 
         # Now back out the original parameters
         coords = initialParameters[0:3]
@@ -39,24 +57,32 @@ class target:
         # state = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
         range = coords[2] + 6378  # range from center of earth in km
         rangeRate = climbrate  # constant altitude [km/min]
-        self.changeAoA = changeAoA  # True if target should change Angle of Attack TODO: Implement
-        
+        self.changeAoA = (
+            changeAoA  # True if target should change Angle of Attack TODO: Implement
+        )
+
         elevation = np.deg2rad(coords[0])  # [rad] latitude where 0 is equator
         azimuth = np.deg2rad(coords[1])  # [rad] longitude where 0 prime meridian
-        
+
         # Angular rates are speed in direction of heading TODO: Check this
         elevationRate = speed / range * np.cos(np.deg2rad(heading))  # [rad/min]
         azimuthRate = speed / range * np.sin(np.deg2rad(heading))  # [rad/min]
 
         # Initialize the state (guess of target position and velocity in spherical coordinates)
-        self.initialState = np.array([range, rangeRate, elevation, elevationRate, azimuth, azimuthRate])
+        self.initialState = np.array(
+            [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
+        )
 
         # Define the initial state vector X
         self.X = self.initialState
 
-        self.hist = defaultdict(dict)  # Contains time, xyz, and velocity history in ECI [x xdot y ydot z zdot]
-        
-    def propagate(self, time_step, time, initialState=None):
+        self.hist = defaultdict(
+            dict
+        )  # Contains time, xyz, and velocity history in ECI [x xdot y ydot z zdot]
+
+    def propagate(
+        self, time_step: float, time: float, initialState: npt.NDArray | None = None
+    ) -> None:
         """Linearly propagate target state in spherical coordinates then transform back to ECI.
 
         Args:
@@ -78,12 +104,16 @@ class target:
         X = initialState if initialState is not None else self.X
 
         # Define the state transition matrix A
-        A = np.array([[0, 1, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 1],
-                      [0, 0, 0, 0, 0, 0]])
+        A = np.array(
+            [
+                [0, 1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 1, 0, 0],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0, 0],
+            ]
+        )
 
         # Propagate the current state using the state transition matrix
         x_dot = np.dot(A, X)
@@ -106,13 +136,17 @@ class target:
         z = range * np.sin(elevation)
 
         # Approximate velocities conversion (simplified version), TODO: Implement more accurate conversion? Do we need it?
-        vx = (rangeRate * np.cos(elevation) * np.cos(azimuth) -
-            range * elevationRate * np.sin(elevation) * np.cos(azimuth) -
-            range * azimuthRate * np.cos(elevation) * np.sin(azimuth))
+        vx = (
+            rangeRate * np.cos(elevation) * np.cos(azimuth)
+            - range * elevationRate * np.sin(elevation) * np.cos(azimuth)
+            - range * azimuthRate * np.cos(elevation) * np.sin(azimuth)
+        )
 
-        vy = (rangeRate * np.cos(elevation) * np.sin(azimuth) -
-            range * elevationRate * np.sin(elevation) * np.sin(azimuth) +
-            range * azimuthRate * np.cos(elevation) * np.cos(azimuth))
+        vy = (
+            rangeRate * np.cos(elevation) * np.sin(azimuth)
+            - range * elevationRate * np.sin(elevation) * np.sin(azimuth)
+            + range * azimuthRate * np.cos(elevation) * np.cos(azimuth)
+        )
 
         vz = rangeRate * np.sin(elevation) + range * elevationRate * np.cos(elevation)
 
@@ -121,4 +155,13 @@ class target:
         self.vel = np.array([vx, vy, vz])
 
         # Update the target's dictionary with the current state for plotting
-        self.hist[self.time] = np.array([self.pos[0], self.vel[0], self.pos[1], self.vel[1], self.pos[2], self.vel[2]])
+        self.hist[self.time] = np.array(
+            [
+                self.pos[0],
+                self.vel[0],
+                self.pos[1],
+                self.vel[1],
+                self.pos[2],
+                self.vel[2],
+            ]
+        )

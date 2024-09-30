@@ -4,10 +4,6 @@
 #
 #    pip-compile --output-file=requirements_lock.txt pyproject.toml
 #
-ambiance==1.3.1
-    # via satellite_ddf (pyproject.toml)
-appnope==0.1.4
-    # via satellite_ddf (pyproject.toml)
 astropy==5.3.4
     # via
     #   astroquery
@@ -15,253 +11,101 @@ astropy==5.3.4
     #   pyvo
     #   satellite_ddf (pyproject.toml)
 astroquery==0.4.7
-    # via
-    #   poliastro
-    #   satellite_ddf (pyproject.toml)
+    # via poliastro
 asttokens==2.4.1
-    # via
-    #   satellite_ddf (pyproject.toml)
-    #   stack-data
-attrs==23.2.0
-    # via
-    #   fiona
-    #   jsonschema
-    #   referencing
-    #   satellite_ddf (pyproject.toml)
+    # via stack-data
 backcall==0.2.0
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 backports-tarfile==1.1.0
-    # via
-    #   jaraco-context
-    #   satellite_ddf (pyproject.toml)
-basemap==1.4.1
-    # via satellite_ddf (pyproject.toml)
-basemap-data==1.3.2
-    # via
-    #   basemap
-    #   satellite_ddf (pyproject.toml)
+    # via jaraco-context
 beautifulsoup4==4.12.3
-    # via
-    #   astroquery
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
-bleach==6.1.0
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via astroquery
+black==24.8.0
+    # via satellite_ddf (pyproject.toml)
 build==1.2.2
     # via pip-tools
 certifi==2024.2.2
-    # via
-    #   fiona
-    #   pyproj
-    #   requests
-    #   satellite_ddf (pyproject.toml)
+    # via requests
 cffi==1.17.1
     # via cryptography
 charset-normalizer==3.3.2
-    # via
-    #   requests
-    #   satellite_ddf (pyproject.toml)
+    # via requests
 click==8.1.7
     # via
-    #   click-plugins
-    #   cligj
-    #   fiona
+    #   black
     #   pip-tools
-    #   satellite_ddf (pyproject.toml)
-click-plugins==1.1.1
-    # via
-    #   fiona
-    #   satellite_ddf (pyproject.toml)
-cligj==0.7.2
-    # via
-    #   fiona
-    #   satellite_ddf (pyproject.toml)
 contourpy==1.2.1
-    # via
-    #   matplotlib
-    #   satellite_ddf (pyproject.toml)
+    # via matplotlib
 cryptography==43.0.1
     # via secretstorage
 cycler==0.12.1
-    # via
-    #   matplotlib
-    #   satellite_ddf (pyproject.toml)
+    # via matplotlib
 decorator==5.1.1
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
-defusedxml==0.7.1
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
-docopt==0.6.2
-    # via
-    #   pipreqs
-    #   satellite_ddf (pyproject.toml)
-executing==2.0.1
-    # via
-    #   satellite_ddf (pyproject.toml)
-    #   stack-data
-fastjsonschema==2.20.0
-    # via
-    #   nbformat
-    #   satellite_ddf (pyproject.toml)
-fiona==1.9.6
-    # via
-    #   geopandas
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
+executing==2.1.0
+    # via stack-data
 fonttools==4.51.0
-    # via
-    #   matplotlib
-    #   satellite_ddf (pyproject.toml)
-geopandas==0.14.3
-    # via satellite_ddf (pyproject.toml)
+    # via matplotlib
 html5lib==1.1
-    # via
-    #   astroquery
-    #   satellite_ddf (pyproject.toml)
+    # via astroquery
 idna==3.7
-    # via
-    #   requests
-    #   satellite_ddf (pyproject.toml)
-imageio==2.34.1
+    # via requests
+imageio==2.35.1
     # via satellite_ddf (pyproject.toml)
 importlib-metadata==7.1.0
-    # via
-    #   keyring
-    #   satellite_ddf (pyproject.toml)
+    # via keyring
 ipython==8.12.3
-    # via
-    #   pipreqs
-    #   satellite_ddf (pyproject.toml)
+    # via satellite_ddf (pyproject.toml)
 jaraco-classes==3.4.0
-    # via
-    #   keyring
-    #   satellite_ddf (pyproject.toml)
+    # via keyring
 jaraco-context==5.3.0
-    # via
-    #   keyring
-    #   satellite_ddf (pyproject.toml)
+    # via keyring
 jaraco-functools==4.0.0
-    # via
-    #   keyring
-    #   satellite_ddf (pyproject.toml)
+    # via keyring
 jax==0.4.29
     # via satellite_ddf (pyproject.toml)
 jaxlib==0.4.29
     # via satellite_ddf (pyproject.toml)
 jedi==0.19.1
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 jeepney==0.8.0
     # via
     #   keyring
     #   secretstorage
-jinja2==3.1.4
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
 jplephem==2.21
-    # via
-    #   poliastro
-    #   satellite_ddf (pyproject.toml)
-jsonschema==4.23.0
-    # via
-    #   nbformat
-    #   satellite_ddf (pyproject.toml)
-jsonschema-specifications==2023.12.1
-    # via
-    #   jsonschema
-    #   satellite_ddf (pyproject.toml)
-jupyter-client==8.6.2
-    # via
-    #   nbclient
-    #   satellite_ddf (pyproject.toml)
-jupyter-core==5.7.2
-    # via
-    #   jupyter-client
-    #   nbclient
-    #   nbconvert
-    #   nbformat
-    #   satellite_ddf (pyproject.toml)
-jupyterlab-pygments==0.3.0
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via poliastro
 keyring==25.1.0
-    # via
-    #   astroquery
-    #   satellite_ddf (pyproject.toml)
+    # via astroquery
 kiwisolver==1.4.5
-    # via
-    #   matplotlib
-    #   satellite_ddf (pyproject.toml)
+    # via matplotlib
 llvmlite==0.42.0
-    # via
-    #   numba
-    #   satellite_ddf (pyproject.toml)
-markupsafe==2.1.5
-    # via
-    #   jinja2
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via numba
 matplotlib==3.7.0
     # via
-    #   basemap
     #   poliastro
     #   satellite_ddf (pyproject.toml)
 matplotlib-inline==0.1.7
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
-mistune==3.0.2
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 ml-dtypes==0.4.0
     # via
     #   jax
     #   jaxlib
-    #   satellite_ddf (pyproject.toml)
 more-itertools==10.2.0
     # via
     #   jaraco-classes
     #   jaraco-functools
-    #   satellite_ddf (pyproject.toml)
 mpmath==1.3.0
-    # via
-    #   satellite_ddf (pyproject.toml)
-    #   sympy
-nbclient==0.10.0
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
-nbconvert==7.16.4
-    # via
-    #   pipreqs
-    #   satellite_ddf (pyproject.toml)
-nbformat==5.10.4
-    # via
-    #   nbclient
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via sympy
+mypy-extensions==1.0.0
+    # via black
 networkx==3.3
     # via satellite_ddf (pyproject.toml)
 numba==0.59.1
-    # via
-    #   poliastro
-    #   satellite_ddf (pyproject.toml)
+    # via poliastro
 numpy==1.26.4
     # via
-    #   ambiance
     #   astropy
     #   astroquery
-    #   basemap
     #   contourpy
     #   imageio
     #   jax
@@ -274,44 +118,26 @@ numpy==1.26.4
     #   pandas
     #   poliastro
     #   pyerfa
-    #   satellite_ddf (pyproject.toml)
     #   scipy
-    #   shapely
 opt-einsum==3.3.0
-    # via
-    #   jax
-    #   satellite_ddf (pyproject.toml)
+    # via jax
 packaging==23.2
     # via
     #   astropy
-    #   basemap
+    #   black
     #   build
-    #   geopandas
     #   matplotlib
-    #   nbconvert
     #   plotly
-    #   satellite_ddf (pyproject.toml)
 pandas==2.2.2
-    # via
-    #   geopandas
-    #   poliastro
-    #   satellite_ddf (pyproject.toml)
-pandocfilters==1.5.1
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via poliastro
 parso==0.8.4
-    # via
-    #   jedi
-    #   satellite_ddf (pyproject.toml)
+    # via jedi
+pathspec==0.12.1
+    # via black
 pexpect==4.9.0
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 pickleshare==0.7.5
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 pillow==10.3.0
     # via
     #   imageio
@@ -319,184 +145,94 @@ pillow==10.3.0
     #   satellite_ddf (pyproject.toml)
 pip-tools==7.4.1
     # via satellite_ddf (pyproject.toml)
-pipreqs==0.5.0
-    # via satellite_ddf (pyproject.toml)
 platformdirs==4.2.2
-    # via
-    #   jupyter-core
-    #   satellite_ddf (pyproject.toml)
+    # via black
 plotly==5.20.0
-    # via
-    #   poliastro
-    #   satellite_ddf (pyproject.toml)
+    # via poliastro
 poliastro==0.17.0
     # via satellite_ddf (pyproject.toml)
 prompt-toolkit==3.0.47
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 ptyprocess==0.7.0
-    # via
-    #   pexpect
-    #   satellite_ddf (pyproject.toml)
-pure-eval==0.2.2
-    # via
-    #   satellite_ddf (pyproject.toml)
-    #   stack-data
+    # via pexpect
+pulp==2.9.0
+    # via satellite_ddf (pyproject.toml)
+pure-eval==0.2.3
+    # via stack-data
 pycparser==2.22
     # via cffi
 pyerfa==2.0.1.4
     # via
     #   astropy
     #   poliastro
-    #   satellite_ddf (pyproject.toml)
 pygments==2.18.0
-    # via
-    #   ipython
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 pyparsing==3.1.2
-    # via
-    #   matplotlib
-    #   satellite_ddf (pyproject.toml)
-pyproj==3.6.1
-    # via
-    #   basemap
-    #   geopandas
-    #   satellite_ddf (pyproject.toml)
+    # via matplotlib
 pyproject-hooks==1.1.0
     # via
     #   build
     #   pip-tools
-pyshp==2.3.1
-    # via
-    #   basemap
-    #   satellite_ddf (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via
-    #   jupyter-client
     #   matplotlib
     #   pandas
-    #   satellite_ddf (pyproject.toml)
 pytz==2024.1
-    # via
-    #   pandas
-    #   satellite_ddf (pyproject.toml)
+    # via pandas
 pyvo==1.5.1
-    # via
-    #   astroquery
-    #   satellite_ddf (pyproject.toml)
+    # via astroquery
 pyyaml==6.0.1
-    # via
-    #   astropy
-    #   satellite_ddf (pyproject.toml)
-pyzmq==26.0.3
-    # via
-    #   jupyter-client
-    #   satellite_ddf (pyproject.toml)
-referencing==0.35.1
-    # via
-    #   jsonschema
-    #   jsonschema-specifications
-    #   satellite_ddf (pyproject.toml)
+    # via astropy
 requests==2.31.0
     # via
     #   astroquery
     #   pyvo
-    #   satellite_ddf (pyproject.toml)
-    #   yarg
-rpds-py==0.19.0
-    # via
-    #   jsonschema
-    #   referencing
-    #   satellite_ddf (pyproject.toml)
 scipy==1.13.0
     # via
-    #   ambiance
     #   jax
     #   jaxlib
     #   poliastro
     #   satellite_ddf (pyproject.toml)
 secretstorage==3.3.3
     # via keyring
-shapely==2.0.4
-    # via
-    #   geopandas
-    #   satellite_ddf (pyproject.toml)
 six==1.16.0
     # via
     #   asttokens
-    #   bleach
-    #   fiona
     #   html5lib
     #   python-dateutil
-    #   satellite_ddf (pyproject.toml)
 soupsieve==2.5
-    # via
-    #   beautifulsoup4
-    #   satellite_ddf (pyproject.toml)
+    # via beautifulsoup4
 stack-data==0.6.3
-    # via
-    #   ipython
-    #   satellite_ddf (pyproject.toml)
+    # via ipython
 sympy==1.12.1
     # via satellite_ddf (pyproject.toml)
 tenacity==8.2.3
-    # via
-    #   plotly
-    #   satellite_ddf (pyproject.toml)
-tinycss2==1.3.0
-    # via
-    #   nbconvert
-    #   satellite_ddf (pyproject.toml)
+    # via plotly
 tomli==2.0.1
     # via
+    #   black
     #   build
     #   pip-tools
-tornado==6.4.1
-    # via
-    #   jupyter-client
-    #   satellite_ddf (pyproject.toml)
 traitlets==5.14.3
     # via
     #   ipython
-    #   jupyter-client
-    #   jupyter-core
     #   matplotlib-inline
-    #   nbclient
-    #   nbconvert
-    #   nbformat
-    #   satellite_ddf (pyproject.toml)
+typing-extensions==4.12.2
+    # via black
 tzdata==2024.1
-    # via
-    #   pandas
-    #   satellite_ddf (pyproject.toml)
+    # via pandas
 urllib3==2.2.1
-    # via
-    #   requests
-    #   satellite_ddf (pyproject.toml)
+    # via requests
 wcwidth==0.2.13
-    # via
-    #   prompt-toolkit
-    #   satellite_ddf (pyproject.toml)
+    # via prompt-toolkit
 webencodings==0.5.1
-    # via
-    #   bleach
-    #   html5lib
-    #   satellite_ddf (pyproject.toml)
-    #   tinycss2
+    # via html5lib
 wheel==0.44.0
     # via pip-tools
-yarg==0.1.9
-    # via
-    #   pipreqs
-    #   satellite_ddf (pyproject.toml)
 zipp==3.18.1
-    # via
-    #   importlib-metadata
-    #   satellite_ddf (pyproject.toml)
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
 # setuptools
-# a6323327c98e8366e40125021f5802aa44793175c22eb9a075068830ac0cc3e2  requirements.txt
+# b3c79a135b7c3964656e3671d756eac62a9b62039dfa724bba8dfa8d6462f7dc  requirements.txt

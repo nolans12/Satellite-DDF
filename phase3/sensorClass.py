@@ -1,20 +1,40 @@
-from import_libraries import *
+from typing import TYPE_CHECKING
 
-class sensor:
+import jax
+import jax.numpy as jnp
+import numpy as np
+from jax import typing as jnpt
+from numpy import typing as npt
+from scipy import spatial
+
+if TYPE_CHECKING:
+    from phase3 import satelliteClass
+
+from phase3 import targetClass
+
+
+class Sensor:
     """
     Class representing a bearings only sensor.
     """
 
-    def __init__(self, fov, bearingsError, name, detectChance=0, resolution=720):
+    def __init__(
+        self,
+        fov: float,
+        bearingsError: npt.NDArray,
+        name: str,
+        detectChance: float = 0,
+        resolution: int = 720,
+    ):
         """
         Initialize a sensor instance.
 
         Args:
-            fov (float): Field of view of the sensor [deg].
-            bearingsError (float): Error associated with bearings [deg].
-            name (str): Name of the sensor.
-            detectChance (float, optional): Detection probability chance (default is 0).
-            resolution (int, optional): Resolution of the sensor (default is 720).
+            fov: Field of view of the sensor [deg].
+            bearingsError: Error associated with bearings [deg].
+            name: Name of the sensor.
+            detectChance: Detection probability chance (default is 0).
+            resolution: Resolution of the sensor (default is 720).
         """
         self.fov = fov
         self.bearingsError = bearingsError
@@ -23,66 +43,82 @@ class sensor:
         self.resolution = resolution
         self.projBox = np.array([0, 0, 0])
 
-    def get_measurement(self, sat, targ):
+    def get_measurement(
+        self, sat: 'satelliteClass.Satellite', targ: targetClass.Target
+    ) -> npt.NDArray | None:
         """
         Get sensor measurement of a target if visible within sensor's field of view.
 
         Args:
-            sat (Satellite): Satellite object.
-            targ (Target): Target object.
+            sat: Satellite object.
+            targ: Target object.
 
         Returns:
-            np.ndarray: Sensor measurement if target is visible, else returns 0.
+            Sensor measurement if target is visible, else returns None.
         """
-        
+
         # Get the current projection box of the sensor
-        self.visible_projection(sat) 
-        if self.inFOV(sat, targ): # check if target is in the field of view
-            detect = np.random.uniform(0, 1) # generate random number to determine detection
-            if detect < self.detectChance: # check if target is detected
+        self.visible_projection(sat)
+        if self.inFOV(sat, targ):  # check if target is in the field of view
+            detect = np.random.uniform(
+                0, 1
+            )  # generate random number to determine detection
+            if detect < self.detectChance:  # check if target is detected
                 return None
             else:
-                return self.sensor_model(sat, targ) # return the noisy sensor measurement for target
+                return self.sensor_model(
+                    sat, targ
+                )  # return the noisy sensor measurement for target
         else:
             return None
 
-    def sensor_model(self, sat, targ):
+    def sensor_model(
+        self, sat: 'satelliteClass.Satellite', targ: targetClass.Target
+    ) -> npt.NDArray:
         """
         Simulate sensor measurement with added error.
 
         Args:
-            sat (Satellite): Satellite object.
-            targ (Target): Target object.
+            sat: Satellite object.
+            targ: Target object.
 
         Returns:
-            np.ndarray: Simulated sensor measurement (in-track and cross-track angles).
+            Simulated sensor measurement (in-track and cross-track angles).
         """
         # Get True Relative Target Position in terms of bearings angles
         in_track_truth, cross_track_truth = self.convert_to_bearings(sat, targ.pos)
-        
-        # Add Sensor Error in terms of Gaussian Noise [deg] 
+
+        # Add Sensor Error in terms of Gaussian Noise [deg]
         in_track_meas = in_track_truth + np.random.normal(0, self.bearingsError[0])
-        cross_track_meas = cross_track_truth + np.random.normal(0, self.bearingsError[1])
-        
+        cross_track_meas = cross_track_truth + np.random.normal(
+            0, self.bearingsError[1]
+        )
+
         # Return the noisy sensor measurement
         return np.array([in_track_meas, cross_track_meas])
-    
-    def convert_to_bearings(self, sat, meas_ECI):
+
+    def convert_to_bearings(
+        self, sat: 'satelliteClass.Satellite', meas_ECI: npt.NDArray
+    ) -> tuple[float, float]:
         """
         Convert satellite and target ECI positions to bearings angles.
 
         Args:
-            sat (Satellite): Satellite object.
-            meas_ECI (np.ndarray): Target position vector in ECI coordinates.
+            sat: Satellite object.
+            meas_ECI: Target position vector in ECI coordinates.
 
         Returns:
-            Tuple[float, float]: In-track and cross-track angles between satellite and target.
+            In-track and cross-track angles between satellite and target.
         """
-        sensor_measurement = self.transform_eci_to_bearings(sat.orbit.r.value, sat.orbit.v.value, meas_ECI)
+        sensor_measurement = self.transform_eci_to_bearings(
+            sat.orbit.r.value, sat.orbit.v.value, meas_ECI
+        )
 
         return float(sensor_measurement[0]), float(sensor_measurement[1])
 
-    def transform_eci_to_bearings(self, r_value, v_value, meas_ECI):
+    def transform_eci_to_bearings(
+        self, r_value: jnpt.ArrayLike, v_value: jnpt.ArrayLike, meas_ECI: jnpt.ArrayLike
+    ) -> jnpt.ArrayLike:
         """
         Transform ECI coordinates to bearings angles.
 
@@ -95,36 +131,54 @@ class sensor:
             jnp.ndarray: In-track and cross-track angles between satellite and target.
         """
         # Find Sensor Frame
-        rVec = self.normalize(jnp.array(r_value)) # find unit radial vector
-        vVec = self.normalize(jnp.array(v_value)) # find unit in-track vector
-        wVec = self.normalize(jnp.cross(r_value, v_value)) # find unit cross-track vector
+        rVec = self.normalize(jnp.array(r_value))  # find unit radial vector
+        vVec = self.normalize(jnp.array(v_value))  # find unit in-track vector
+        wVec = self.normalize(
+            jnp.cross(r_value, v_value)
+        )  # find unit cross-track vector
 
         # Create transformation matrix T
-        T = jnp.stack([vVec.T, wVec.T, rVec.T]) 
-        
-        # Rotate satellite and target into sensor frame
-        sat_pos = jnp.array(r_value) # get satellite position
-        x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos # rotate satellite into sensor frame
+        T = jnp.stack([vVec.T, wVec.T, rVec.T])
 
-        meas_ECI_sym = jnp.array(meas_ECI) # get noisy measurement
-        x_targ_sens, y_targ_sens, z_targ_sens = T @ meas_ECI_sym # rotate measurement into sensor frame
+        # Rotate satellite and target into sensor frame
+        sat_pos = jnp.array(r_value)  # get satellite position
+        x_sat_sens, y_sat_sens, z_sat_sens = (
+            T @ sat_pos
+        )  # rotate satellite into sensor frame
+
+        meas_ECI_sym = jnp.array(meas_ECI)  # get noisy measurement
+        x_targ_sens, y_targ_sens, z_targ_sens = (
+            T @ meas_ECI_sym
+        )  # rotate measurement into sensor frame
 
         # Get the relative bearings from sensor to target
-        satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens]) # get satellite vector in sensor frame
+        satVec = jnp.array(
+            [x_sat_sens, y_sat_sens, z_sat_sens]
+        )  # get satellite vector in sensor frame
 
         # Get the In-Track and Cross-Track angles
-        targVec_inTrack = satVec - jnp.array([x_targ_sens, 0, z_targ_sens]) # get in-track component
-        in_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)), jnp.dot(targVec_inTrack, satVec)) # calculate in-track angle
+        targVec_inTrack = satVec - jnp.array(
+            [x_targ_sens, 0, z_targ_sens]
+        )  # get in-track component
+        in_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)),
+            jnp.dot(targVec_inTrack, satVec),
+        )  # calculate in-track angle
 
         # Do a sign check for in-track angle
         # If targVec_inTrack is negative, switch
         if x_targ_sens < 0:
             in_track_angle = -in_track_angle
 
-        targVec_crossTrack = satVec - jnp.array([0, y_targ_sens, z_targ_sens]) # get cross-track component
-        cross_track_angle = jnp.arctan2(jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)), jnp.dot(targVec_crossTrack, satVec)) # calculate cross-track angle
-        
-         # If targVec_inTrack is negative, switch
+        targVec_crossTrack = satVec - jnp.array(
+            [0, y_targ_sens, z_targ_sens]
+        )  # get cross-track component
+        cross_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)),
+            jnp.dot(targVec_crossTrack, satVec),
+        )  # calculate cross-track angle
+
+        # If targVec_inTrack is negative, switch
         if x_targ_sens < 0:
             in_track_angle = -in_track_angle
 
@@ -137,31 +191,38 @@ class sensor:
         if y_targ_sens < 0:
             cross_track_angle = -cross_track_angle
 
-
-        in_track_angle_deg = in_track_angle * 180 / jnp.pi # convert to degrees
-        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi # convert to degrees
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi  # convert to degrees
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi  # convert to degrees
 
         # Return the relative bearings from sensor to target
         return jnp.array([in_track_angle_deg, cross_track_angle_deg])
 
-    def jacobian_ECI_to_bearings(self, sat, meas_ECI_full):
+    def jacobian_ECI_to_bearings(
+        self, sat: 'satelliteClass.Satellite', meas_ECI_full: npt.NDArray
+    ) -> npt.NDArray:
         """
         Compute the Jacobian matrix H used in a Kalman filter for the sensor. Describes
         sensitivity of the sensor measurements to changes in predicted state of the target.
 
         Args:
-            sat (Satellite): Satellite object.
-            meas_ECI_full (np.ndarray): Full ECI measurement vector [x, vx, y, vy, z, vz].
+            sat: Satellite object.
+            meas_ECI_full: Full ECI measurement vector [x, vx, y, vy, z, vz].
 
         Returns:
-            np.ndarray: Jacobian matrix H.
+            Jacobian matrix H.
         """
         # Extract predited position from the full ECI measurement vector
-        pred_position = jnp.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]])
-        
+        pred_position = jnp.array(
+            [meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]
+        )
+
         # Use reverse automatic differentiation since more inputs 3 than outputs 2
-        jacobian = jax.jacrev(lambda x: self.transform_eci_to_bearings(sat.orbit.r.value, sat.orbit.v.value, x))(pred_position)
-        
+        jacobian = jax.jacrev(
+            lambda x: self.transform_eci_to_bearings(
+                sat.orbit.r.value, sat.orbit.v.value, x
+            )
+        )(pred_position)
+
         # Initialize a new Jacobian matrix with zeros
         new_jacobian = jnp.zeros((2, 6))
 
@@ -170,33 +231,35 @@ class sensor:
             new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
 
         return new_jacobian
-    
-    def inFOV(self, sat, targ):
+
+    def inFOV(self, sat: 'satelliteClass.Satellite', targ: targetClass.Target) -> bool:
         """
         Check if the target is within the satellite's field of view (FOV).
 
         Parameters:
-            sat (Satellite): The satellite object.
-            targ (Target): The target object.
+            sat: The satellite object.
+            targ: The target object.
 
         Returns:
-            bool: True if the target is within the FOV, False otherwise.
+            True if the target is within the FOV, False otherwise.
         """
         # Get the target position
         l0 = targ.pos
 
         # Create the polygon object using the satellite position and FOV box points
         # The polygon consists of the satellite position and four corners of the projection box
-        poly = np.array([
-            sat.orbit.r.value,
-            self.projBox[0],
-            self.projBox[1],
-            self.projBox[2],
-            self.projBox[3]
-        ])
+        poly = np.array(
+            [
+                sat.orbit.r.value,
+                self.projBox[0],
+                self.projBox[1],
+                self.projBox[2],
+                self.projBox[3],
+            ]
+        )
 
         # Create a Delaunay triangulation of the polygon points
-        delaunay = Delaunay(poly)
+        delaunay = spatial.Delaunay(poly)
 
         # Check if the target position is within the Delaunay triangulation
         # The find_simplex method returns -1 if the point is outside the triangulation
@@ -207,7 +270,7 @@ class sensor:
             # Target is outside the FOV
             return False
 
-    def visible_projection(self, sat):
+    def visible_projection(self, sat: 'satelliteClass.Satellite') -> None:
         """
         Compute the projection box of the sensor based on satellite position and FOV.
 
@@ -220,37 +283,41 @@ class sensor:
         # Get the current xyz position of the satellite
         x, y, z = sat.orbit.r.value
 
-        # Now get the projection_vectors 
+        # Now get the projection_vectors
         proj_vecs = self.projection_vectors(sat)
-        
+
         # Now find where the projection vectors intersect with the earth, given that they start at the satellite
         points = []
         for vec in proj_vecs:
-            intersection = self.sphere_line_intersection([0, 0, 0], 6378, [x, y, z], vec) # Find the intersection of the line from the satellite to the earth
-            points.append(intersection) # add the intersection point to the list
+            intersection = self.sphere_line_intersection(
+                [0, 0, 0], 6378, [x, y, z], vec
+            )  # Find the intersection of the line from the satellite to the earth
+            points.append(intersection)  # add the intersection point to the list
 
-        self.projBox = np.array(points) # update the projection box
-        return 
-    
-    def projection_vectors(self, sat):
+        self.projBox = np.array(points)  # update the projection box
+        return
+
+    def projection_vectors(self, sat: 'satelliteClass.Satellite') -> npt.NDArray:
         """
         Compute the direction vectors that define the projection box based on FOV and satellite position.
         Each direction vector is 45 degrees diagonally from radial vector forming a polygon.
-        
+
         Args:
-            sat (Satellite): Satellite object.
+            sat: Satellite object.
 
         Returns:
-            np.ndarray: Array containing four direction vectors of the projection box that define a polygon.
+            Array containing four direction vectors of the projection box that define a polygon.
         """
         # Get the current xyz position of the satellite
         sat_pos = sat.orbit.r.value
         sat_dist = np.linalg.norm(sat_pos)
 
-        # Find Sensor Frame        
-        rVec = self.normalize(np.array(sat.orbit.r.value)) # find unit radial vector
-        vVec = self.normalize(np.array(sat.orbit.v.value)) # find unit in-track vector
-        wVec = self.normalize(np.cross(sat.orbit.r.value, sat.orbit.v.value)) # find unit cross-track vector
+        # Find Sensor Frame
+        rVec = self.normalize(np.array(sat.orbit.r.value))  # find unit radial vector
+        vVec = self.normalize(np.array(sat.orbit.v.value))  # find unit in-track vector
+        wVec = self.normalize(
+            np.cross(sat.orbit.r.value, sat.orbit.v.value)
+        )  # find unit cross-track vector
 
         # Create transformation matrix T
         T = jnp.stack([vVec.T, wVec.T, rVec.T])
@@ -259,37 +326,53 @@ class sensor:
         x_sat_sens, y_sat_sens, z_sat_sens = T @ sat_pos
 
         # Define the rotation axes for the four directions of square FOV in sensor frame
-        rotation_axes = [ [np.sqrt(2)/2, np.sqrt(2)/2, 0], [-np.sqrt(2)/2, -np.sqrt(2)/2, 0],
-                          [np.sqrt(2)/2, -np.sqrt(2)/2, 0], [-np.sqrt(2)/2, np.sqrt(2)/2, 0]] 
+        rotation_axes = [
+            [np.sqrt(2) / 2, np.sqrt(2) / 2, 0],
+            [-np.sqrt(2) / 2, -np.sqrt(2) / 2, 0],
+            [np.sqrt(2) / 2, -np.sqrt(2) / 2, 0],
+            [-np.sqrt(2) / 2, np.sqrt(2) / 2, 0],
+        ]
 
         # Initialize list to store the new direction vectors
         dir_new_list = []
 
         # Calculate distance between radial vector and edges of FOV
-        change = sat_dist * np.tan(np.radians(self.fov / 2))  
-        
+        change = sat_dist * np.tan(np.radians(self.fov / 2))
+
         # Loop over the four directions
         for axis in rotation_axes:
-            perp_vec = np.cross([x_sat_sens, y_sat_sens, z_sat_sens], axis) # Calculate the perpendicular vector for this direction
-            perp_vec = perp_vec / np.linalg.norm(perp_vec) # Normalize the perpendicular vector
-            
+            perp_vec = np.cross(
+                [x_sat_sens, y_sat_sens, z_sat_sens], axis
+            )  # Calculate the perpendicular vector for this direction
+            perp_vec = perp_vec / np.linalg.norm(
+                perp_vec
+            )  # Normalize the perpendicular vector
+
             # Scale the perpendicular vector by the distance and add satellite position to get the new dir vector
             x_new = x_sat_sens + change * perp_vec[0]
             y_new = y_sat_sens + change * perp_vec[1]
             z_new = z_sat_sens + change * perp_vec[2]
-            
+
             # Normalize the new position to get the new direction vector
-            dir_new = -np.array([x_new, y_new, z_new]) / np.linalg.norm([x_new, y_new, z_new]) #  TODO: should this be normalized? Rounding Error?
-        
+            dir_new = -np.array([x_new, y_new, z_new]) / np.linalg.norm(
+                [x_new, y_new, z_new]
+            )  #  TODO: should this be normalized? Rounding Error?
+
             # Take the inverse of T and rotate back to ECI
             dir_new = sat_dist * np.dot(np.linalg.inv(T), dir_new)
-            
+
             # Add the new direction vector to the list
             dir_new_list.append(dir_new)
 
         return np.array(dir_new_list)
 
-    def sphere_line_intersection(self, sphere_center, sphere_radius, line_point, line_direction):
+    def sphere_line_intersection(
+        self,
+        sphere_center: tuple[float, float, float],
+        sphere_radius: float,
+        line_point: tuple[float, float, float],
+        line_direction: tuple[float, float, float],
+    ) -> npt.NDArray | None:
         """
         Calculate the intersection point of a projection vector with a sphere. Used to find the
         the point where the satellite projection vector intersects with the Earth to define a
@@ -302,7 +385,7 @@ class sensor:
             line_direction (tuple): The (dx, dy, dz) direction vector of the line.
 
         Returns:
-            np.ndarray: The intersection point, or None if there is no intersection.
+            The intersection point, or None if there is no intersection.
         """
         # Unpack sphere parameters
         x0, y0, z0 = sphere_center
@@ -315,7 +398,7 @@ class sensor:
         # Compute coefficients for the quadratic equation
         a = dx**2 + dy**2 + dz**2
         b = 2 * (dx * (x1 - x0) + dy * (y1 - y0) + dz * (z1 - z0))
-        c = (x1 - x0)**2 + (y1 - y0)**2 + (z1 - z0)**2 - r**2
+        c = (x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2 - r**2
 
         # Compute discriminant
         discriminant = b**2 - 4 * a * c
@@ -343,8 +426,8 @@ class sensor:
                 return intersection_point1
             else:
                 return intersection_point2
-    
-    def normalize(self, vec):
+
+    def normalize(self, vec: jnpt.ArrayLike) -> jnpt.ArrayLike:
         """
         Normalize a vector.
 

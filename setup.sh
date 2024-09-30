@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 
 function yes_or_no() {
     # Prompt user for yes or no input
@@ -14,8 +15,21 @@ function yes_or_no() {
 }
 
 function setup_python() {
-    # Check that `python3`, `python3-venv`, and `python3-pip` are installed via apt
-    for pkg in python3 python3-venv python3-pip; do
+    # Check if deadsnakes PPA is installed
+    if ! apt-cache policy | grep -q deadsnakes; then
+        # Prompt user to install deadsnakes PPA
+        echo "deadsnakes PPA is not installed. Install it?"
+        if yes_or_no; then
+            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo apt update
+        else
+            echo "Please install deadsnakes PPA before continuing."
+            exit 1
+        fi
+    fi
+
+    # Check that `python3.10`, `python3.10-venv`, and `python3-pip` are installed via apt
+    for pkg in python3.10 python3.10-venv python3-pip; do
         if ! dpkg -l | grep -q $pkg; then
             # Prompt user to install missing package
             echo "$pkg is not installed. Install it?"
@@ -33,9 +47,12 @@ function setup_python() {
 function setup_venv() {
     # Create a virtual environment
     if [ ! -d "venv" ]; then
-        python3 -m venv venv
+        python3.10 -m venv venv
     fi
-    source venv/bin/activate
+    # Source the virtual environment, if not activated
+    if [ -z "$VIRTUAL_ENV" ]; then
+        source venv/bin/activate
+    fi
 }
 
 function update_requirements() {
@@ -56,6 +73,7 @@ function update_requirements() {
 function install_requirements() {
     # Install requirements
     pip install -r requirements_lock.txt
+    pip install -e .
 
     # Ensure the requirements lock file is up-to-date;
     # use the hash of `requirements.txt` stored at the end

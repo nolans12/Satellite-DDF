@@ -1,5 +1,6 @@
 from import_libraries import *
 
+
 class BaseEstimator:
     def __init__(self, targetIDs):
         """
@@ -12,16 +13,30 @@ class BaseEstimator:
         self.targs = targetIDs
 
         # Define history vectors for each extended Kalman filter
-        self.estHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of Kalman estimates in ECI coordinates
-        self.covarianceHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of covariance matrices
+        self.estHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of Kalman estimates in ECI coordinates
+        self.covarianceHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of covariance matrices
 
-        self.innovationHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of innovations
-        self.innovationCovHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of innovation covariances
+        self.innovationHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of innovations
+        self.innovationCovHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of innovation covariances
 
-        self.neesHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NEES (Normalized Estimation Error Squared)
-        self.nisHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of NIS (Normalized Innovation Squared)
-        
-        self.trackQualityHist = {targetID: defaultdict(dict) for targetID in targetIDs}  # History of track quality metric
+        self.neesHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of NEES (Normalized Estimation Error Squared)
+        self.nisHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of NIS (Normalized Innovation Squared)
+
+        self.trackQualityHist = {
+            targetID: defaultdict(dict) for targetID in targetIDs
+        }  # History of track quality metric
 
         self.gottenEstimate = False  # Flag indicating if an estimate has been obtained
 
@@ -45,25 +60,38 @@ class BaseEstimator:
         """
         # Assume that the measurements are in the form of [alpha, beta] for each satellite
         numMeasurements = 2 * len(measurements)
-        
+
         # Get the target ID
         targetID = target.targetID
-        
+
         # Get prior data for the target
         if len(self.estHist[targetID]) == 0 and len(self.covarianceHist[targetID]) == 0:
             # If no prior estimate exists, initialize with true position plus noise
             prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + 15
             prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) * 1.5
-            est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
-            
+            est_prior = np.array(
+                [
+                    prior_pos[0],
+                    prior_vel[0],
+                    prior_pos[1],
+                    prior_vel[1],
+                    prior_pos[2],
+                    prior_vel[2],
+                ]
+            )
+
             # Initial covariance matrix
-            P_prior = np.array([[625, 0, 0, 0, 0, 0],
-                                [0, 100, 0, 0, 0, 0],
-                                [0, 0, 625, 0, 0, 0],
-                                [0, 0, 0, 100, 0, 0],
-                                [0, 0, 0, 0, 625, 0],
-                                [0, 0, 0, 0, 0, 100]])
-                
+            P_prior = np.array(
+                [
+                    [625, 0, 0, 0, 0, 0],
+                    [0, 100, 0, 0, 0, 0],
+                    [0, 0, 625, 0, 0, 0],
+                    [0, 0, 0, 100, 0, 0],
+                    [0, 0, 0, 0, 625, 0],
+                    [0, 0, 0, 0, 0, 100],
+                ]
+            )
+
             # Store initial values and return for first iteration
             self.estHist[targetID][envTime] = est_prior
             self.covarianceHist[targetID][envTime] = P_prior
@@ -73,7 +101,7 @@ class BaseEstimator:
             self.neesHist[targetID][envTime] = 0
             self.trackQualityHist[targetID][envTime] = 0
             return est_prior
-       
+
         else:
             # Get most recent estimate and covariance
             time_prior = max(self.estHist[targetID].keys())
@@ -85,62 +113,87 @@ class BaseEstimator:
 
         # Predict next state using state transition function
         est_pred = self.state_transition(est_prior, dt)
-        
+
         # Evaluate Jacobian of state transition function
         F = self.state_transition_jacobian(est_prior, dt)
-        
+
         # Predict process noise associated with state transition
         Q = np.diag([50, 1, 50, 1, 50, 1])  # Process noise matrix
-        
+
         # Predict covariance
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
-        
+
         # Prepare for measurements and update the estimate
         z = np.zeros((numMeasurements, 1))  # Stacked vector of measurements
         H = np.zeros((numMeasurements, 6))  # Jacobian of the sensor model
         R = np.zeros((numMeasurements, numMeasurements))  # Sensor noise matrix
         innovation = np.zeros((numMeasurements, 1))
-        
+
         # Iterate over satellites to get measurements and update matrices
         for i, sat in enumerate(sats):
-            z[2*i:2*i+2] = np.reshape(measurements[i][:], (2, 1))  # Measurement stack
-            H[2*i:2*i+2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(sat, est_pred)  # Jacobian of the sensor model
-            R[2*i:2*i+2, 2*i:2*i+2] = np.eye(2) * sat.sensor.bearingsError**2 * 1000  # Sensor noise matrix scaled by 1000x
-            
-            z_pred = np.array(sat.sensor.convert_to_bearings(sat, np.array([est_pred[0], est_pred[2], est_pred[4]])))  # Predicted measurements
-            innovation[2*i:2*i+2] = z[2*i:2*i+2] - np.reshape(z_pred, (2, 1))  # Innovations
+            z[2 * i : 2 * i + 2] = np.reshape(
+                measurements[i][:], (2, 1)
+            )  # Measurement stack
+            H[2 * i : 2 * i + 2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(
+                sat, est_pred
+            )  # Jacobian of the sensor model
+            R[2 * i : 2 * i + 2, 2 * i : 2 * i + 2] = (
+                np.eye(2) * sat.sensor.bearingsError**2 * 1000
+            )  # Sensor noise matrix scaled by 1000x
+
+            z_pred = np.array(
+                sat.sensor.convert_to_bearings(
+                    sat, np.array([est_pred[0], est_pred[2], est_pred[4]])
+                )
+            )  # Predicted measurements
+            innovation[2 * i : 2 * i + 2] = z[2 * i : 2 * i + 2] - np.reshape(
+                z_pred, (2, 1)
+            )  # Innovations
 
         # Calculate innovation covariance
         innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
-                
+
         # Solve for Kalman gain
         K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
-        
+
         # Correct prediction
         est = est_pred + np.reshape(np.dot(K, innovation), (6))
-        
+
         # Correct covariance
         P = P_pred - np.dot(K, np.dot(H, P_pred))
-        
+
         # Calculate NEES and NIS
-        true = np.array([target.pos[0], target.vel[0], target.pos[1], target.vel[1], target.pos[2], target.vel[2]])  # True position
+        true = np.array(
+            [
+                target.pos[0],
+                target.vel[0],
+                target.pos[1],
+                target.vel[1],
+                target.pos[2],
+                target.vel[2],
+            ]
+        )  # True position
         error = est - true  # Error
         nees = np.dot(error.T, np.dot(np.linalg.inv(P), error))  # NEES
-        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][0]  # NIS
-        
+        nis = np.dot(innovation.T, np.dot(np.linalg.inv(innovationCov), innovation))[0][
+            0
+        ]  # NIS
+
         # Calculate Track Quaility Metric
         trackQuality = self.calcTrackQuailty(est, P)
 
         # Save data
         self.estHist[targetID][envTime] = est
         self.covarianceHist[targetID][envTime] = P
-        self.innovationHist[targetID][envTime] = np.reshape(innovation, (numMeasurements))
+        self.innovationHist[targetID][envTime] = np.reshape(
+            innovation, (numMeasurements)
+        )
         self.innovationCovHist[targetID][envTime] = innovationCov
         self.neesHist[targetID][envTime] = nees
         self.nisHist[targetID][envTime] = nis
         self.trackQualityHist[targetID][envTime] = trackQuality
         self.gottenEstimate = True
-    
+
     def state_transition(self, estPrior, dt):
         """
         State Transition Function: Converts ECI Cartesian state to spherical coordinates,
@@ -155,24 +208,28 @@ class BaseEstimator:
         - array-like: Next state in Cartesian coordinates [x, vx, y, vy, z, vz].
         """
         x, vx, y, vy, z, vz = estPrior
-            
+
         # Convert to Spherical Coordinates
         range = jnp.sqrt(x**2 + y**2 + z**2)
         elevation = jnp.arcsin(z / range)
         azimuth = jnp.arctan2(y, x)
-        
+
         # Calculate the Range Rate
         rangeRate = (x * vx + y * vy + z * vz) / range
-    
+
         # Calculate Elevation Rate
-        elevationRate = -(z * (vx * x + vy * y) - (x**2 + y**2) * vz) / ((x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2))
-    
+        elevationRate = -(z * (vx * x + vy * y) - (x**2 + y**2) * vz) / (
+            (x**2 + y**2 + z**2) * jnp.sqrt(x**2 + y**2)
+        )
+
         # Calculate Azimuth Rate
         azimuthRate = (x * vy - y * vx) / (x**2 + y**2)
-        
+
         # Previous Spherical State
-        prev_spherical_state = jnp.array([range, rangeRate, elevation, elevationRate, azimuth, azimuthRate])
-        
+        prev_spherical_state = jnp.array(
+            [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
+        )
+
         # Define function to compute derivatives for Runge-Kutta method
         def derivatives(spherical_state):
             """
@@ -185,23 +242,34 @@ class BaseEstimator:
             - array-like: Derivatives [rangeRate, rangeAccel, elevationRate, elevationAccel, azimuthRate, azimuthAccel].
             """
             r, rdot, elevation, elevationRate, azimuth, azimuthRate = spherical_state
-            
+
             rangeRate = rdot
             rangeAccel = 0  # No acceleration assumed in this simplified model
             elevationRate = elevationRate
             elevationAccel = 0  # No acceleration assumed in this simplified model
             azimuthRate = azimuthRate
             azimuthAccel = 0  # No acceleration assumed in this simplified model
-            
-            return jnp.array([rangeRate, rangeAccel, elevationRate, elevationAccel, azimuthRate, azimuthAccel])
-        
+
+            return jnp.array(
+                [
+                    rangeRate,
+                    rangeAccel,
+                    elevationRate,
+                    elevationAccel,
+                    azimuthRate,
+                    azimuthAccel,
+                ]
+            )
+
         # Runge-Kutta 4th order integration
         k1 = derivatives(prev_spherical_state)
         k2 = derivatives(prev_spherical_state + 0.5 * dt * k1)
         k3 = derivatives(prev_spherical_state + 0.5 * dt * k2)
         k4 = derivatives(prev_spherical_state + dt * k3)
-        
-        next_spherical_state = prev_spherical_state + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+        next_spherical_state = prev_spherical_state + (dt / 6.0) * (
+            k1 + 2.0 * k2 + 2.0 * k3 + k4
+        )
 
         # Extract components from spherical state
         range = next_spherical_state[0]
@@ -210,24 +278,27 @@ class BaseEstimator:
         elevationRate = next_spherical_state[3]
         azimuth = next_spherical_state[4]
         azimuthRate = next_spherical_state[5]
-        
+
         # Convert back to Cartesian coordinates
         x = range * jnp.cos(elevation) * jnp.cos(azimuth)
         y = range * jnp.cos(elevation) * jnp.sin(azimuth)
         z = range * jnp.sin(elevation)
-        
+
         # Approximate velocities conversion (simplified version)
-        vx = rangeRate * jnp.cos(elevation) * jnp.cos(azimuth) - \
-            range * elevationRate * jnp.sin(elevation) * jnp.cos(azimuth) - \
-            range * azimuthRate * jnp.cos(elevation) * jnp.sin(azimuth)
+        vx = (
+            rangeRate * jnp.cos(elevation) * jnp.cos(azimuth)
+            - range * elevationRate * jnp.sin(elevation) * jnp.cos(azimuth)
+            - range * azimuthRate * jnp.cos(elevation) * jnp.sin(azimuth)
+        )
 
-        vy = rangeRate * jnp.cos(elevation) * jnp.sin(azimuth) - \
-            range * elevationRate * jnp.sin(elevation) * jnp.sin(azimuth) + \
-            range * azimuthRate * jnp.cos(elevation) * jnp.cos(azimuth)
+        vy = (
+            rangeRate * jnp.cos(elevation) * jnp.sin(azimuth)
+            - range * elevationRate * jnp.sin(elevation) * jnp.sin(azimuth)
+            + range * azimuthRate * jnp.cos(elevation) * jnp.cos(azimuth)
+        )
 
-        vz = rangeRate * jnp.sin(elevation) + \
-            range * elevationRate * jnp.cos(elevation)
-        
+        vz = rangeRate * jnp.sin(elevation) + range * elevationRate * jnp.cos(elevation)
+
         # Return the next state in Cartesian coordinates
         return jnp.array([x, vx, y, vy, z, vz])
 
@@ -242,11 +313,12 @@ class BaseEstimator:
         Returns:
         - array-like: Jacobian matrix of the state transition function.
         """
-        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(jnp.array(estPrior))
-        
+        jacobian = jax.jacfwd(lambda x: self.state_transition(x, dt))(
+            jnp.array(estPrior)
+        )
+
         return jacobian
 
-    
     def calcTrackQuailty(self, est, cov):
         """
         Calculate the track quality metric for the current estimate.
@@ -260,8 +332,9 @@ class BaseEstimator:
         """
         # Calculate the track quality metric
         trackQuality = 1 / np.linalg.det(cov)
-        
+
         return trackQuality
+
 
 ### Central Estimator Class
 class centralEstimator(BaseEstimator):
@@ -343,7 +416,6 @@ class ciEstimator(BaseEstimator):
         """
         return super().EKF(sats, measurements, target, envTime)
 
-
     def CI(self, sat, commNode):
         """
         Covariance Intersection function to conservatively combine received estimates and covariances
@@ -403,18 +475,29 @@ class ciEstimator(BaseEstimator):
                 cov_prior = np.dot(F, np.dot(cov_prior, F.T))
 
                 # Minimize the covariance determinant
-                omega_opt = minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
+                omega_opt = minimize(
+                    self.det_of_fused_covariance,
+                    [0.5],
+                    args=(cov_prior, cov_sent),
+                    bounds=[(0, 1)],
+                ).x
 
                 # Compute the fused covariance
                 cov1 = cov_prior
                 cov2 = cov_sent
-                cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
-                est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
+                cov_prior = np.linalg.inv(
+                    omega_opt * np.linalg.inv(cov1)
+                    + (1 - omega_opt) * np.linalg.inv(cov2)
+                )
+                est_prior = cov_prior @ (
+                    omega_opt * np.linalg.inv(cov1) @ est_prior
+                    + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
+                )
 
                 # Save the fused estimate and covariance
                 self.estHist[targetID][time_sent] = est_prior
                 self.covarianceHist[targetID][time_sent] = cov_prior
-    
+
     def det_of_fused_covariance(self, omega, cov1, cov2):
         """
         Calculate the determinant of the fused covariance matrix.
@@ -428,5 +511,7 @@ class ciEstimator(BaseEstimator):
             float: Determinant of the fused covariance matrix.
         """
         omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        P = np.linalg.inv(
+            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        )
         return np.linalg.det(P)
