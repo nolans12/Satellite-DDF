@@ -105,60 +105,60 @@ class comms:
 
 
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
-            """Send a vector of measurements from one satellite to another.
-                    First checks if two satellites are neighbors,
-                    then, if they are neighbors, we share the measurement vector
-                    from the sender to the receiver by adding it to the receiver's
-                    measurement data on the communication node.
+        """Send a vector of measurements from one satellite to another.
+                First checks if two satellites are neighbors,
+                then, if they are neighbors, we share the measurement vector
+                from the sender to the receiver by adding it to the receiver's
+                measurement data on the communication node.
 
-                    The measurement data is a dictionary of dictionaries of lists.
-                    The first key is the time, the second key is the target ID,
-                    and the list contains the measurement vectors and who sent them.
+                The measurement data is a dictionary of dictionaries of lists.
+                The first key is the time, the second key is the target ID,
+                and the list contains the measurement vectors and who sent them.
 
-            Args:
-                sender (Satellite): Satellite sending the measurements.
-                receiver (Satellite): Satellite receiving the measurements.
-                meas_vector (array): Measurement vector to send.
-                target_id (int): ID of the target the measurements are from.
-                time (float): Time the measurements were taken.
-            """
-            # Check if the receiver is in the sender's neighbors
-            if not self.G.has_edge(sender, receiver):
-                return
-            
-            # Initialize the time key in the receiver's measurement data if not present
-            if time not in self.G.nodes[receiver]['received_measurements']:
-                self.G.nodes[receiver]['received_measurements'][time] = {}
-            
-            # Initialize the target_id key in the measurement data if not present
-            if target_id not in self.G.nodes[receiver]['received_measurements'][time]:
-                self.G.nodes[receiver]['received_measurements'][time][target_id] = {'meas': [], 'sender': []}
-
-            # Add the measurement vector to the receiver's measurement data at the specified target_id and time
-            self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(meas_vector)
-            self.G.nodes[receiver]['received_measurements'][time][target_id]['sender'].append(sender)
-            
-            # Add the measurement vector to the senders sent measurements at the specified target_id and time
-            if time not in self.G.nodes[sender]['sent_measurements']:
-                self.G.nodes[sender]['sent_measurements'][time] = {}
-            
-            if target_id not in self.G.nodes[sender]['sent_measurements'][time]:
-                self.G.nodes[sender]['sent_measurements'][time][target_id] = {'meas': [], 'receiver': []}
-                
-            self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
-            self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
-            
-            measVector_size = 0
-            for i in range(len(meas_vector)):
-                if np.isnan(meas_vector[i]):
-                    # print("Sent implicit data")
-                    measVector_size += 1
-                else:
-                    # print("Sent explicit data")
-                    measVector_size += 50
-
-            self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
+        Args:
+            sender (Satellite): Satellite sending the measurements.
+            receiver (Satellite): Satellite receiving the measurements.
+            meas_vector (array): Measurement vector to send.
+            target_id (int): ID of the target the measurements are from.
+            time (float): Time the measurements were taken.
+        """
+        # Check if the receiver is in the sender's neighbors
+        if not self.G.has_edge(sender, receiver):
+            return
         
+        # Initialize the time key in the receiver's measurement data if not present
+        if time not in self.G.nodes[receiver]['received_measurements']:
+            self.G.nodes[receiver]['received_measurements'][time] = {}
+        
+        # Initialize the target_id key in the measurement data if not present
+        if target_id not in self.G.nodes[receiver]['received_measurements'][time]:
+            self.G.nodes[receiver]['received_measurements'][time][target_id] = {'meas': [], 'sender': []}
+
+        # Add the measurement vector to the receiver's measurement data at the specified target_id and time
+        self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(meas_vector)
+        self.G.nodes[receiver]['received_measurements'][time][target_id]['sender'].append(sender)
+        
+        # Add the measurement vector to the senders sent measurements at the specified target_id and time
+        if time not in self.G.nodes[sender]['sent_measurements']:
+            self.G.nodes[sender]['sent_measurements'][time] = {}
+        
+        if target_id not in self.G.nodes[sender]['sent_measurements'][time]:
+            self.G.nodes[sender]['sent_measurements'][time][target_id] = {'meas': [], 'receiver': []}
+            
+        self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
+        self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
+        
+        measVector_size = 0
+        for i in range(len(meas_vector)):
+            if np.isnan(meas_vector[i]):
+                # print("Sent implicit data")
+                measVector_size += 1
+            else:
+                # print("Sent explicit data")
+                measVector_size += 25
+
+        self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
+    
 
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.

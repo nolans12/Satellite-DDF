@@ -140,11 +140,12 @@ class environment:
             self.data_fusion()
 
             # Have the network send information to the ground station
-            # self.send_to_ground_god_mode()
+            self.send_to_ground_god_mode()
             # self.send_to_ground_centralized()
             # self.send_to_ground_avaliable_sats()
-            # self.send_to_ground_best_sat()
-            self.send_to_ground_best_sat_et()
+            # self.send_to_ground_best_sat_local()
+            # self.send_to_ground_best_sat_ci()
+            # self.send_to_ground_best_sat_et()
 
             # Update the plot environment
             if show_env:
@@ -795,7 +796,58 @@ class environment:
             gs.process_queued_data(self.time.to_value())
 
 
-    def send_to_ground_best_sat(self):
+    def send_to_ground_best_sat_local(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+        
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.indeptEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.canCommunicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.indeptEstimator.trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.indeptEstimator.trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+                   
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.indeptEstimator.estHist[targ.targetID].keys())
+                    
+                    # Get the estimate and covariance
+                    est = bestSat.indeptEstimator.estHist[targ.targetID][timePrior]
+                    cov = bestSat.indeptEstimator.covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+
+    def send_to_ground_best_sat_ci(self):
         """
         Planner for sending data from the satellite network to the ground station.
         
