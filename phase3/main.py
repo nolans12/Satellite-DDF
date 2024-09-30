@@ -6,8 +6,10 @@ from environmentClass import environment
 from satelliteClass import satellite
 from sensorClass import sensor
 from targetClass import target
-from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator
+from estimatorClass import indeptEstimator, centralEstimator, ciEstimator, etEstimator, gsEstimator
 from commClass import comms
+from groundStationClass import groundStation
+
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
 def create_environment():
@@ -54,42 +56,48 @@ def create_environment():
                            sat2a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}, 
                            sat2b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300}}
     
-    commandersIntent[4] = {sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-                           sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125}}
+    # commandersIntent[4] = {sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #                        sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #                        sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #                        sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125}}
 
 
     # Define the estimators used:
     central = True
     local = True
     ci = True 
-    et = False
+    et = True
 
     # Define the communication network: 
     comms_network = comms(sats, maxBandwidth = 60, maxNeighbors = 3, maxRange = 10000*u.km, minRange = 500*u.km, displayStruct = True)
+    
+    # Define the Ground Station
+    gs1 = groundStation(lat = 60, long = 10, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS1', color = 'black')
+    gs2 = groundStation(lat = 60, long = 10, fov = 80, commRange = 5000, estimator = gsEstimator(commandersIntent[0][sat1a]), name = 'GS2', color = 'red')
+
+    groundStations = [gs1, gs2]
 
     # Create and return an environment instance:
-    return environment(sats, targs, comms_network, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
+    return environment(sats, targs, comms_network, groundStations, commandersIntent, localEstimatorBool=local, centralEstimatorBool=central, ciEstimatorBool=ci, etEstimatorBool=et)
 
 
 ### Main code to run the simulation
 if __name__ == "__main__":
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10*6 + 1) * u.minute
+    time_vec = np.linspace(0, 10, 120 + 1) * u.minute
 
     # Header name for the plots, gifs, and data
-    fileName = "test"
+    fileName = "ET_vs_CI_delta=10_"
 
     # Create the environment
     env = create_environment()
 
     # Simulate the satellites through the vector of time:
-    env.simulate(time_vec, saveName = fileName, show_env = False, plot_estimation_results = True, plot_communication_results = True)
+    env.simulate(time_vec, saveName = fileName, show_env = False, plot_estimation_results = True, plot_communication_results = True, plot_groundStation_results = True, plot_et_network = True)
 
     # Save gifs:
-    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 5)
+    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps = 1)
     # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    # env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
+    env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
 

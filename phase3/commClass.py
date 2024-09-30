@@ -1,3 +1,4 @@
+
 from import_libraries import *
 
 class comms:
@@ -23,7 +24,6 @@ class comms:
         for sat in sats:
             self.G.add_node(sat, estimate_data={}, received_measurements={}, sent_measurements={})
             
-
         self.maxBandwidth = maxBandwidth
     
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
@@ -32,7 +32,7 @@ class comms:
         
         self.total_comm_et_data = NestedDict()
         self.used_comm_et_data = NestedDict()
-        self.used_comm_et_data_values = NestedDict()
+        self.total_comm_et_data_values = NestedDict()
         
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -79,12 +79,12 @@ class comms:
         
         # Before we decide if we want to send the estimate, need to make sure it wont violate the bandwidth constraints
         # Check if the bandwidth is available
-        if self.G.edges[sender, receiver]['usedBandwidth'] + est_meas.size*2 + cov_meas.size/2 > self.G.edges[sender, receiver]['maxBandwidth']:
-            # print(f"Bandwidth exceeded between {sender.name} and {receiver.name} with current bandwith of {self.G.edges[sender, receiver]['usedBandwidth']} and max bandwidth of {self.G.edges[sender, receiver]['maxBandwidth']}")
-            return
-        else:
-            # Update the used bandwidth
-            self.G.edges[sender, receiver]['usedBandwidth'] += est_meas.size*2 + cov_meas.size/2
+        # if self.G.edges[sender, receiver]['usedBandwidth'] + est_meas.size*2 + cov_meas.size/2 > self.G.edges[sender, receiver]['maxBandwidth']:
+        #     # print(f"Bandwidth exceeded between {sender.name} and {receiver.name} with current bandwith of {self.G.edges[sender, receiver]['usedBandwidth']} and max bandwidth of {self.G.edges[sender, receiver]['maxBandwidth']}")
+        #     return
+        # else:
+        #     # Update the used bandwidth
+        #     self.G.edges[sender, receiver]['usedBandwidth'] += est_meas.size*2 + cov_meas.size/2
         
         # Initialize the target_id key in the receiver's queued data if not present
         if time not in self.G.nodes[receiver]['estimate_data']:
@@ -99,7 +99,11 @@ class comms:
         self.G.nodes[receiver]['estimate_data'][time][target_id]['cov'].append(cov_meas)
         self.G.nodes[receiver]['estimate_data'][time][target_id]['sender'].append(sender.name)
 
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = est_meas.size*2 + cov_meas.size/2
+        # Count a covariance intersection as 50
+        ci_data_size = 50
+
+        self.total_comm_data[target_id][receiver.name][sender.name][time] = ci_data_size
+
 
     def send_measurements(self, sender, receiver, meas_vector, target_id, time):
             """Send a vector of measurements from one satellite to another.
@@ -145,17 +149,19 @@ class comms:
             self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(meas_vector)
             self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(receiver)
             
-            measVector_size = 2 + 2 # 2 for the meas vector, 2 for the sensor noise
+            measVector_size = 50
             if np.isnan(meas_vector[0]):
-                measVector_size -= 1
+                # print("Sent implicit data")
+                measVector_size -= 20    
             
             if np.isnan(meas_vector[1]):
-                measVector_size -= 1
-            
-                
+                # print("Sent implicit data")
+                measVector_size -= 20
+        
+
             self.total_comm_et_data[target_id][receiver.name][sender.name][time] = measVector_size
-            
-           #self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
+            self.total_comm_et_data_values[target_id][receiver.name][sender.name][time] = np.array(meas_vector)
+        
 
     def make_edges(self, sats):
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
@@ -200,7 +206,8 @@ class comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-        
+
+
     def intersect_earth(self, sat1, sat2):
         """Check if the Earth is blocking the two satellites using line-sphere intersection.
                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
