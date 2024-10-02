@@ -276,7 +276,7 @@ def main(
     plot_communication: bool,
     plot_et_network: bool,
     plot_uncertainty_ellipses: bool,
-    plot_groundStation_results: bool,
+    plot_groundstation_results: bool,
     gifs: list[sim_config.GifType],
 ) -> None:
     cfg = _load_sim_config(config)
@@ -288,7 +288,7 @@ def main(
         plot_communication=plot_communication,
         plot_et_network=plot_et_network,
         plot_uncertainty_ellipses=plot_uncertainty_ellipses,
-        plot_groundStation_results=plot_groundStation_results,
+        plot_groundStation_results=plot_groundstation_results,
         gifs=gifs,
     )
 
