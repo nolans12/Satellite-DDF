@@ -129,7 +129,7 @@ class GroundStation:
                         cov = est_data[time][targ][sat]['cov']
 
                         # Now do CI with the data
-                        self.estimator.CI_gs(targ.targetID, est, cov, time)
+                        self.estimator.gs_CI(targ.targetID, est, cov, time)
 
                         # Store the queued data into the commData, for post processing
                         self.commData[targ.targetID][time][sat.name] = {'est': est, 'cov': cov}

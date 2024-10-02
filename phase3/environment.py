@@ -21,6 +21,7 @@ from phase3 import comm
 from phase3 import estimator
 from phase3 import satellite
 from phase3 import target
+from phase3 import groundStation
 from phase3 import util
 
 
@@ -34,6 +35,7 @@ class Environment:
         sats: list[satellite.Satellite],
         targs: list[target.Target],
         comms: comm.Comms,
+        groundStations: list[groundStation.GroundStation],
         commandersIntent: util.CommandersIndent,
         localEstimatorBool: bool,
         centralEstimatorBool: bool,
@@ -91,6 +93,8 @@ class Environment:
 
         self.comms = comms  # define the communication network
 
+        self.groundStations = groundStations  # define the ground stations
+
         # Define variables to track the comms
         self.comms.total_comm_data = util.NestedDict()
         self.used_comm_data = util.NestedDict()
@@ -142,6 +146,7 @@ class Environment:
         pause_step: float = 0.0001,
         saveName: str | None = None,
         show_env: bool = False,
+        plot_groundStation_results: bool = False,
         plot_estimation_results: bool = False,
         plot_communication_results: bool = False,
         plot_et_network: bool = False,
@@ -194,19 +199,32 @@ class Environment:
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
 
+            # Have the network send information to the ground station
+            # self.send_to_ground_god_mode()
+            # self.send_to_ground_centralized()
+            # self.send_to_ground_avaliable_sats()
+            # self.send_to_ground_best_sat_local()
+            self.send_to_ground_best_sat_ci()
+            # self.send_to_ground_best_sat_et()
+
             if show_env:
                 # Update the plot environment
                 self.plot()
                 plt.pause(pause_step)
                 plt.draw()
 
-            if plot_et_network:
-                # Update the dynamic comms plot
-                self.plot_dynamic_comms()
-                plt.pause(pause_step)
-                plt.draw()
+            # if plot_et_network: # TODO: REMOVE?
+            #     # Update the dynamic comms plot
+            #     self.plot_dynamic_comms()
+            #     plt.pause(pause_step)
+            #     plt.draw()
 
         print("Simulation Complete")
+
+        if plot_groundStation_results:
+            self.plot_gs_results(
+                time_vec, saveName=saveName
+            )  # Plot the ground station results
 
         # Plot the filter results
         if plot_estimation_results:
@@ -219,7 +237,7 @@ class Environment:
 
             # Make plots for total data sent and used throughout time
             self.plot_global_comms(saveName=saveName)
-            self.plot_used_comms(saveName=saveName)
+            # self.plot_used_comms(saveName=saveName)
 
             # For the CI estimators, plot time hist of comms
             if self.ciEstimatorBool:
@@ -565,32 +583,6 @@ class Environment:
             if path_selection_vars[(path, targetID)].value() == 1
         ]
 
-        ### DEBUGGING PRINTS
-
-        # # Print the selected paths
-        # print("Selected paths:")
-        # for (path, targetID) in selected_paths:
-        #     # also print the total goodness of the selected paths
-        #     total_goodness = sum(
-        #         goodness(path[0], path[i+1], trackUncertainty, targetID)
-        #         for i in range(len(path) - 1)
-        #     )
-        #     # now loop through the satellites in the path, and print the satellite names, then print the total goodness
-        #     print(
-        #         [sat.name for sat in path],
-        #         f"TargetID: {targetID}",
-        #         f"Goodness: {total_goodness}",
-        #     )
-
-        # # Print the total bandwidht usage vs avaliable across the graph
-        # total_bandwidth_usage = sum(
-        #     fixed_bandwidth_consumption
-        #     for (path, targetID) in selected_paths
-        #     for i in range(len(path) - 1)
-        # )
-        # print(f"Total bandwidth usage: {total_bandwidth_usage}")
-        # print(f"Total available bandwidth: {sum(self.comms.G[u][v]['maxBandwidth'] for u, v in self.comms.G.edges())}")
-
         ### SEND THE ESTIMATES
 
         # Now, we have the selected paths, we can send the estimates
@@ -770,8 +762,282 @@ class Environment:
                     self.time.to_value(),
                 )
 
+    ## GROUND STATION PROTOCOLS, NEED TO CHOOSE JUST ONE MAYBE
+    def send_to_ground_god_mode(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        GOD MODE:
+            Every satellite that took a measurement on a target, send the measurement to the ground station.
+            Regardless of if the sat can communicate with the ground station.
+        """
+
+        # TODO: this function is kinda hard because the EKF estimator needs the true position of the targets to initalize.
+        # But most other things just use targetID, thus, have to get target in the data queue even though only need targetID for everything besides the initalization.
+
+        # For each satellite, check, did it get a new measurement?
+        # Compare the environment time with most recent measurement history time
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a measurement for that targetID at the given time
+                for sat in self.sats:
+                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+
+                        # Get the measurement
+                        meas = sat.measurementHist[targ.targetID][self.time.to_value()]
+
+                        # Make a dictionary containing [type][time][target][sat] = measurement
+                        data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+
+                        # Now, add that data to the queued data onboard the ground station
+                        gs.queue_data(data_dict)
+
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_centralized(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        CENTRALIZED:
+            For every satellite that can communicate with the ground station and took a measurement on a target,
+            send the measurement for that target to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a measurement for that targetID at the given time
+                for sat in self.sats:
+
+                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+
+                        # Check, can the satellite communicate with the ground station?
+                        x_sat, y_sat, z_sat = sat.orbit.r.value
+
+                        if gs.can_communicate(x_sat, y_sat, z_sat):
+
+                            # print(f"Satellite {sat.name} can communicate with ground station {gs.name}")
+
+                            # Get the measurement
+                            meas = sat.measurementHist[targ.targetID][self.time.to_value()]
+
+                            # Make a dictionary containing [type][time][target][sat] = measurement
+                            data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+
+                            # Now, add that data to the queued data onboard the ground station
+                            gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_avaliable_sats(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        DDF, ALL SATS:
+            All satellites in the network that can communicate with ground station send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+                # Check to see if a satellite has a estimate for that targetID at the given time
+                for sat in self.sats:
+
+                    # Is time in the estimate history? # CANT DO IS INSTANCE OTHERWISE CREATES AN EMPTY DICT
+                    if len(sat.ciEstimator.estHist[targ.targetID].keys()) > 0:
+
+                        # Check, can the satellite communicate with the ground station?
+                        x_sat, y_sat, z_sat = sat.orbit.r.value
+
+                        if gs.can_communicate(x_sat, y_sat, z_sat):
+
+                            # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                            timePrior = max(sat.ciEstimator.estHist[targ.targetID].keys())
+
+                            # Get the estimate and covariance
+                            est = sat.ciEstimator.estHist[targ.targetID][timePrior]
+                            cov = sat.ciEstimator.covarianceHist[targ.targetID][timePrior]
+
+                            # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                            data_dict = {'ci' : {self.time.to_value(): {targ: {sat: {'est': est, 'cov': cov}}}}}
+
+                            # Now, add that data to the queued data onboard the ground station
+                            gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_best_sat_local(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.indeptEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.indeptEstimator.trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.indeptEstimator.trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.indeptEstimator.estHist[targ.targetID].keys())
+
+                    # Get the estimate and covariance
+                    est = bestSat.indeptEstimator.estHist[targ.targetID][timePrior]
+                    cov = bestSat.indeptEstimator.covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_best_sat_ci(self):
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.ciEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.ciEstimator.trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.ciEstimator.trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.ciEstimator.estHist[targ.targetID].keys())
+
+                    # Get the estimate and covariance
+                    est = bestSat.ciEstimator.estHist[targ.targetID][timePrior]
+                    cov = bestSat.ciEstimator.covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
+    def send_to_ground_best_sat_et(self):
+        # TODO: MERGE SUCH THAT DONT NEED SEPERATE ET CALL?
+
+        """
+        Planner for sending data from the satellite network to the ground station.
+
+        DDF, BEST SAT:
+            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
+            For that sat, send a CI fusion estimate to the ground station.
+        """
+
+        # For each ground station
+        for gs in self.groundStations:
+            # For each targetID the ground station cares about
+            for targ in self.targs:
+                if targ.targetID not in gs.estimator.targs:
+                    continue
+
+                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+                bestSat = None
+                bestTrackUncertainty = 999
+                for sat in self.sats:
+                    if targ.targetID in sat.targetIDs:
+                        if len(sat.etEstimators[0].trackErrorHist[targ.targetID].keys()) > 0:
+                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
+                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
+                                timePrior = max(sat.etEstimators[0].trackErrorHist[targ.targetID].keys())
+                                trackUncertainty = sat.etEstimators[0].trackErrorHist[targ.targetID][timePrior]
+                                if trackUncertainty < bestTrackUncertainty:
+                                    bestTrackUncertainty = trackUncertainty
+                                    bestSat = sat
+
+                # If a satellite was found
+                if bestSat is not None:
+
+                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
+                    timePrior = max(bestSat.etEstimators[0].trackErrorHist[targ.targetID].keys())
+
+                    # Get the estimate and covariance
+                    est = bestSat.etEstimators[0].estHist[targ.targetID][timePrior]
+                    cov = bestSat.etEstimators[0].covarianceHist[targ.targetID][timePrior]
+
+                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
+                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+
+                    # Now, add that data to the queued data onboard the ground station
+                    gs.queue_data(data_dict)
+
+        # Now that the data is queued, process the data in the filter
+        for gs in self.groundStations:
+            gs.process_queued_data(self.time.to_value())
+
     ### 3D Dynamic Environment Plot ###
-    def plot(self):
+    def plot(self) -> None:
         """
         Plot the current state of the environment.
         """
@@ -780,10 +1046,11 @@ class Environment:
         self.plotSatellites()
         self.plotTargets()
         self.plotCommunication()
+        self.plotGroundStations()
         self.plotLegend_Time()
         self.save_envPlot_to_imgs()
 
-    def resetPlot(self):
+    def resetPlot(self) -> None:
         """
         Reset the plot by removing all lines, collections, and texts.
         """
@@ -794,7 +1061,7 @@ class Environment:
         for text in self.ax.texts:
             text.remove()
 
-    def plotSatellites(self):
+    def plotSatellites(self) -> None:
         """
         Plot the current state of each satellite, including their positions and sensor projections.
         """
@@ -822,7 +1089,7 @@ class Environment:
                 )
             )
 
-    def plotTargets(self):
+    def plotTargets(self) -> None:
         """
         Plot the current state of each target, including their positions and velocities.
         """
@@ -837,7 +1104,7 @@ class Environment:
             # do a standard scatter plot for the target
             self.ax.scatter(x, y, z, s=40, marker='x', color=targ.color, label=targ.name)
 
-    def plotEarth(self):
+    def plotEarth(self) -> None:
         """
         Plot the Earth's surface.
         """
@@ -876,6 +1143,14 @@ class Environment:
                         linewidth=1,
                     )
 
+    def plotGroundStations(self) -> None:
+        """
+        Plot the ground stations.
+        """
+        for gs in self.groundStations:
+            x, y, z = gs.loc
+            self.ax.scatter(x, y, z, s=40, marker = 's', color = gs.color, label=gs.name)
+
     def plotLegend_Time(self) -> None:
         """
         Plot the legend and the current simulation time.
@@ -886,22 +1161,6 @@ class Environment:
         self.ax.text2D(
             0.05, 0.95, f"Time: {self.time:.2f}", transform=self.ax.transAxes
         )
-
-        # Uncomment this for a POV sat1 viewing angle for mono-track case
-        # self.calcViewingAngle()
-
-    def calcViewingAngle(self) -> None:
-        '''
-        Calculate the viewing angle for the 3D plot in MonoTrack Case
-        '''
-        monoTarg = self.targs[0]
-        x, y, z = monoTarg.pos
-        range = jnp.sqrt(x**2 + y**2 + z**2)
-
-        elevation = jnp.arcsin(z / range)
-        azimuth = jnp.arctan2(y, x) * 180 / jnp.pi
-
-        self.ax.view_init(elev=30, azim=azimuth)
 
     def save_envPlot_to_imgs(self) -> None:
         ios = io.BytesIO()
@@ -914,6 +1173,116 @@ class Environment:
         self.imgs.append(img)
 
     ### Estimation Errors and Track Uncertainty Plots ###
+    def plot_gs_results(
+        self, time_vec: u.Quantity[u.minute], saveName: str
+    ) -> None:
+        """
+        Makes one plot for each ground station target pairing.
+
+        The plot is a subplot where the top 3 plots are the x, y, z position errors and covariances for the estimator
+        The bottom 2 plots contain the track uncertainty and then the comm sent/recieved plot for the ground station.
+        """
+
+        plt.close('all')
+        state_labels = ['X [km]', 'Y [km]', 'Z [km]']
+
+        for gs in self.groundStations:
+            for targ in self.targs:
+                if targ.targetID in gs.estimator.targs:
+
+                    # Create a 2x3 grid of subplots, where the second row will have 2 plots
+                    fig = plt.figure(figsize=(15, 8))
+                    fig.suptitle(f"{saveName}: {gs.name}, {targ.name}", fontsize=14)
+                    grid = gridspec.GridSpec(2, 6)
+
+                    # Make the subplots:
+                    axX = fig.add_subplot(grid[0, 0:2])
+                    axX.set_xlabel('Time [min]')
+                    axX.set_ylabel('X Position Error [km]')
+                    axY= fig.add_subplot(grid[0, 2:4])
+                    axY.set_xlabel('Time [min]')
+                    axY.set_ylabel('Y Position Error [km]')
+                    axZ = fig.add_subplot(grid[0, 4:6])
+                    axZ.set_xlabel('Time [min]')
+                    axZ.set_ylabel('Z Position Error [km]')
+                    axTU = fig.add_subplot(grid[1, 0:3])
+                    axTU.set_xlabel('Time [min]')
+                    axTU.set_ylabel('Track Uncertainty [km]')
+                    axComm = fig.add_subplot(grid[1, 3:6])
+                    axComm.set_xlabel('Time [min]')
+                    axComm.set_ylabel('Comm Sent/Recieved')
+
+                    # Now actually plot the data
+                    targetID = targ.targetID
+                    trueHist = targ.hist
+
+                    # Plot the x, y, z position errors and covariances
+                    times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = gs.estimator)
+                    # Plot the errors
+                    self.plot_errors([axX], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+                    self.plot_errors([axY], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+                    self.plot_errors([axZ], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+
+                    # Now plot the track uncertainty
+                    axTU.plot(trackErrorHist.keys(), trackErrorHist.values(), label='Track Uncertainty', color=gs.color, linewidth=2.5)
+                    axTU.set_ylim(bottom=0)
+
+                    # Now, we want to plot the communication sent/recieved
+                    # The goal of this is a bar plot vs time.
+                    # Where there is a bar for each satellite in the network at everytime step,
+                    # But, the bars are only filled of the satellite communicated with the ground station at that time:
+                    # Thus, the bar plot will show the communication structure of the network
+                    for targetID in gs.commData:
+                        if targetID != targ.targetID:
+                            continue
+
+                        # Find the target that has that targetID:
+                        targ = [targ for targ in self.targs if targ.targetID == targetID][0]
+
+                        # Now, loop through all times for that targs history
+                        for time in targ.hist.keys():
+                            prevData = 0
+                            if time in gs.commData[targetID]:
+                                # If the ground station recieved information at that time:
+                                for sat in self.sats:
+                                    # IF THE SATELLITE DID COMMUNICATE, PLOT A SOLID BOX WITH SAT COLOR
+                                    if sat.name in gs.commData[targetID][time]:
+                                        axComm.bar(time, 1, bottom = prevData, color=sat.color, edgecolor = 'k', width = self.delta_t)
+                                        prevData += 1
+                                    # If the satellite didint communcate with the ground station at that time
+                                    else:
+                                        # Get the position of the satellite at that time, use sat.orbitHist
+                                        x_sat, y_sat, z_sat = sat.orbitHist[time]
+                                        if gs.can_communicate(x_sat, y_sat, z_sat):
+                                            # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
+                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor=sat.color, hatch = '//', linewidth = 0, width = self.delta_t)
+                                            prevData += 1
+                                        else:
+                                            # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
+                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                            prevData += 1
+                            else:
+                                # Case where no sats communicated to gs, plot black hatches for all
+                                for i in range(len(self.sats)):
+                                    axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                    prevData += 1
+
+                    # Make a patch for legend for the satellite colors
+                    handles = [patches.Patch(color=gs.color, label=f'{gs.name} Estimator')]
+                    for sat in self.sats:
+                        handles.append(patches.Patch(color=sat.color, label=sat.name))
+                    axComm.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+                    # Adjust layout for better spacing
+                    plt.tight_layout()
+
+                    filePath = os.path.dirname(os.path.realpath(__file__))
+                    plotPath = os.path.join(filePath, 'plots')
+                    os.makedirs(plotPath, exist_ok=True)
+                    plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{gs.name}.png"), dpi=300)
+
+                    plt.close()
+
     def plot_estimator_results(
         self, time_vec: u.Quantity[u.minute], saveName: str
     ) -> None:
@@ -1160,568 +1529,6 @@ class Environment:
                     # Close the figure
                     plt.close(fig)
 
-    # TODO: THIS IS ORIGINAL VERSION USING DIFFERENT PLOTS DEPENDING ON ESTIMATOR COMBO
-    def plot_estimator_results_2(
-        self, time_vec: u.Quantity[u.minute], saveName: str
-    ) -> None:
-        """
-        Create three types of plots: Local vs Central, CI vs Central, and Local vs CI vs Central.
-
-        Args:
-            time_vec: List of time values.
-            saveName: Name for the saved plot file.
-        """
-        plt.close('all')
-        state_labels = [
-            'X [km]',
-            'Vx [km/min]',
-            'Y [km]',
-            'Vy [km/min]',
-            'Z [km]',
-            'Vz [km/min]',
-        ]
-        meas_labels = ['In Track [deg]', 'Cross Track [deg]', 'Track Uncertainity [km]']
-        suffix_vec = ['local', 'ci', 'et', 'et_vs_ci', 'et_pairwise']
-        title_vec = ['Local vs Central', 'CI vs Central', 'ET vs Central', 'ET vs CI']
-        title_vec = [title + " Estimator Results" for title in title_vec]
-
-        # For Each Target
-        for targ in self.targs:
-            for sat in self.sats:
-                if targ.targetID in sat.targetIDs:
-                    # Set up colors
-                    satColor = sat.color
-                    ciColor = '#DC143C'  # Crimson
-                    centralColor = '#070400'  #'#228B22' # Forest Green
-
-                    targetID = targ.targetID
-                    trueHist = targ.hist
-                    if self.localEstimatorBool:
-                        localEKF = sat.indeptEstimator
-                    if self.centralEstimatorBool:
-                        centralEKF = self.centralEstimator
-                    if self.ciEstimatorBool:
-                        ciEKF = sat.ciEstimator
-                    if self.etEstimatorBool:
-                        etEKF = sat.etEstimators[0]
-
-                    for plotNum in range(4):
-
-                        fig = plt.figure(figsize=(15, 8))
-                        fig.suptitle(
-                            f"{targ.name}, {sat.name} {title_vec[plotNum]}", fontsize=14
-                        )
-                        axes = self.setup_axes(fig, state_labels, meas_labels)
-
-                        if plotNum == 0:
-                            """ " First Plot: Local vs Central"""
-
-                            # First, check if the central estimator was used
-                            if not self.centralEstimatorBool:
-                                continue
-
-                            (
-                                times,
-                                estHist,
-                                covHist,
-                                innovationHist,
-                                innovationCovHist,
-                                trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=localEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec,'local')
-                            (
-                                central_times,
-                                central_estHist,
-                                central_covHist,
-                                central_innovationHist,
-                                central_innovationCovHist,
-                                central_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=centralEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'central')
-
-                            # Local
-                            self.plot_errors(
-                                axes,
-                                times,
-                                estHist,
-                                trueHist,
-                                covHist,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-                            # self.plot_innovations(axes, times, innovationHist, innovationCovHist, label_color=satColor, linewidth=2.5)
-                            self.plot_track_uncertainty(
-                                axes,
-                                times,
-                                trackErrorHist,
-                                targ.tqReq,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-
-                            # Central
-                            self.plot_errors(
-                                axes,
-                                central_times,
-                                central_estHist,
-                                trueHist,
-                                central_covHist,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                central_times,
-                                central_trackErrorHist,
-                                targ.tqReq,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-
-                            handles = [
-                                patches.Patch(
-                                    color=satColor,
-                                    label=f'{sat.name} Indept. Estimator',
-                                ),
-                                patches.Patch(
-                                    color=centralColor, label=f'Central Estimator'
-                                ),
-                            ]
-
-                        elif plotNum == 1:
-                            """ " Second Plot: CI vs Central"""
-
-                            # First check if the CI estimator was used
-                            if not self.ciEstimatorBool:
-                                continue
-
-                            (
-                                ci_times,
-                                ci_estHist,
-                                ci_covHist,
-                                ci_innovationHist,
-                                ci_innovationCovHist,
-                                ci_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=ciEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'ci')
-                            (
-                                central_times,
-                                central_estHist,
-                                central_covHist,
-                                central_innovationHist,
-                                central_innovationCovHist,
-                                central_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=centralEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'central')
-
-                            # CI
-                            self.plot_errors(
-                                axes,
-                                ci_times,
-                                ci_estHist,
-                                trueHist,
-                                ci_covHist,
-                                label_color=ciColor,
-                                linewidth=2.5,
-                            )
-                            # self.plot_innovations(axes, ci_times, ci_innovationHist, ci_innovationCovHist, label_color=ciColor, linewidth=2.5)
-                            self.plot_track_uncertainty(
-                                axes,
-                                ci_times,
-                                ci_trackErrorHist,
-                                targ.tqReq,
-                                label_color=ciColor,
-                                linewidth=2.5,
-                            )
-
-                            # Central
-                            self.plot_errors(
-                                axes,
-                                central_times,
-                                central_estHist,
-                                trueHist,
-                                central_covHist,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                central_times,
-                                central_trackErrorHist,
-                                targ.tqReq,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-
-                            handles = [
-                                patches.Patch(
-                                    color=ciColor, label=f'{sat.name} CI Estimator'
-                                ),
-                                patches.Patch(
-                                    color=centralColor, label=f'Central Estimator'
-                                ),
-                            ]
-
-                        elif plotNum == 2:
-                            """ " Third Plot is ET vs Central"""
-
-                            # First check, was the ET estimator used?
-                            if not self.etEstimatorBool:
-                                continue
-
-                            # Third Plot is ET vs Central
-                            (
-                                et_times,
-                                et_estHist,
-                                et_covHist,
-                                et_innovationHist,
-                                et_innovationCovHist,
-                                et_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=etEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                            (
-                                central_times,
-                                central_estHist,
-                                central_covHist,
-                                central_innovationHist,
-                                central_innovationCovHist,
-                                central_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=centralEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'central')
-
-                            # ET
-                            self.plot_errors(
-                                axes,
-                                et_times,
-                                et_estHist,
-                                trueHist,
-                                et_covHist,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                et_times,
-                                et_trackErrorHist,
-                                targ.tqReq,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-
-                            # Central
-                            self.plot_errors(
-                                axes,
-                                central_times,
-                                central_estHist,
-                                trueHist,
-                                central_covHist,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                central_times,
-                                central_trackErrorHist,
-                                targ.tqReq,
-                                label_color=centralColor,
-                                linewidth=1.5,
-                            )
-
-                            handles = [
-                                patches.Patch(
-                                    color=satColor, label=f'{sat.name} ET Estimator'
-                                ),
-                                patches.Patch(
-                                    color=centralColor, label=f'Central Estimator'
-                                ),
-                            ]
-
-                        elif plotNum == 3:
-                            # ET vs CI
-
-                            # First check, was the ET estimator used?
-                            if not self.etEstimatorBool or not self.ciEstimatorBool:
-                                continue
-
-                            (
-                                et_times,
-                                et_estHist,
-                                et_covHist,
-                                et_innovationHist,
-                                et_innovationCovHist,
-                                et_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=etEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                            (
-                                ci_times,
-                                ci_estHist,
-                                ci_covHist,
-                                ci_innovationHist,
-                                ci_innovationCovHist,
-                                ci_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=ciEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'ci')
-
-                            # ET
-                            self.plot_errors(
-                                axes,
-                                et_times,
-                                et_estHist,
-                                trueHist,
-                                et_covHist,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                et_times,
-                                et_trackErrorHist,
-                                targ.tqReq,
-                                label_color=satColor,
-                                linewidth=2.5,
-                            )
-
-                            # CI
-                            self.plot_errors(
-                                axes,
-                                ci_times,
-                                ci_estHist,
-                                trueHist,
-                                ci_covHist,
-                                label_color=ciColor,
-                                linewidth=1.5,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                ci_times,
-                                ci_trackErrorHist,
-                                targ.tqReq,
-                                label_color=ciColor,
-                                linewidth=1.5,
-                            )
-
-                            handles = [
-                                patches.Patch(
-                                    color=satColor, label=f'{sat.name} ET Estimator'
-                                ),
-                                patches.Patch(
-                                    color=ciColor, label=f'{sat.name} CI Estimator'
-                                ),
-                            ]
-
-                        # Add the legend and tighten the layout
-                        fig.legend(
-                            handles=handles,
-                            loc='lower right',
-                            ncol=3,
-                            bbox_to_anchor=(1, 0),
-                        )
-                        plt.tight_layout()
-
-                        # Save the Plot with respective suffix
-                        self.save_plot(fig, saveName, targ, sat, suffix_vec[plotNum])
-
-                        # Close the figure to save memory
-                        plt.close(fig)
-
-                    ## PLOTTING PAIRWISE ET THINGS ##
-                    if not self.etEstimatorBool:
-                        continue
-
-                    for sat2 in self.sats:
-                        if sat != sat2 and sat2.targetIDs == sat.targetIDs:
-
-                            fig = plt.figure(figsize=(15, 8))
-                            fig.suptitle(
-                                f"{targ.name}, {sat.name}, {sat2.name} ET Filters",
-                                fontsize=14,
-                            )
-                            axes = self.setup_axes(fig, state_labels, meas_labels)
-                            etEKF = sat.etEstimators[0]
-                            sat12_etEKF = None
-                            for each_etestimator in sat.etEstimators:
-                                if each_etestimator.shareWith == sat2.name:
-                                    sat12_etEKF = each_etestimator
-                                    break
-
-                            sat2_etEKF = sat2.etEstimators[0]
-                            sat21_etEKF = None
-                            for each_etestimator in sat2.etEstimators:
-                                if each_etestimator.shareWith == sat.name:
-                                    sat21_etEKF = each_etestimator
-                                    break
-
-                            sat2Color = sat2.color
-                            sat1commonColor, sat2commonColor = self.shifted_colors(
-                                satColor, sat2Color, shift=50
-                            )
-
-                            (
-                                et_times,
-                                et_estHist,
-                                et_covHist,
-                                et_innovationHist,
-                                et_innovationCovHist,
-                                et_trackErrorHist,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=etEKF
-                            )  # self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat)
-                            (
-                                et_times2,
-                                et_estHist2,
-                                et_covHist2,
-                                et_innovationHist2,
-                                et_innovationCovHist2,
-                                et_trackErrorHist2,
-                            ) = self.getEstimationHistory(
-                                targetID, time_vec, filter=sat2_etEKF
-                            )  # self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat2)
-
-                            # ET
-                            self.plot_errors(
-                                axes,
-                                et_times,
-                                et_estHist,
-                                trueHist,
-                                et_covHist,
-                                label_color=satColor,
-                                linewidth=2.0,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                et_times,
-                                et_trackErrorHist,
-                                targ.tqReq,
-                                label_color=satColor,
-                                linewidth=2.0,
-                            )
-
-                            # ET 2
-                            self.plot_errors(
-                                axes,
-                                et_times2,
-                                et_estHist2,
-                                trueHist,
-                                et_covHist2,
-                                label_color=sat2Color,
-                                linewidth=2.0,
-                            )
-                            self.plot_track_uncertainty(
-                                axes,
-                                et_times2,
-                                et_trackErrorHist2,
-                                targ.tqReq,
-                                label_color=sat2Color,
-                                linewidth=2.0,
-                            )
-
-                            if sat12_etEKF is not None:
-                                (
-                                    et_common_times,
-                                    et_common_estHist,
-                                    et_common_covHist,
-                                    et_common_innovationHist,
-                                    et_common_innovationCovHist,
-                                    et_common_trackErrorHist,
-                                ) = self.getEstimationHistory(
-                                    targetID, time_vec, filter=sat12_etEKF
-                                )  # self.getEstimationHistory(sat, targ, time_vec, 'et', sharewith=sat2)
-
-                                # Common ET
-                                self.plot_errors(
-                                    axes,
-                                    et_common_times,
-                                    et_common_estHist,
-                                    trueHist,
-                                    et_common_covHist,
-                                    label_color=sat1commonColor,
-                                    linewidth=2.0,
-                                )
-                                self.plot_track_uncertainty(
-                                    axes,
-                                    et_common_times,
-                                    et_common_trackErrorHist,
-                                    targ.tqReq,
-                                    label_color=sat1commonColor,
-                                    linewidth=2.0,
-                                )
-
-                            if sat21_etEKF is not None:
-                                (
-                                    et_common_times2,
-                                    et_common_estHist2,
-                                    et_common_covHist2,
-                                    et_common_innovationHist2,
-                                    et_common_innovationCovHist2,
-                                    et_common_trackErrorHist2,
-                                ) = self.getEstimationHistory(
-                                    targetID, time_vec, filter=sat21_etEKF
-                                )  # self.getEstimationHistory(sat2, targ, time_vec, 'et', sharewith=sat)
-
-                                # Common ET 2
-                                self.plot_errors(
-                                    axes,
-                                    et_common_times2,
-                                    et_common_estHist2,
-                                    trueHist,
-                                    et_common_covHist2,
-                                    label_color=sat2commonColor,
-                                    linewidth=2.0,
-                                )
-                                self.plot_track_uncertainty(
-                                    axes,
-                                    et_common_times2,
-                                    et_common_trackErrorHist2,
-                                    targ.tqReq,
-                                    label_color=sat2commonColor,
-                                    linewidth=2.0,
-                                )
-
-                            # Plot Messages instead of innovations
-                            self.plot_messages(
-                                axes[6], sat, sat2, targ.targetID, time_vec.value
-                            )
-                            self.plot_messages(
-                                axes[7], sat2, sat, targ.targetID, time_vec.value
-                            )
-
-                            handles = [
-                                patches.Patch(
-                                    color=satColor, label=f'{sat.name} ET Estimator'
-                                ),
-                                patches.Patch(
-                                    color=sat2Color, label=f'{sat2.name} ET Estimator'
-                                ),
-                                patches.Patch(
-                                    color=sat1commonColor,
-                                    label=f'{sat.name}, {sat2.name} Common ET Estimator',
-                                ),
-                                patches.Patch(
-                                    color=sat2commonColor,
-                                    label=f'{sat2.name}, {sat.name} Common ET Estimator',
-                                ),
-                            ]
-
-                            fig.legend(
-                                handles=handles,
-                                loc='lower center',
-                                ncol=4,
-                                bbox_to_anchor=(0.5, 0),
-                            )
-                            plt.tight_layout()
-
-                            # Save the Plot with respective suffix
-                            currSuffix = f"{sat2.name}_" + suffix_vec[4]
-                            self.save_plot(fig, saveName, targ, sat, currSuffix)
-
     def getEstimationHistory(self, targetID, time_vec, filter=None):
         """
         Get the estimation history for a given target and estimator.
@@ -1751,90 +1558,6 @@ class Environment:
             trackErrorHist,
         )
 
-    def getEstimationHistory2(self, sat, targ, time_vec, estimatorType, sharewith=None):
-        """
-        Get the estimation history for a given satellite, target, and estimator type.
-
-        Args:
-        - sat: satellite object.
-        - targ: target object.
-        - estimatorType: string indicating the type of estimator.
-
-        Returns:
-        - estHist: dictionary of estimation history.
-        - covHist: dictionary of covariance history.
-        - innovationHist: dictionary of innovation history.
-        - innovationCovHist: dictionary of innovation covariance history.
-        - trackErrorHist: dictionary of track quality history.
-        """
-        times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = (
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-        )
-
-        if estimatorType == 'central':
-            times = [
-                time
-                for time in time_vec.value
-                if time in self.centralEstimator.estHist[targ.targetID]
-            ]
-            estHist = self.centralEstimator.estHist[targ.targetID]
-            covHist = self.centralEstimator.covarianceHist[targ.targetID]
-            # innovationHist = self.centralEstimator.innovationHist[targ.targetID]
-            # innovationCovHist = self.centralEstimator.innovationCovHist[targ.targetID]
-            trackErrorHist = self.centralEstimator.trackErrorHist[targ.targetID]
-
-        elif estimatorType == 'ci':
-            times = [
-                time
-                for time in time_vec.value
-                if time in sat.ciEstimator.estHist[targ.targetID]
-            ]
-            estHist = sat.ciEstimator.estHist[targ.targetID]
-            covHist = sat.ciEstimator.covarianceHist[targ.targetID]
-            innovationHist = sat.ciEstimator.innovationHist[targ.targetID]
-            innovationCovHist = sat.ciEstimator.innovationCovHist[targ.targetID]
-            trackErrorHist = sat.ciEstimator.trackErrorHist[targ.targetID]
-
-        elif estimatorType == 'et':
-            times = [
-                time
-                for time in time_vec.value
-                if time in sat.etEstimator.estHist[targ.targetID][sat][sharewith]
-            ]
-            estHist = sat.etEstimator.estHist[targ.targetID][sat][sharewith]
-            covHist = sat.etEstimator.covarianceHist[targ.targetID][sat][sharewith]
-            # innovationHist = sat.etEstimator.innovationHist[targ.targetID][sat][sharewith]
-            # innovationCovHist = sat.etEstimator.innovationCovHist[targ.targetID][sat][sharewith]
-            trackErrorHist = sat.etEstimator.trackErrorHist[targ.targetID][sat][
-                sharewith
-            ]
-
-        elif estimatorType == 'local':
-            times = [
-                time
-                for time in time_vec.value
-                if time in sat.indeptEstimator.estHist[targ.targetID]
-            ]
-            estHist = sat.indeptEstimator.estHist[targ.targetID]
-            covHist = sat.indeptEstimator.covarianceHist[targ.targetID]
-            innovationHist = sat.indeptEstimator.innovationHist[targ.targetID]
-            innovationCovHist = sat.indeptEstimator.innovationCovHist[targ.targetID]
-            trackErrorHist = sat.indeptEstimator.trackErrorHist[targ.targetID]
-
-        return (
-            times,
-            estHist,
-            covHist,
-            innovationHist,
-            innovationCovHist,
-            trackErrorHist,
-        )
-
     def plot_errors(
         self, ax, times, estHist, trueHist, covHist, label_color, linewidth
     ):
@@ -1850,35 +1573,23 @@ class Environment:
             label_color (str): Color for the plot.
             linewidth (float): Width of the plot lines.
         """
-        for i in range(6):  # For all six states [x, vx, y, vy, z, vz]
+        i = 0
+        for axis in ax:
             if times:  # If there is an estimate on target
-                segments = self.segment_data(times, max_gap=self.delta_t * 2)
+                segments = self.segment_data(times, max_gap = self.delta_t*2)
                 for segment in segments:
-                    est_errors = [
-                        estHist[time][i] - trueHist[time][i] for time in segment
-                    ]
-                    upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
-                    lower_bound = [
-                        -2 * np.sqrt(covHist[time][i][i]) for time in segment
-                    ]
 
-                    ax[i].plot(
-                        segment, est_errors, color=label_color, linewidth=linewidth
-                    )
-                    ax[i].plot(
-                        segment,
-                        upper_bound,
-                        color=label_color,
-                        linestyle='dashed',
-                        linewidth=linewidth,
-                    )
-                    ax[i].plot(
-                        segment,
-                        lower_bound,
-                        color=label_color,
-                        linestyle='dashed',
-                        linewidth=linewidth,
-                    )
+                    if i == 6:
+                        return
+                    est_errors = [estHist[time][i] - trueHist[time][i] for time in segment]
+                    upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
+                    lower_bound = [-2 * np.sqrt(covHist[time][i][i]) for time in segment]
+
+                    axis.plot(segment, est_errors, color=label_color, linewidth=linewidth)
+                    axis.plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+                    axis.plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+
+                    i += 1
 
     def plot_innovations(
         self, ax, times, innovationHist, innovationCovHist, label_color, linewidth
@@ -1895,7 +1606,7 @@ class Environment:
             linewidth (float): Width of the plot lines.
         """
         if times:  # If there is an estimate on target
-            segments = self.segment_data(times, max_gap=self.delta_t * 2)
+            segments = self.segment_data(times, max_gap = self.delta_t * 2)
 
             for i in range(2):  # For each measurement [in track, cross track]
                 for segment in segments:
@@ -1935,7 +1646,8 @@ class Environment:
                         linewidth=linewidth,
                     )
 
-    def plot_messages(self, ax, sat, sat2, targetID, timeVec):
+    def plot_et_messages(self, ax, sat, sat2, targetID, timeVec):
+        # TODO: EITHER USE THIS OR DONT USE THIS!, SHOWS THE ET MESSAGING
 
         # Find common EKF
         sat12_commonEKF = None
@@ -1992,7 +1704,7 @@ class Environment:
         """
         if times:
             nonEmptyTime = []
-            segments = self.segment_data(times, max_gap=self.delta_t * 2)
+            segments = self.segment_data(times, max_gap = self.delta_t * 2)
 
             for segment in segments:
                 # Figure out, does this segment have a real data point in every time step
@@ -2021,7 +1733,7 @@ class Environment:
                     color='k',
                 )
 
-    def segment_data(self, times, max_gap=1 / 6):
+    def segment_data(self, times, max_gap = 1):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -2061,6 +1773,7 @@ class Environment:
         return segments
 
     def shifted_colors(self, hex_colors1, hex_colors2, shift=50):
+        # TODO: DELETE?
         def hex_to_rgb(hex_color):
             """Convert hex color to RGB tuple."""
             hex_color = hex_color.lstrip('#')
@@ -2132,10 +1845,6 @@ class Environment:
             axes[6 + i].set_ylabel(f"Innovation in {meas_labels[i]}")
         axes[8].set_xlabel("Time [min]")
         axes[8].set_ylabel("Track Uncertainity [km]")
-        # Finally plot a dashed line for the targetPriority
-        # axes[8].axhline(y=targQuality*50 + 50, color='k', linestyle='dashed', linewidth=1.5)
-        #         # Add a text label on the above right side of the dashed line
-        # axes[8].text(1, targQuality*50 + 50 + 5, f"Target Quality: {targQuality}", fontsize=8, color='k')
 
         return axes
 
@@ -2453,6 +2162,7 @@ class Environment:
             )
 
     # Plots the actual data amount used by the satellites
+    # TODO: REMOVE? IT HONESTLY DOESNT MATTER
     def plot_used_comms(self, saveName):
         """
         PLOTS THE USED DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS
@@ -2790,7 +2500,7 @@ class Environment:
 
                 # Get the times for the track_uncertainty
                 times = [time for time in trackUncertainty.keys()]
-                segments = self.segment_data(times, max_gap=self.delta_t * 2)
+                segments = self.segment_data(times, max_gap = self.delta_t * 2)
 
                 for segment in segments:
                     # Does the semgnet have a real data point in eveyr time step?
@@ -2932,7 +2642,7 @@ class Environment:
 
             # plt.close(fig)
 
-    # TODO: IDK WHAT THIS DOES - NOLAN. IT IS ONLINE PLOTITNG FOR THE GRAPH?
+    # TODO: Remove? online DDF graph plotting?
     def plot_dynamic_comms(self):
         comms = self.comms
         envTime = self.time.to_value()
@@ -3042,6 +2752,7 @@ class Environment:
         diComms.clear()
         plt.close(fig)
 
+    # TODO: IF REMOVE plot_dynamic_comms, REMOVE THIS
     def get_edge_style(self, comms, targetID, sat1, sat2, envTime, CI=False):
         """
         Helper function to determine the edge style based on communication data.
@@ -3062,6 +2773,7 @@ class Environment:
         else:
             return (0, (5, 10))
 
+    # TODO: IF REMOVE plot_dynamic_comms, REMOVE THIS
     def save_comm_plot_to_image(self, fig):
         """
         Saves the plot to an image.
@@ -3081,6 +2793,7 @@ class Environment:
         )[:, :, 0:4]
         return img
 
+    # TODO: helpful for visualizing/debugging
     ### Plot 3D Gaussian Uncertainity Ellispoids ###
     def plot_all_uncertainty_ellipses(self, time_vec):
         """
@@ -3628,52 +3341,7 @@ class Environment:
 
                                 plt.close(fig)
 
-    def plot_ellipsoid(self, ax, est_pos, cov_matrix, color, alpha):
-        """
-        Plots a 3D ellipsoid representing the uncertainty of the estimated position.
-
-        Args:
-        ax (Axes3D): The 3D axis to plot on.
-        est_pos (np.ndarray): The estimated position.
-        cov_matrix (np.ndarray): The covariance matrix.
-        color (str): The color of the ellipsoid.
-        alpha (float): The transparency level of the ellipsoid.
-
-        Returns:
-        None
-        """
-        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-        radii = np.sqrt(eigenvalues)
-        u = np.linspace(0, 2 * np.pi, 100)
-        v = np.linspace(0, np.pi, 100)
-        x = radii[0] * np.outer(np.cos(u), np.sin(v))
-        y = radii[1] * np.outer(np.sin(u), np.sin(v))
-        z = radii[2] * np.outer(np.ones_like(u), np.cos(v))
-        ellipsoid_points = np.array([x.flatten(), y.flatten(), z.flatten()]).T
-        transformed_points = ellipsoid_points @ eigenvectors.T + est_pos
-        x_transformed = transformed_points[:, 0].reshape(x.shape)
-        y_transformed = transformed_points[:, 1].reshape(y.shape)
-        z_transformed = transformed_points[:, 2].reshape(z.shape)
-        ax.plot_surface(
-            x_transformed, y_transformed, z_transformed, color=color, alpha=alpha
-        )
-
-    def plot_estimate(self, ax, est_pos, true_pos, satColor):
-        """
-        Plots the estimated and true positions on the given axes.
-
-        Parameters:
-        - ax: The matplotlib axes to plot on.
-        - est_pos: The estimated position.
-        - true_pos: The true position.
-        - satColor: The color for the satellite position marker.
-
-        Returns:
-        None
-        """
-        ax.scatter(est_pos[0], est_pos[1], est_pos[2], color=satColor, marker='o')
-        ax.scatter(true_pos[0], true_pos[1], true_pos[2], color='g', marker='o')
-
+    # TODO: used for uncertainty ellipses
     def plot_LOS(self, ax, est_pos, LOS_vec):
         """
         Plots the line of sight vector on the given axes.
@@ -3707,6 +3375,7 @@ class Environment:
         )
         # ax.quiver(est_pos[0], est_pos[1], est_pos[2], LOS_vec[0], LOS_vec[1], LOS_vec[2], color='k', length=10, normalize=True)
 
+    # TODO: used for uncertainty ellipses
     def plot_labels(self, ax, time):
         """
         Plots labels on the given axes.
@@ -3727,6 +3396,7 @@ class Environment:
         ax.set_zlabel('Z')
         ax.view_init(elev=10, azim=30)
 
+    # TODO: used for uncertainty ellipses
     def make_legened1(
         self,
         ax,
@@ -3766,6 +3436,7 @@ class Environment:
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
+    # TODO: used for uncertainty ellipses
     def make_legened2(self, ax, ciColor, centralColor, error1, error2, ci_type=None):
         if ci_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
@@ -3783,6 +3454,7 @@ class Environment:
             ]
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
+    # TODO: used for uncertainty ellipses
     def set_axis_limits(self, ax, est_pos, radii, margin=50.0):
         """
         Sets the limits of the axes.
@@ -3803,6 +3475,7 @@ class Environment:
         ax.set_zlim(min_vals[2], max_vals[2])
         ax.set_box_aspect([1, 1, 1])
 
+    # TODO: used for uncertainty ellipses
     def save_GEplot_to_image(self, fig):
         """
         Saves the plot to an image.
@@ -3876,6 +3549,7 @@ class Environment:
                     writer.append_data(img)
 
     ### Data Dump File ###
+    # TODO: look back over what data dumps we actually want
     def log_data(
         self, time_vec, saveName, filePath=os.path.dirname(os.path.realpath(__file__))
     ):
@@ -4228,43 +3902,3 @@ class Environment:
                 else:
                     row += ['', '', '']
                 writer.writerow(row)
-
-    ### NEES/NIS Data Collection; NOT WORKING RN ###
-    def collectNISNEESData(self) -> dict[int, defaultdict]:
-        # TODO: THIS ONLY WORKS FOR CI ESTIMATOR AT THE MOMENT, DONT USE OTHERWISE!
-        """
-        Collects NEES and NIS data for the simulation in an easy-to-read format.
-
-        Returns:
-        dict: A dictionary containing NEES and NIS data for each targetID and satellite.
-        """
-        # Create a dictionary of targetIDs
-        data = {
-            targetID: defaultdict(dict)
-            for targetID in (targ.targetID for targ in self.targs)
-        }
-
-        # Now for each targetID, make a dictionary for each satellite
-        for targ in self.targs:
-            for sat in self.sats:
-                if targ.targetID in sat.targetIDs:
-                    # Extract the data
-                    data[targ.targetID][sat.name] = {
-                        'NEES': sat.indeptEstimator.neesHist[targ.targetID],
-                        'NIS': sat.indeptEstimator.nisHist[targ.targetID],
-                    }
-                    # Also save the DDF data
-                    data[targ.targetID][f"{sat.name} DDF"] = {
-                        'NEES': sat.ciEstimator.neesHist[targ.targetID],
-                        'NIS': sat.ciEstimator.nisHist[targ.targetID],
-                    }
-
-            # If central estimator is used, also add that data
-            if self.centralEstimator:
-                if targ.targetID in self.centralEstimator.neesHist:
-                    data[targ.targetID]['Central'] = {
-                        'NEES': self.centralEstimator.neesHist[targ.targetID],
-                        'NIS': self.centralEstimator.nisHist[targ.targetID],
-                    }
-
-        return data

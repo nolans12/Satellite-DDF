@@ -1372,3 +1372,133 @@ class EtEstimator(BaseEstimator):
             omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
         )
         return np.linalg.det(P)
+
+
+### Ground Station Estimator Class
+class GsEstimator(BaseEstimator):
+    def __init__(self, targetPriorities: dict[int, int]):
+        """
+        Initialize Ground Station Estimator object.
+
+        Args:
+        - targetIDs (list): List of target IDs to track.
+        """
+        super().__init__(targetPriorities)
+
+        self.R_factor = 1
+
+    def gs_EKF_initialize(self, target: target.Target, envTime: float) -> None:
+        """
+        Ground Station Extended Kalman Filter initialization step.
+
+        Args:
+        - target (object): Target object.
+        - envTime (float): Current environment time.
+        """
+        super().EKF_initialize(target, envTime)
+
+    def gs_EKF_pred(self, targetID: int, envTime: float) -> None:
+        """
+        Ground Station Extended Kalman Filter prediction step.
+
+        Args:
+        - target (object): Target object.
+        - envTime (float): Current environment time.
+        """
+        super().EKF_pred(targetID, envTime)
+
+    def gs_EKF_update(
+        self,
+        sats: list['satellite.Satellite'],
+        measurements,
+        targetID: int,
+        envTime: float,
+    ) -> None:
+        """
+        Ground Station Extended Kalman Filter update step.
+
+        Args:
+        - sats (list): List of satellites.
+        - measurements (list): List of measurements.
+        - target (object): Target object.
+        - envTime (float): Current environment time.
+        """
+        super().EKF_update(sats, measurements, targetID, envTime)
+
+    def gs_CI(
+        self,
+        targetID: int,
+        est_sent: npt.NDArray,
+        cov_sent: npt.NDArray,
+        time_sent: float,
+    ) -> None:
+        """
+        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
+
+        Args:
+        - targetID (int): Target ID.
+        - est_sent (np.ndarray): Sent estimate.
+        - cov_sent (np.ndarray): Sent covariance.
+        - time_sent (float): Time the estimate was sent.
+        """
+
+        # First, check does the estimator already have a est and cov for this target?
+        if not self.estHist[targetID] and not self.covarianceHist[targetID]:
+            # If not, use the sent estimate and covariance to initialize
+            self.estHist[targetID][time_sent] = est_sent
+            self.covarianceHist[targetID][time_sent] = cov_sent
+            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(est_sent, cov_sent)
+            return
+
+        # Now, if the estimator already has an estimate and covariance for this target, check if we should CI
+        time_prior = max(self.estHist[targetID].keys())
+
+        # If the send time is older than the prior estimate, discard the sent estimate
+        if time_sent < time_prior:
+            return
+
+        if time_sent - time_prior > 5:
+            self.estHist[targetID][time_sent] = est_sent
+            self.covarianceHist[targetID][time_sent] = cov_sent
+            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(est_sent, cov_sent)
+            return
+
+        # Else do CI
+        est_prior = self.estHist[targetID][time_prior]
+        cov_prior = self.covarianceHist[targetID][time_prior]
+
+        # Propagate the prior estimate and covariance to the new time
+        dt = time_sent - time_prior
+        est_prior = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+
+        # Minimize the covariance determinant
+        omega_opt = optimize.minimize(self.det_of_fused_covariance, [0.5], args=(cov_prior, cov_sent), bounds=[(0, 1)]).x
+
+        # Compute the fused covariance
+        cov1 = cov_prior
+        cov2 = cov_sent
+        cov_prior = np.linalg.inv(omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2))
+        est_prior = cov_prior @ (omega_opt * np.linalg.inv(cov1) @ est_prior + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent)
+
+        # Save the fused estimate and covariance
+        self.estHist[targetID][time_sent] = est_prior
+        self.covarianceHist[targetID][time_sent] = cov_prior
+        self.trackErrorHist[targetID][time_sent] = self.calcTrackError(est_prior, cov_prior)
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega (float): Weight of the first covariance matrix.
+            cov1 (np.ndarray): Covariance matrix of the first estimate.
+            cov2 (np.ndarray): Covariance matrix of the second estimate.
+
+        Returns:
+            float: Determinant of the fused covariance matrix.
+        """
+        omega = omega[0] # Ensure omega is a scalar
+        P = np.linalg.inv(omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2))
+        return np.linalg.det(P)
