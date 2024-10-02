@@ -92,7 +92,7 @@ function success() {
 }
 
 function main() {
-    setup_python
+    # setup_python
     setup_venv
     install_requirements
     success

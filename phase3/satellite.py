@@ -7,10 +7,10 @@ from poliastro import bodies
 from poliastro import twobody
 
 if TYPE_CHECKING:
-    from phase3 import estimatorClass
-    from phase3 import sensorClass
+    from phase3 import estimator
+    from phase3 import sensor
 
-from phase3 import targetClass
+from phase3 import target
 
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
 
@@ -24,7 +24,7 @@ class Satellite:
         raan: float,
         argp: float,
         nu: float,
-        sensor: 'sensorClass.Sensor',
+        sensor: 'sensor.Sensor',
         name: str,
         color: str,
     ):
@@ -50,9 +50,9 @@ class Satellite:
         self.color = color
 
         # Set the estimators to None on initalization
-        self.indeptEstimator: 'estimatorClass.IndeptEstimator | None' = None
-        self.ciEstimator: 'estimatorClass.CiEstimator | None' = None
-        self.etEstimators: list['estimatorClass.EtEstimator'] | None = None
+        self.indeptEstimator: 'estimator.IndeptEstimator | None' = None
+        self.ciEstimator: 'estimator.CiEstimator | None' = None
+        self.etEstimators: list['estimator.EtEstimator'] | None = None
 
         self.targPriority: dict[int, int] = {}
         self.targetIDs: list[int] = []
@@ -87,7 +87,7 @@ class Satellite:
         self.velHist = defaultdict(dict)  # contains time and xyz of velocity history
         self.time = 0
 
-    def collect_measurements_and_filter(self, target: targetClass.Target) -> bool:
+    def collect_measurements_and_filter(self, target: target.Target) -> bool:
         """
         Collect measurements from the sensor for a specified target and update local filters.
         The satellite will use its sensor class to collect a measurement on the target.
@@ -129,7 +129,7 @@ class Satellite:
             return collectedFlag
 
     def update_indept_estimator(
-        self, measurement, target: targetClass.Target, time: float
+        self, measurement, target: target.Target, time: float
     ) -> None:
         """Update the independent estimator for the satellite.
 
@@ -151,7 +151,7 @@ class Satellite:
         self.indeptEstimator.local_EKF_update([self], [measurement], targetID, time)
 
     def update_ci_estimator(
-        self, measurement, target: targetClass.Target, time: float
+        self, measurement, target: target.Target, time: float
     ) -> None:
         """Update the DDF estimator for the satellite.
 
@@ -176,7 +176,7 @@ class Satellite:
         self.ciEstimator.ci_EKF_update([self], [measurement], targetID, time)
 
     def update_et_estimator(
-        self, measurement, target: targetClass.Target, time: float
+        self, measurement, target: target.Target, time: float
     ) -> None:
         """Update the ET filters for the satellite.
 

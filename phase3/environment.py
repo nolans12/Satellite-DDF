@@ -17,11 +17,13 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import art3d
 from numpy import typing as npt
 
-from phase3 import commClass
-from phase3 import estimatorClass
-from phase3 import satelliteClass
-from phase3 import targetClass
+from phase3 import comm
+from phase3 import estimator
+from phase3 import satellite
+from phase3 import target
 from phase3 import util
+
+
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -29,9 +31,9 @@ from phase3 import util
 class Environment:
     def __init__(
         self,
-        sats: list[satelliteClass.Satellite],
-        targs: list[targetClass.Target],
-        comms: commClass.Comms,
+        sats: list[satellite.Satellite],
+        targs: list[target.Target],
+        comms: comm.Comms,
         commandersIntent: util.CommandersIndent,
         localEstimatorBool: bool,
         centralEstimatorBool: bool,
@@ -60,24 +62,24 @@ class Environment:
             # Create estimation algorithms for each satellite
             self.localEstimatorBool = localEstimatorBool
             if localEstimatorBool:
-                sat.indeptEstimator = estimatorClass.IndeptEstimator(
+                sat.indeptEstimator = estimator.IndeptEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the independent estimator for these targets
 
             self.centralEstimatorBool = centralEstimatorBool
             if centralEstimatorBool:
-                self.centralEstimator = estimatorClass.CentralEstimator(
+                self.centralEstimator = estimator.CentralEstimator(
                     commandersIntent[0][sat]
                 )  # initialize the central estimator for these targets
 
             self.ciEstimatorBool = ciEstimatorBool
             if ciEstimatorBool:
-                sat.ciEstimator = estimatorClass.CiEstimator(commandersIntent[0][sat])
+                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat])
 
             self.etEstimatorBool = etEstimatorBool
             if etEstimatorBool:
                 sat.etEstimators = [
-                    estimatorClass.EtEstimator(commandersIntent[0][sat], shareWith=None)
+                    estimator.EtEstimator(commandersIntent[0][sat], shareWith=None)
                 ]
 
         ## Populate the environment variables
@@ -664,7 +666,7 @@ class Environment:
                     ):
                         # This means satellite has a measurement for this target, now send it to neighbors
                         for neighbor in self.comms.G.neighbors(sat):
-                            neighbor: satelliteClass.Satellite
+                            neighbor: satellite.Satellite
                             # If target is not in neighbors priority list, skip
                             if targetID not in neighbor.targPriority.keys():
                                 continue
@@ -832,10 +834,8 @@ class Environment:
             if mag > 0:
                 vx, vy, vz = vx / mag, vy / mag, vz / mag
 
-            # self.ax.quiver(x, y, z, vx * 1000, vy * 1000, vz * 1000, color=targ.color, arrow_length_ratio=0.75, label=targ.name)
-
             # do a standard scatter plot for the target
-            self.ax.scatter(x, y, z, s=40, color=targ.color, label=targ.name)
+            self.ax.scatter(x, y, z, s=40, marker='x', color=targ.color, label=targ.name)
 
     def plotEarth(self):
         """
@@ -4159,8 +4159,8 @@ class Environment:
         self,
         filename: str,
         time_vec: u.Quantity[u.minute],
-        sat: satelliteClass.Satellite,
-        commNode: commClass.Comms,
+        sat: satellite.Satellite,
+        commNode: comm.Comms,
         targetID: int,
     ) -> None:
         precision = 3

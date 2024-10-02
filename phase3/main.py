@@ -7,11 +7,11 @@ from matplotlib import cm
 from poliastro import bodies
 
 # Import classes
-from phase3 import commClass
-from phase3 import environmentClass
-from phase3 import satelliteClass
-from phase3 import sensorClass
-from phase3 import targetClass
+from phase3 import comm
+from phase3 import environment
+from phase3 import satellite
+from phase3 import sensor
+from phase3 import target
 from phase3 import util
 
 
@@ -32,7 +32,7 @@ def create_environment():
     targ5_color = '#b228b4'
 
     # Define the targets
-    targ1 = targetClass.Target(
+    targ1 = target.Target(
         name='Targ1',
         tqReq=1,
         targetID=1,
@@ -42,7 +42,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ1_color,
     )
-    targ2 = targetClass.Target(
+    targ2 = target.Target(
         name='Targ2',
         tqReq=2,
         targetID=2,
@@ -52,7 +52,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ2_color,
     )
-    targ3 = targetClass.Target(
+    targ3 = target.Target(
         name='Targ3',
         tqReq=3,
         targetID=3,
@@ -62,7 +62,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ3_color,
     )
-    targ4 = targetClass.Target(
+    targ4 = target.Target(
         name='Targ4',
         tqReq=4,
         targetID=4,
@@ -72,7 +72,7 @@ def create_environment():
         uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
         color=targ4_color,
     )
-    targ5 = targetClass.Target(
+    targ5 = target.Target(
         name='Targ5',
         tqReq=5,
         targetID=5,
@@ -86,14 +86,14 @@ def create_environment():
     targs = [targ1, targ2, targ3, targ4, targ5]
 
     # Define the satellite structure:
-    sens_good = sensorClass.Sensor(
+    sens_good = sensor.Sensor(
         name='Sensor', fov=115, bearingsError=np.array([115 * 0.01, 115 * 0.01])
     )  # 1% error on FOV bearings
-    sens_bad = sensorClass.Sensor(
+    sens_bad = sensor.Sensor(
         name='Sensor', fov=115, bearingsError=np.array([115 * 0.1, 115 * 0.1])
     )  # 10% error on FOV bearings
 
-    sat1a = satelliteClass.Satellite(
+    sat1a = satellite.Satellite(
         name='Sat1a',
         sensor=copy.deepcopy(sens_good),
         a=bodies.Earth.R + 1000 * u.km,
@@ -104,7 +104,7 @@ def create_environment():
         nu=0,
         color='#669900',
     )
-    sat1b = satelliteClass.Satellite(
+    sat1b = satellite.Satellite(
         name='Sat1b',
         sensor=copy.deepcopy(sens_good),
         a=bodies.Earth.R + 1000 * u.km,
@@ -115,7 +115,7 @@ def create_environment():
         nu=0,
         color='#66a3ff',
     )
-    sat2a = satelliteClass.Satellite(
+    sat2a = satellite.Satellite(
         name='Sat2a',
         sensor=copy.deepcopy(sens_bad),
         a=bodies.Earth.R + 1000 * u.km,
@@ -126,7 +126,7 @@ def create_environment():
         nu=0,
         color='#9966ff',
     )
-    sat2b = satelliteClass.Satellite(
+    sat2b = satellite.Satellite(
         name='Sat2b',
         sensor=copy.deepcopy(sens_bad),
         a=bodies.Earth.R + 1000 * u.km,
@@ -165,7 +165,7 @@ def create_environment():
     et = False
 
     # Define the communication network:
-    comms_network = commClass.Comms(
+    comms_network = comm.Comms(
         sats,
         maxBandwidth=60,
         maxNeighbors=3,
@@ -175,7 +175,7 @@ def create_environment():
     )
 
     # Create and return an environment instance:
-    return environmentClass.Environment(
+    return environment.Environment(
         sats,
         targs,
         comms_network,

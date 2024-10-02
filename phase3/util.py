@@ -1,8 +1,8 @@
 from typing import TypeAlias
 
-from phase3 import satelliteClass
+from phase3 import satellite
 
-CommandersIndent: TypeAlias = dict[int, dict[satelliteClass.Satellite, dict[int, int]]]
+CommandersIndent: TypeAlias = dict[int, dict[satellite.Satellite, dict[int, int]]]
 
 
 class NestedDict(dict):
