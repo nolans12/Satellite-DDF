@@ -14,6 +14,8 @@ from common import click_utils
 from common import path_utils
 from phase3 import comms
 from phase3 import environment
+from phase3 import estimator
+from phase3 import groundStation
 from phase3 import satellite
 from phase3 import sensor
 from phase3 import sim_config
@@ -157,18 +159,25 @@ def create_environment():
         sat2b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
     }
 
-    commandersIntent[4] = {
-        sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-        sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-        sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-        sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-    }
+    # commandersIntent[4] = {
+    #     sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #     sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #     sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    #     sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+    # }
 
-    # Define the estimators used:
-    central = True
-    local = True
-    ci = True
-    et = False
+    # Define the ground stations:
+    gs1 = groundStation.GroundStation(
+        estimator=estimator.GsEstimator(commandersIntent[0][sat1a]),
+        lat=60,
+        lon=10,
+        fov=80,
+        commRange=10000,
+        name='GS1',
+        color='black',
+    )
+
+    groundStations = [gs1]
 
     # Define the communication network:
     comms_network = comms.Comms(
@@ -180,11 +189,18 @@ def create_environment():
         displayStruct=True,
     )
 
+    # Define the estimators used:
+    central = False
+    local = True
+    ci = False
+    et = True
+
     # Create and return an environment instance:
     return environment.Environment(
         sats,
         targs,
         comms_network,
+        groundStations,
         commandersIntent,
         localEstimatorBool=local,
         centralEstimatorBool=central,
