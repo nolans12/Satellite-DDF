@@ -1,19 +1,25 @@
 # Import pre-defined libraries
 import copy
+import pathlib
+from typing import cast
 
 import numpy as np
+import rich_click as click
+import yaml
 from astropy import units as u
 from matplotlib import cm
 from poliastro import bodies
 
-# Import classes
-from phase3 import comm
+from common import click_utils
+from common import path_utils
+from phase3 import comms
 from phase3 import environment
+from phase3 import estimator
+from phase3 import groundStation
 from phase3 import satellite
 from phase3 import sensor
+from phase3 import sim_config
 from phase3 import target
-from phase3 import groundStation
-from phase3 import estimator
 from phase3 import util
 
 
@@ -160,7 +166,6 @@ def create_environment():
     #     sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
     # }
 
-
     # Define the ground stations:
     gs1 = groundStation.GroundStation(
         estimator=estimator.GsEstimator(commandersIntent[0][sat1a]),
@@ -175,7 +180,7 @@ def create_environment():
     groundStations = [gs1]
 
     # Define the communication network:
-    comms_network = comm.Comms(
+    comms_network = comms.Comms(
         sats,
         maxBandwidth=60,
         maxNeighbors=3,
@@ -204,14 +209,91 @@ def create_environment():
     )
 
 
-### Main code to run the simulation
-if __name__ == "__main__":
+def _load_sim_config(file: pathlib.Path) -> sim_config.SimConfig:
+    schema = sim_config.SimConfigSchema()
+    return cast(sim_config.SimConfig, schema.load(yaml.safe_load(file.read_text())))
+
+
+@click.command()
+@click.option(
+    '--config',
+    default=path_utils.SCENARIOS / 'default.yaml',
+    help='Simulation configuration file',
+    show_default=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+)
+@click.option(
+    '--output-prefix',
+    help='Prefix of the output files',
+)
+@click.option(
+    '--time',
+    help='Duration of the simulation in minutes',
+    type=int,
+)
+@click.option(
+    '--show',
+    help='Show the environment plot',
+    type=bool,
+)
+@click.option(
+    '--plot-estimation',
+    help='Plot the estimation results',
+    type=bool,
+)
+@click.option(
+    '--plot-communication',
+    help='Plot the communication results',
+    type=bool,
+)
+@click.option(
+    '--plot-et-network',
+    help='Plot the ET network',
+    type=bool,
+)
+@click.option(
+    '--plot-uncertainty-ellipses',
+    help='Plot the uncertainty ellipses',
+    type=bool,
+)
+@click.option(
+    '--plot-groundStation-results',
+    help='Plot the ground station results',
+    type=bool,
+)
+@click.option(
+    '--gifs',
+    help='Gifs to generate',
+    multiple=True,
+    type=click_utils.EnumChoice(sim_config.GifType),
+)
+def main(
+    output_prefix: str,
+    config: pathlib.Path,
+    time: int,
+    show: bool,
+    plot_estimation: bool,
+    plot_communication: bool,
+    plot_et_network: bool,
+    plot_uncertainty_ellipses: bool,
+    plot_groundStation_results: bool,
+    gifs: list[sim_config.GifType],
+) -> None:
+    cfg = _load_sim_config(config)
+    cfg.merge_overrides(
+        sim_duration_m=time,
+        output_prefix=output_prefix,
+        show_env=show,
+        plot_estimation=plot_estimation,
+        plot_communication=plot_communication,
+        plot_et_network=plot_et_network,
+        plot_uncertainty_ellipses=plot_uncertainty_ellipses,
+        plot_groundStation_results=plot_groundStation_results,
+        gifs=gifs,
+    )
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, 10, 10 * 6 + 1) * u.minute
-
-    # Header name for the plots, gifs, and data
-    fileName = "citest"
+    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m * 6 + 1) * u.minute
 
     # Create the environment
     env = create_environment()
@@ -219,14 +301,12 @@ if __name__ == "__main__":
     # Simulate the satellites through the vector of time:
     env.simulate(
         time_vec,
-        saveName=fileName,
-        show_env=True,
-        plot_groundStation_results=True,
-        plot_estimation_results=True,
-        plot_communication_results=False,
+        plot_config=cfg.plot,
     )
 
     # Save gifs:
-    env.render_gif(fileType='satellite_simulation', saveName=fileName, fps=5)
-    # env.render_gif(fileType='uncertainty_ellipse', saveName=fileName, fps = 5)
-    # env.render_gif(fileType='dynamic_comms', saveName=fileName, fps = 1)
+    env.render_gifs(plot_config=cfg.plot, save_name=cfg.plot.output_prefix)
+
+
+if __name__ == '__main__':
+    main()

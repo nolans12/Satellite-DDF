@@ -2,11 +2,11 @@
 import csv
 import io
 import os
+import pathlib
 import random
 from collections import defaultdict
 
 import imageio
-import jax.numpy as jnp
 import networkx as nx
 import numpy as np
 import pulp
@@ -17,13 +17,14 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import art3d
 from numpy import typing as npt
 
-from phase3 import comm
+from common import path_utils
+from phase3 import comms
 from phase3 import estimator
-from phase3 import satellite
-from phase3 import target
 from phase3 import groundStation
+from phase3 import satellite
+from phase3 import sim_config
+from phase3 import target
 from phase3 import util
-
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -33,7 +34,7 @@ class Environment:
         self,
         sats: list[satellite.Satellite],
         targs: list[target.Target],
-        comms: comm.Comms,
+        comms: comms.Comms,
         groundStations: list[groundStation.GroundStation],
         commandersIntent: util.CommandersIndent,
         localEstimatorBool: bool,
@@ -127,7 +128,9 @@ class Environment:
         self.earth_r = 6378.0
         self.x_earth = self.earth_r * np.outer(np.cos(u_earth), np.sin(v_earth))
         self.y_earth = self.earth_r * np.outer(np.sin(u_earth), np.sin(v_earth))
-        self.z_earth = self.earth_r * np.outer(np.ones(np.size(u_earth)), np.cos(v_earth))
+        self.z_earth = self.earth_r * np.outer(
+            np.ones(np.size(u_earth)), np.cos(v_earth)
+        )
 
         # Empty lists and dictionaries for simulation images
         self.imgs = []  # dictionary for 3D gif images
@@ -142,14 +145,8 @@ class Environment:
     def simulate(
         self,
         time_vec: npt.NDArray,
+        plot_config: sim_config.PlotConfig,
         pause_step: float = 0.0001,
-        saveName: str | None = None,
-        show_env: bool = False,
-        plot_groundStation_results: bool = False,
-        plot_estimation_results: bool = False,
-        plot_communication_results: bool = False,
-        plot_et_network: bool = False,
-        plot_uncertainty_ellipses: bool = False,
         save_estimation_data: bool = False,
         save_communication_data: bool = False,
     ):
@@ -159,12 +156,7 @@ class Environment:
         Args:
         - time_vec: Array of time steps to simulate over.
         - pause_step: Time to pause between each step in the simulation.
-        - saveName: Name to save the simulation data to.
-        - show_env: Flag to show the environment plot at each step.
-        - plot_estimation_results: Flag to plot the estimation results.
-        - plot_communication_results: Flag to plot the communication results.
-        - plot_et_network: Flag to plot the dynamic communication network in ET.
-        - plot_uncertainty_ellipses: Flag to plot the uncertainty ellipses.
+        - plot_config: Plotting configuration
         - save_estimation_data: Flag to save the estimation data.
         - save_communication_data: Flag to save the communication data.
 
@@ -206,13 +198,13 @@ class Environment:
             # self.send_to_ground_best_sat_ci()
             self.send_to_ground_best_sat_et()
 
-            if show_env:
+            if plot_config.show_env:
                 # Update the plot environment
                 self.plot()
                 plt.pause(pause_step)
                 plt.draw()
 
-            if plot_et_network:
+            if plot_config.plot_et_network:
                 # Update the dynamic comms plot
                 self.plot_dynamic_comms()
                 plt.pause(pause_step)
@@ -220,38 +212,38 @@ class Environment:
 
         print("Simulation Complete")
 
-        if plot_groundStation_results:
+        if plot_config.plot_groundStation_results:
             self.plot_gs_results(
                 time_vec, saveName=saveName
             )  # Plot the ground station results
 
         # Plot the filter results
-        if plot_estimation_results:
+        if plot_config.plot_estimation:
             self.plot_estimator_results(
-                time_vec, saveName=saveName
+                time_vec, saveName=plot_config.output_prefix
             )  # marginal error, innovation, and NIS/NEES plots
 
         # Plot the commm results
-        if plot_communication_results:
+        if plot_config.plot_communication:
 
             # Make plots for total data sent and used throughout time
-            self.plot_global_comms(saveName=saveName)
-            # self.plot_used_comms(saveName=saveName)
+            self.plot_global_comms(saveName=plot_config.output_prefix)
+            # self.plot_used_comms(saveName=plot_config.output_prefix)
 
             # For the CI estimators, plot time hist of comms
             if self.ciEstimatorBool:
-                self.plot_timeHist_comms_ci(saveName=saveName)
+                self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
 
         # Save the uncertainty ellipse plots
-        if plot_uncertainty_ellipses:
+        if plot_config.plot_uncertainty_ellipses:
             self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
 
         # Log the Data
         if save_estimation_data:
-            self.log_data(time_vec, saveName=saveName)
+            self.log_data(time_vec, saveName=plot_config.output_prefix)
 
         if save_communication_data:
-            self.log_comms_data(time_vec, saveName=saveName)
+            self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
 
         return
 
@@ -642,23 +634,30 @@ class Environment:
         """
         Send the most recent measurements from each satellite to its neighbors.
         """
-         # Loop through all satellites
+        # Loop through all satellites
         for sat in self.sats:
             # For each targetID in satellites measurement history
-            for target in self.targs: # TODO: iniitalize with senders est and cov + noise?
+            for (
+                target
+            ) in self.targs:  # TODO: iniitalize with senders est and cov + noise?
                 if target.targetID in sat.targetIDs:
                     targetID = target.targetID
                     envTime = self.time.to_value()
                     # Skip if there are no measurements for this targetID
-                    if isinstance(sat.measurementHist[target.targetID][envTime], np.ndarray):
+                    if isinstance(
+                        sat.measurementHist[target.targetID][envTime], np.ndarray
+                    ):
                         # This means satellite has a measurement for this target, now send it to neighbors
                         for neighbor in self.comms.G.neighbors(sat):
+                            neighbor: satellite.Satellite
                             # If target is not in neighbors priority list, skip
                             if targetID not in neighbor.targPriority.keys():
                                 continue
 
                             # Get the most recent measurement time
-                            satTime = max(sat.measurementHist[targetID].keys()) #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
+                            satTime = max(
+                                sat.measurementHist[targetID].keys()
+                            )  #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
 
                             # Get the local EKF for this satellite
                             local_EKF = sat.etEstimators[0]
@@ -670,11 +669,15 @@ class Environment:
                                     commonEKF = each_etEstimator
                                     break
 
-                            if commonEKF is None: # or make a common filter if one doesn't exist
-                                commonEKF = estimator.EtEstimator(local_EKF.targetPriorities, shareWith = neighbor.name)
+                            if (
+                                commonEKF is None
+                            ):  # or make a common filter if one doesn't exist
+                                commonEKF = estimator.EtEstimator(
+                                    local_EKF.targetPriorities, shareWith=neighbor.name
+                                )
                                 commonEKF.et_EKF_initialize(target, envTime)
                                 sat.etEstimators.append(commonEKF)
-                                #commonEKF.synchronizeFlag[targetID][envTime] = True
+                                # commonEKF.synchronizeFlag[targetID][envTime] = True
 
                             if len(commonEKF.estHist[targetID]) == 0:
                                 commonEKF.et_EKF_initialize(target, envTime)
@@ -693,31 +696,35 @@ class Environment:
                                     commonEKF = each_etEstimator
                                     break
 
-                            if commonEKF is None: # if I don't, create one and add it to etEstimators list
-                                commonEKF = estimator.EtEstimator(neighbor.targPriority, shareWith=sat.name)
+                            if (
+                                commonEKF is None
+                            ):  # if I don't, create one and add it to etEstimators list
+                                commonEKF = estimator.EtEstimator(
+                                    neighbor.targPriority, shareWith=sat.name
+                                )
                                 commonEKF.et_EKF_initialize(target, envTime)
                                 neighbor.etEstimators.append(commonEKF)
-                                #commonEKF.synchronizeFlag[targetID][envTime] = True
+                                # commonEKF.synchronizeFlag[targetID][envTime] = True
 
                             if len(commonEKF.estHist[targetID]) == 0:
                                 commonEKF.et_EKF_initialize(target, envTime)
 
                             # Create implicit and explicit measurements vector for this neighbor
-                            meas = local_EKF.event_trigger(sat, neighbor, targetID, satTime)
+                            meas = local_EKF.event_trigger(
+                                sat, neighbor, targetID, satTime
+                            )
 
                             # Send that to neightbor
                             self.comms.send_measurements(
-                                sat,
-                                neighbor,
-                                meas,
-                                targetID,
-                                satTime
+                                sat, neighbor, meas, targetID, satTime
                             )
 
                             if commonEKF.synchronizeFlag[targetID][envTime]:
-                                self.comms.total_comm_et_data[targetID][sat.name][neighbor.name][envTime] = 50 # since this runs twice, we need to make sure we don't double count the data
-
-
+                                self.comms.total_comm_et_data[targetID][sat.name][
+                                    neighbor.name
+                                ][
+                                    envTime
+                                ] = 50  # since this runs twice, we need to make sure we don't double count the data
 
     def central_fusion(self, collectedFlag, measurements):
         """
@@ -776,17 +783,21 @@ class Environment:
                     continue
                 # Check to see if a satellite has a measurement for that targetID at the given time
                 for sat in self.sats:
-                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+                    if isinstance(
+                        sat.measurementHist[targ.targetID][self.time.to_value()],
+                        np.ndarray,
+                    ):
 
                         # Get the measurement
                         meas = sat.measurementHist[targ.targetID][self.time.to_value()]
 
                         # Make a dictionary containing [type][time][target][sat] = measurement
-                        data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+                        data_dict = {
+                            'meas': {self.time.to_value(): {targ: {sat: meas}}}
+                        }
 
                         # Now, add that data to the queued data onboard the ground station
                         gs.queue_data(data_dict)
-
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -810,7 +821,10 @@ class Environment:
                 # Check to see if a satellite has a measurement for that targetID at the given time
                 for sat in self.sats:
 
-                    if isinstance(sat.measurementHist[targ.targetID][self.time.to_value()], np.ndarray):
+                    if isinstance(
+                        sat.measurementHist[targ.targetID][self.time.to_value()],
+                        np.ndarray,
+                    ):
 
                         # Check, can the satellite communicate with the ground station?
                         x_sat, y_sat, z_sat = sat.orbit.r.value
@@ -820,10 +834,14 @@ class Environment:
                             # print(f"Satellite {sat.name} can communicate with ground station {gs.name}")
 
                             # Get the measurement
-                            meas = sat.measurementHist[targ.targetID][self.time.to_value()]
+                            meas = sat.measurementHist[targ.targetID][
+                                self.time.to_value()
+                            ]
 
                             # Make a dictionary containing [type][time][target][sat] = measurement
-                            data_dict = {'meas': {self.time.to_value(): {targ: {sat: meas}}}}
+                            data_dict = {
+                                'meas': {self.time.to_value(): {targ: {sat: meas}}}
+                            }
 
                             # Now, add that data to the queued data onboard the ground station
                             gs.queue_data(data_dict)
@@ -858,14 +876,24 @@ class Environment:
                         if gs.can_communicate(x_sat, y_sat, z_sat):
 
                             # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                            timePrior = max(sat.ciEstimator.estHist[targ.targetID].keys())
+                            timePrior = max(
+                                sat.ciEstimator.estHist[targ.targetID].keys()
+                            )
 
                             # Get the estimate and covariance
                             est = sat.ciEstimator.estHist[targ.targetID][timePrior]
-                            cov = sat.ciEstimator.covarianceHist[targ.targetID][timePrior]
+                            cov = sat.ciEstimator.covarianceHist[targ.targetID][
+                                timePrior
+                            ]
 
                             # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                            data_dict = {'ci' : {self.time.to_value(): {targ: {sat: {'est': est, 'cov': cov}}}}}
+                            data_dict = {
+                                'ci': {
+                                    self.time.to_value(): {
+                                        targ: {sat: {'est': est, 'cov': cov}}
+                                    }
+                                }
+                            }
 
                             # Now, add that data to the queued data onboard the ground station
                             gs.queue_data(data_dict)
@@ -895,11 +923,22 @@ class Environment:
                 bestTrackUncertainty = 999
                 for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
-                        if len(sat.indeptEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                        if (
+                            len(
+                                sat.indeptEstimator.trackErrorHist[targ.targetID].keys()
+                            )
+                            > 0
+                        ):
                             x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
                             if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(sat.indeptEstimator.trackErrorHist[targ.targetID].keys())
-                                trackUncertainty = sat.indeptEstimator.trackErrorHist[targ.targetID][timePrior]
+                                timePrior = max(
+                                    sat.indeptEstimator.trackErrorHist[
+                                        targ.targetID
+                                    ].keys()
+                                )
+                                trackUncertainty = sat.indeptEstimator.trackErrorHist[
+                                    targ.targetID
+                                ][timePrior]
                                 if trackUncertainty < bestTrackUncertainty:
                                     bestTrackUncertainty = trackUncertainty
                                     bestSat = sat
@@ -908,14 +947,24 @@ class Environment:
                 if bestSat is not None:
 
                     # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                    timePrior = max(bestSat.indeptEstimator.estHist[targ.targetID].keys())
+                    timePrior = max(
+                        bestSat.indeptEstimator.estHist[targ.targetID].keys()
+                    )
 
                     # Get the estimate and covariance
                     est = bestSat.indeptEstimator.estHist[targ.targetID][timePrior]
-                    cov = bestSat.indeptEstimator.covarianceHist[targ.targetID][timePrior]
+                    cov = bestSat.indeptEstimator.covarianceHist[targ.targetID][
+                        timePrior
+                    ]
 
                     # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+                    data_dict = {
+                        'ci': {
+                            self.time.to_value(): {
+                                targ: {bestSat: {'est': est, 'cov': cov}}
+                            }
+                        }
+                    }
 
                     # Now, add that data to the queued data onboard the ground station
                     gs.queue_data(data_dict)
@@ -945,11 +994,18 @@ class Environment:
                 bestTrackUncertainty = 999
                 for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
-                        if len(sat.ciEstimator.trackErrorHist[targ.targetID].keys()) > 0:
+                        if (
+                            len(sat.ciEstimator.trackErrorHist[targ.targetID].keys())
+                            > 0
+                        ):
                             x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
                             if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(sat.ciEstimator.trackErrorHist[targ.targetID].keys())
-                                trackUncertainty = sat.ciEstimator.trackErrorHist[targ.targetID][timePrior]
+                                timePrior = max(
+                                    sat.ciEstimator.trackErrorHist[targ.targetID].keys()
+                                )
+                                trackUncertainty = sat.ciEstimator.trackErrorHist[
+                                    targ.targetID
+                                ][timePrior]
                                 if trackUncertainty < bestTrackUncertainty:
                                     bestTrackUncertainty = trackUncertainty
                                     bestSat = sat
@@ -965,7 +1021,13 @@ class Environment:
                     cov = bestSat.ciEstimator.covarianceHist[targ.targetID][timePrior]
 
                     # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+                    data_dict = {
+                        'ci': {
+                            self.time.to_value(): {
+                                targ: {bestSat: {'est': est, 'cov': cov}}
+                            }
+                        }
+                    }
 
                     # Now, add that data to the queued data onboard the ground station
                     gs.queue_data(data_dict)
@@ -997,11 +1059,22 @@ class Environment:
                 bestTrackUncertainty = 999
                 for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
-                        if len(sat.etEstimators[0].trackErrorHist[targ.targetID].keys()) > 0:
+                        if (
+                            len(
+                                sat.etEstimators[0].trackErrorHist[targ.targetID].keys()
+                            )
+                            > 0
+                        ):
                             x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
                             if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(sat.etEstimators[0].trackErrorHist[targ.targetID].keys())
-                                trackUncertainty = sat.etEstimators[0].trackErrorHist[targ.targetID][timePrior]
+                                timePrior = max(
+                                    sat.etEstimators[0]
+                                    .trackErrorHist[targ.targetID]
+                                    .keys()
+                                )
+                                trackUncertainty = sat.etEstimators[0].trackErrorHist[
+                                    targ.targetID
+                                ][timePrior]
                                 if trackUncertainty < bestTrackUncertainty:
                                     bestTrackUncertainty = trackUncertainty
                                     bestSat = sat
@@ -1010,14 +1083,24 @@ class Environment:
                 if bestSat is not None:
 
                     # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                    timePrior = max(bestSat.etEstimators[0].trackErrorHist[targ.targetID].keys())
+                    timePrior = max(
+                        bestSat.etEstimators[0].trackErrorHist[targ.targetID].keys()
+                    )
 
                     # Get the estimate and covariance
                     est = bestSat.etEstimators[0].estHist[targ.targetID][timePrior]
-                    cov = bestSat.etEstimators[0].covarianceHist[targ.targetID][timePrior]
+                    cov = bestSat.etEstimators[0].covarianceHist[targ.targetID][
+                        timePrior
+                    ]
 
                     # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {'ci' : {self.time.to_value(): {targ: {bestSat: {'est': est, 'cov': cov}}}}}
+                    data_dict = {
+                        'ci': {
+                            self.time.to_value(): {
+                                targ: {bestSat: {'est': est, 'cov': cov}}
+                            }
+                        }
+                    }
 
                     # Now, add that data to the queued data onboard the ground station
                     gs.queue_data(data_dict)
@@ -1092,7 +1175,9 @@ class Environment:
                 vx, vy, vz = vx / mag, vy / mag, vz / mag
 
             # do a standard scatter plot for the target
-            self.ax.scatter(x, y, z, s=40, marker='x', color=targ.color, label=targ.name)
+            self.ax.scatter(
+                x, y, z, s=40, marker='x', color=targ.color, label=targ.name
+            )
 
     def plotEarth(self) -> None:
         """
@@ -1139,7 +1224,7 @@ class Environment:
         """
         for gs in self.groundStations:
             x, y, z = gs.loc
-            self.ax.scatter(x, y, z, s=40, marker = 's', color = gs.color, label=gs.name)
+            self.ax.scatter(x, y, z, s=40, marker='s', color=gs.color, label=gs.name)
 
     def plotLegend_Time(self) -> None:
         """
@@ -1163,9 +1248,7 @@ class Environment:
         self.imgs.append(img)
 
     ### Estimation Errors and Track Uncertainty Plots ###
-    def plot_gs_results(
-        self, time_vec: u.Quantity[u.minute], saveName: str
-    ) -> None:
+    def plot_gs_results(self, time_vec: u.Quantity[u.minute], saveName: str) -> None:
         """
         Makes one plot for each ground station target pairing.
 
@@ -1189,7 +1272,7 @@ class Environment:
                     axX = fig.add_subplot(grid[0, 0:2])
                     axX.set_xlabel('Time [min]')
                     axX.set_ylabel('X Position Error [km]')
-                    axY= fig.add_subplot(grid[0, 2:4])
+                    axY = fig.add_subplot(grid[0, 2:4])
                     axY.set_xlabel('Time [min]')
                     axY.set_ylabel('Y Position Error [km]')
                     axZ = fig.add_subplot(grid[0, 4:6])
@@ -1207,14 +1290,53 @@ class Environment:
                     trueHist = targ.hist
 
                     # Plot the x, y, z position errors and covariances
-                    times, estHist, covHist, innovationHist, innovationCovHist, trackErrorHist = self.getEstimationHistory(targetID, time_vec, filter = gs.estimator)
+                    (
+                        times,
+                        estHist,
+                        covHist,
+                        innovationHist,
+                        innovationCovHist,
+                        trackErrorHist,
+                    ) = self.getEstimationHistory(
+                        targetID, time_vec, filter=gs.estimator
+                    )
                     # Plot the errors
-                    self.plot_errors([axX], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
-                    self.plot_errors([axY], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
-                    self.plot_errors([axZ], times, estHist, trueHist, covHist, label_color=gs.color, linewidth=2.5)
+                    self.plot_errors(
+                        [axX],
+                        times,
+                        estHist,
+                        trueHist,
+                        covHist,
+                        label_color=gs.color,
+                        linewidth=2.5,
+                    )
+                    self.plot_errors(
+                        [axY],
+                        times,
+                        estHist,
+                        trueHist,
+                        covHist,
+                        label_color=gs.color,
+                        linewidth=2.5,
+                    )
+                    self.plot_errors(
+                        [axZ],
+                        times,
+                        estHist,
+                        trueHist,
+                        covHist,
+                        label_color=gs.color,
+                        linewidth=2.5,
+                    )
 
                     # Now plot the track uncertainty
-                    axTU.plot(trackErrorHist.keys(), trackErrorHist.values(), label='Track Uncertainty', color=gs.color, linewidth=2.5)
+                    axTU.plot(
+                        trackErrorHist.keys(),
+                        trackErrorHist.values(),
+                        label='Track Uncertainty',
+                        color=gs.color,
+                        linewidth=2.5,
+                    )
                     axTU.set_ylim(bottom=0)
 
                     # Now, we want to plot the communication sent/recieved
@@ -1227,7 +1349,9 @@ class Environment:
                             continue
 
                         # Find the target that has that targetID:
-                        targ = [targ for targ in self.targs if targ.targetID == targetID][0]
+                        targ = [
+                            targ for targ in self.targs if targ.targetID == targetID
+                        ][0]
 
                         # Now, loop through all times for that targs history
                         for time in targ.hist.keys():
@@ -1237,7 +1361,14 @@ class Environment:
                                 for sat in self.sats:
                                     # IF THE SATELLITE DID COMMUNICATE, PLOT A SOLID BOX WITH SAT COLOR
                                     if sat.name in gs.commData[targetID][time]:
-                                        axComm.bar(time, 1, bottom = prevData, color=sat.color, edgecolor = 'k', width = self.delta_t)
+                                        axComm.bar(
+                                            time,
+                                            1,
+                                            bottom=prevData,
+                                            color=sat.color,
+                                            edgecolor='k',
+                                            width=self.delta_t,
+                                        )
                                         prevData += 1
                                     # If the satellite didint communcate with the ground station at that time
                                     else:
@@ -1245,23 +1376,54 @@ class Environment:
                                         x_sat, y_sat, z_sat = sat.orbitHist[time]
                                         if gs.can_communicate(x_sat, y_sat, z_sat):
                                             # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
-                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor=sat.color, hatch = '//', linewidth = 0, width = self.delta_t)
+                                            axComm.bar(
+                                                time,
+                                                1,
+                                                bottom=prevData,
+                                                color='w',
+                                                edgecolor=sat.color,
+                                                hatch='//',
+                                                linewidth=0,
+                                                width=self.delta_t,
+                                            )
                                             prevData += 1
                                         else:
                                             # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
-                                            axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                            axComm.bar(
+                                                time,
+                                                1,
+                                                bottom=prevData,
+                                                color='w',
+                                                edgecolor='k',
+                                                hatch='//',
+                                                linewidth=0,
+                                                width=self.delta_t,
+                                            )
                                             prevData += 1
                             else:
                                 # Case where no sats communicated to gs, plot black hatches for all
                                 for i in range(len(self.sats)):
-                                    axComm.bar(time, 1, bottom = prevData, color='w', edgecolor='k', hatch = '//', linewidth = 0, width = self.delta_t)
+                                    axComm.bar(
+                                        time,
+                                        1,
+                                        bottom=prevData,
+                                        color='w',
+                                        edgecolor='k',
+                                        hatch='//',
+                                        linewidth=0,
+                                        width=self.delta_t,
+                                    )
                                     prevData += 1
 
                     # Make a patch for legend for the satellite colors
-                    handles = [patches.Patch(color=gs.color, label=f'{gs.name} Estimator')]
+                    handles = [
+                        patches.Patch(color=gs.color, label=f'{gs.name} Estimator')
+                    ]
                     for sat in self.sats:
                         handles.append(patches.Patch(color=sat.color, label=sat.name))
-                    axComm.legend(handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left')
+                    axComm.legend(
+                        handles=handles, bbox_to_anchor=(1.05, 1), loc='upper left'
+                    )
 
                     # Adjust layout for better spacing
                     plt.tight_layout()
@@ -1269,7 +1431,10 @@ class Environment:
                     filePath = os.path.dirname(os.path.realpath(__file__))
                     plotPath = os.path.join(filePath, 'plots')
                     os.makedirs(plotPath, exist_ok=True)
-                    plt.savefig(os.path.join(plotPath, f"{saveName}_{targ.name}_{gs.name}.png"), dpi=300)
+                    plt.savefig(
+                        os.path.join(plotPath, f"{saveName}_{targ.name}_{gs.name}.png"),
+                        dpi=300,
+                    )
 
                     plt.close()
 
@@ -1566,18 +1731,36 @@ class Environment:
         i = 0
         for axis in ax:
             if times:  # If there is an estimate on target
-                segments = self.segment_data(times, max_gap = self.delta_t*2)
+                segments = self.segment_data(times, max_gap=self.delta_t * 2)
                 for segment in segments:
 
                     if i == 6:
                         return
-                    est_errors = [estHist[time][i] - trueHist[time][i] for time in segment]
+                    est_errors = [
+                        estHist[time][i] - trueHist[time][i] for time in segment
+                    ]
                     upper_bound = [2 * np.sqrt(covHist[time][i][i]) for time in segment]
-                    lower_bound = [-2 * np.sqrt(covHist[time][i][i]) for time in segment]
+                    lower_bound = [
+                        -2 * np.sqrt(covHist[time][i][i]) for time in segment
+                    ]
 
-                    axis.plot(segment, est_errors, color=label_color, linewidth=linewidth)
-                    axis.plot(segment, upper_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
-                    axis.plot(segment, lower_bound, color=label_color, linestyle='dashed', linewidth=linewidth)
+                    axis.plot(
+                        segment, est_errors, color=label_color, linewidth=linewidth
+                    )
+                    axis.plot(
+                        segment,
+                        upper_bound,
+                        color=label_color,
+                        linestyle='dashed',
+                        linewidth=linewidth,
+                    )
+                    axis.plot(
+                        segment,
+                        lower_bound,
+                        color=label_color,
+                        linestyle='dashed',
+                        linewidth=linewidth,
+                    )
 
                     i += 1
 
@@ -1596,7 +1779,7 @@ class Environment:
             linewidth (float): Width of the plot lines.
         """
         if times:  # If there is an estimate on target
-            segments = self.segment_data(times, max_gap = self.delta_t * 2)
+            segments = self.segment_data(times, max_gap=self.delta_t * 2)
 
             for i in range(2):  # For each measurement [in track, cross track]
                 for segment in segments:
@@ -1694,7 +1877,7 @@ class Environment:
         """
         if times:
             nonEmptyTime = []
-            segments = self.segment_data(times, max_gap = self.delta_t * 2)
+            segments = self.segment_data(times, max_gap=self.delta_t * 2)
 
             for segment in segments:
                 # Figure out, does this segment have a real data point in every time step
@@ -1723,7 +1906,7 @@ class Environment:
                     color='k',
                 )
 
-    def segment_data(self, times, max_gap = 1):
+    def segment_data(self, times, max_gap=1):
         """
         Splits a list of times into segments where the time difference between consecutive points
         is less than or equal to a specified maximum gap.
@@ -2490,7 +2673,7 @@ class Environment:
 
                 # Get the times for the track_uncertainty
                 times = [time for time in trackUncertainty.keys()]
-                segments = self.segment_data(times, max_gap = self.delta_t * 2)
+                segments = self.segment_data(times, max_gap=self.delta_t * 2)
 
                 for segment in segments:
                     # Does the semgnet have a real data point in eveyr time step?
@@ -3485,44 +3668,43 @@ class Environment:
         )[:, :, 0:4]
         return img
 
-    def render_gif(
+    def render_gifs(
         self,
-        fileType,
-        saveName,
-        filePath=os.path.dirname(os.path.realpath(__file__)),
-        fps=1,
+        plot_config: sim_config.PlotConfig,
+        save_name: str,
+        out_dir: pathlib.Path = path_utils.PHASE_3 / 'gifs',
+        fps: int = 5,
     ):
         """
         Renders and saves GIFs based on the specified file type.
 
         Parameters:
-        - fileType (str): The type of GIF to render. Options are 'satellite_simulation' or 'uncertainty_ellipse'.
-        - saveName (str): The base name for the saved GIF files.
-        - filePath (str): The directory path where the GIF files will be saved. Defaults to the directory of the script.
-        - fps (int): Frames per second for the GIF. Defaults to 10.
+        - plot_config: The type of GIF to render. Options are 'satellite_simulation' or 'uncertainty_ellipse'.
+        - save_name: The base name for the saved GIF files.
+        - out_dir: The directory path where the GIF files will be saved. Defaults to the directory of the script.
+        - fps: Frames per second for the GIF. Defaults to 10.
 
         Returns:
         None
         """
         frame_duration = 1000 / fps  # in ms
 
-        if fileType == 'satellite_simulation':
-            file = os.path.join(filePath, 'gifs', f'{saveName}_satellite_sim.gif')
+        if sim_config.GifType.SATELLITE_SIMULATION in plot_config.gifs:
+            file = out_dir / f'{save_name}_satellite_sim.gif'
             with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                 for img in self.imgs:
                     writer.append_data(img)
 
-        if fileType == 'uncertainty_ellipse':
+        if sim_config.GifType.UNCERTAINTY_ELLIPSE in plot_config.gifs:
             for targ in self.targs:
                 for sat in self.sats:
                     if targ.targetID in sat.targetIDs:
                         for sat2 in self.sats:
                             if targ.targetID in sat2.targetIDs:
                                 if sat != sat2:
-                                    file = os.path.join(
-                                        filePath,
-                                        'gifs',
-                                        f"{saveName}_{targ.name}_{sat.name}_{sat2.name}_stereo_GE.gif",
+                                    file = (
+                                        out_dir
+                                        / f"{save_name}_{targ.name}_{sat.name}_{sat2.name}_stereo_GE.gif"
                                     )
                                     with imageio.get_writer(
                                         file, mode='I', duration=frame_duration
@@ -3532,8 +3714,8 @@ class Environment:
                                         ][sat2]:
                                             writer.append_data(img)
 
-        if fileType == 'dynamic_comms':
-            file = os.path.join(filePath, 'gifs', f"{saveName}_dynamic_comms.gif")
+        if sim_config.GifType.DYNAMIC_COMMS in plot_config.gifs:
+            file = out_dir / f"{save_name}_dynamic_comms.gif"
             with imageio.get_writer(file, mode='I', duration=frame_duration) as writer:
                 for img in self.imgs_dyn_comms:
                     writer.append_data(img)
@@ -3824,7 +4006,7 @@ class Environment:
         filename: str,
         time_vec: u.Quantity[u.minute],
         sat: satellite.Satellite,
-        commNode: comm.Comms,
+        commNode: comms.Comms,
         targetID: int,
     ) -> None:
         precision = 3
