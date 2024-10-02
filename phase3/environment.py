@@ -147,7 +147,6 @@ class Environment:
         time_vec: npt.NDArray,
         plot_config: sim_config.PlotConfig,
         pause_step: float = 0.0001,
-        plot_groundStation_results: bool = False,
         save_estimation_data: bool = False,
         save_communication_data: bool = False,
     ):
@@ -213,7 +212,7 @@ class Environment:
 
         print("Simulation Complete")
 
-        if plot_groundStation_results:
+        if plot_config.plot_groundStation_results:
             self.plot_gs_results(
                 time_vec, saveName=saveName
             )  # Plot the ground station results

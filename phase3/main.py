@@ -257,6 +257,11 @@ def _load_sim_config(file: pathlib.Path) -> sim_config.SimConfig:
     type=bool,
 )
 @click.option(
+    '--plot-groundStation-results',
+    help='Plot the ground station results',
+    type=bool,
+)
+@click.option(
     '--gifs',
     help='Gifs to generate',
     multiple=True,
@@ -271,6 +276,7 @@ def main(
     plot_communication: bool,
     plot_et_network: bool,
     plot_uncertainty_ellipses: bool,
+    plot_groundStation_results: bool,
     gifs: list[sim_config.GifType],
 ) -> None:
     cfg = _load_sim_config(config)
@@ -282,6 +288,7 @@ def main(
         plot_communication=plot_communication,
         plot_et_network=plot_et_network,
         plot_uncertainty_ellipses=plot_uncertainty_ellipses,
+        plot_groundStation_results=plot_groundStation_results,
         gifs=gifs,
     )
 

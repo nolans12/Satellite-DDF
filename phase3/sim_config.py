@@ -23,6 +23,7 @@ class PlotConfig:
     plot_communication: bool
     plot_et_network: bool
     plot_uncertainty_ellipses: bool
+    plot_groundStation_results: bool
 
     # GIFs to generate
     gifs: list[GifType]
@@ -45,6 +46,7 @@ class SimConfig:
         plot_communication: bool | None = None,
         plot_et_network: bool | None = None,
         plot_uncertainty_ellipses: bool | None = None,
+        plot_groundStation_results: bool | None = None,
         gifs: list[GifType] | None = None,
     ) -> 'SimConfig':
         return SimConfig(
@@ -57,6 +59,8 @@ class SimConfig:
                 plot_et_network=plot_et_network or self.plot.plot_et_network,
                 plot_uncertainty_ellipses=plot_uncertainty_ellipses
                 or self.plot.plot_uncertainty_ellipses,
+                plot_groundStation_results=plot_groundStation_results
+                or self.plot.plot_groundStation_results,
                 gifs=gifs or self.plot.gifs,
             ),
         )

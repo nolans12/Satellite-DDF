@@ -9,6 +9,7 @@ plot:
   plot_communication: true
   plot_et_network: false
   plot_uncertainty_ellipses: false
+  plot_groundStation_results: true
 
   gifs:
     - "SATELLITE_SIMULATION"
