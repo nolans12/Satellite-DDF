@@ -25,7 +25,6 @@ from phase3 import groundStation
 from phase3 import util
 
 
-
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
 
@@ -204,8 +203,8 @@ class Environment:
             # self.send_to_ground_centralized()
             # self.send_to_ground_avaliable_sats()
             # self.send_to_ground_best_sat_local()
-            self.send_to_ground_best_sat_ci()
-            # self.send_to_ground_best_sat_et()
+            # self.send_to_ground_best_sat_ci()
+            self.send_to_ground_best_sat_et()
 
             if show_env:
                 # Update the plot environment
@@ -213,11 +212,11 @@ class Environment:
                 plt.pause(pause_step)
                 plt.draw()
 
-            # if plot_et_network: # TODO: REMOVE?
-            #     # Update the dynamic comms plot
-            #     self.plot_dynamic_comms()
-            #     plt.pause(pause_step)
-            #     plt.draw()
+            if plot_et_network:
+                # Update the dynamic comms plot
+                self.plot_dynamic_comms()
+                plt.pause(pause_step)
+                plt.draw()
 
         print("Simulation Complete")
 
@@ -643,91 +642,82 @@ class Environment:
         """
         Send the most recent measurements from each satellite to its neighbors.
         """
-        # Loop through all satellites
+         # Loop through all satellites
         for sat in self.sats:
             # For each targetID in satellites measurement history
-            for (
-                target
-            ) in self.targs:  # TODO: iniitalize with senders est and cov + noise?
+            for target in self.targs: # TODO: iniitalize with senders est and cov + noise?
                 if target.targetID in sat.targetIDs:
                     targetID = target.targetID
                     envTime = self.time.to_value()
                     # Skip if there are no measurements for this targetID
-                    if isinstance(
-                        sat.measurementHist[target.targetID][envTime], np.ndarray
-                    ):
+                    if isinstance(sat.measurementHist[target.targetID][envTime], np.ndarray):
                         # This means satellite has a measurement for this target, now send it to neighbors
                         for neighbor in self.comms.G.neighbors(sat):
-                            neighbor: satellite.Satellite
                             # If target is not in neighbors priority list, skip
                             if targetID not in neighbor.targPriority.keys():
                                 continue
 
                             # Get the most recent measurement time
-                            satTime = max(
-                                sat.measurementHist[targetID].keys()
-                            )  #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
+                            satTime = max(sat.measurementHist[targetID].keys()) #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
 
+                            # Get the local EKF for this satellite
                             local_EKF = sat.etEstimators[0]
 
-                            # Create a new commonEKF between two satellites
+                            # Check for a new commonEKF between two satellites
                             commonEKF = None
                             for each_etEstimator in sat.etEstimators:
                                 if each_etEstimator.shareWith == neighbor.name:
                                     commonEKF = each_etEstimator
                                     break
 
-                            if (
-                                commonEKF is None
-                            ):  # or make a common filter if one doesn't exist
-                                commonEKF = EtEstimator(
-                                    local_EKF.targetPriorities, shareWith=neighbor.name
-                                )
+                            if commonEKF is None: # or make a common filter if one doesn't exist
+                                commonEKF = estimator.EtEstimator(local_EKF.targetPriorities, shareWith = neighbor.name)
                                 commonEKF.et_EKF_initialize(target, envTime)
                                 sat.etEstimators.append(commonEKF)
-                                commonEKF.synchronizeFlag[targetID][envTime] = True
+                                #commonEKF.synchronizeFlag[targetID][envTime] = True
+
                             if len(commonEKF.estHist[targetID]) == 0:
                                 commonEKF.et_EKF_initialize(target, envTime)
 
-                            # Create a local and common EKF for neighbor if it doesnt exist
+                            # Get the neighbors localEKF
                             neighbor_localEKF = neighbor.etEstimators[0]
 
-                            if (
-                                len(neighbor_localEKF.estHist[targetID]) == 1
-                            ):  # if I don't have a local EKF, create one
+                            # If the neighbor doesn't have a local EKF on this target, create one
+                            if len(neighbor_localEKF.estHist[targetID]) == 0:
                                 neighbor_localEKF.et_EKF_initialize(target, envTime)
-                                neighbor_localEKF.synchronizeFlag[targetID][
-                                    envTime
-                                ] = True
 
+                            # Check for a common EKF between the two satellites
                             commonEKF = None
                             for each_etEstimator in neighbor.etEstimators:
                                 if each_etEstimator.shareWith == sat.name:
                                     commonEKF = each_etEstimator
                                     break
 
-                            if (
-                                commonEKF is None
-                            ):  # if I don't, create one and add it to etEstimators list
-                                commonEKF = EtEstimator(
-                                    neighbor.targPriority, shareWith=sat.name
-                                )
+                            if commonEKF is None: # if I don't, create one and add it to etEstimators list
+                                commonEKF = estimator.EtEstimator(neighbor.targPriority, shareWith=sat.name)
                                 commonEKF.et_EKF_initialize(target, envTime)
                                 neighbor.etEstimators.append(commonEKF)
-                                commonEKF.synchronizeFlag[targetID][envTime] = True
+                                #commonEKF.synchronizeFlag[targetID][envTime] = True
 
                             if len(commonEKF.estHist[targetID]) == 0:
                                 commonEKF.et_EKF_initialize(target, envTime)
 
-                                # Create implicit and explicit measurements vector for this neighbor
-                            meas = local_EKF.event_trigger(
-                                sat, neighbor, targetID, satTime
-                            )
+                            # Create implicit and explicit measurements vector for this neighbor
+                            meas = local_EKF.event_trigger(sat, neighbor, targetID, satTime)
 
                             # Send that to neightbor
                             self.comms.send_measurements(
-                                sat, neighbor, meas, targetID, satTime
+                                sat,
+                                neighbor,
+                                meas,
+                                targetID,
+                                satTime
                             )
+
+                            if commonEKF.synchronizeFlag[targetID][envTime]:
+                                self.comms.total_comm_et_data[targetID][sat.name][neighbor.name][envTime] = 50 # since this runs twice, we need to make sure we don't double count the data
+
+
 
     def central_fusion(self, collectedFlag, measurements):
         """
@@ -2966,7 +2956,7 @@ class Environment:
                                             margin=50.0,
                                         )
                                         self.plot_labels(ax1, time)
-                                        self.make_legened1(
+                                        self.make_legend1(
                                             ax1,
                                             sat,
                                             sat1Color,
@@ -3088,7 +3078,7 @@ class Environment:
                                         self.plot_LOS(ax2, est_pos1, LOS_vec1)
                                         self.plot_LOS(ax2, est_pos2, LOS_vec2)
 
-                                        self.make_legened1(
+                                        self.make_legend1(
                                             ax2,
                                             sat,
                                             sat1Color,
@@ -3194,7 +3184,7 @@ class Environment:
                                             margin=50.0,
                                         )
                                         self.plot_labels(ax3, time)
-                                        self.make_legened2(
+                                        self.make_legend2(
                                             ax3,
                                             ciColor,
                                             centralColor,
@@ -3291,7 +3281,7 @@ class Environment:
                                             margin=50.0,
                                         )
                                         self.plot_labels(ax4, time)
-                                        self.make_legened2(
+                                        self.make_legend2(
                                             ax4,
                                             etColor,
                                             centralColor,
@@ -3397,7 +3387,7 @@ class Environment:
         ax.view_init(elev=10, azim=30)
 
     # TODO: used for uncertainty ellipses
-    def make_legened1(
+    def make_legend1(
         self,
         ax,
         sat1,
@@ -3437,7 +3427,7 @@ class Environment:
             ax.legend(handles=handles, loc='upper right', ncol=1, bbox_to_anchor=(1, 1))
 
     # TODO: used for uncertainty ellipses
-    def make_legened2(self, ax, ciColor, centralColor, error1, error2, ci_type=None):
+    def make_legend2(self, ax, ciColor, centralColor, error1, error2, ci_type=None):
         if ci_type == 'CI':
             labels = [f'CI Error: {error1:.2f} km', f'Central Error: {error2:.2f} km']
             handles = [

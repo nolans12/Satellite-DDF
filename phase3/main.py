@@ -187,8 +187,8 @@ def create_environment():
     # Define the estimators used:
     central = False
     local = True
-    ci = True
-    et = False
+    ci = False
+    et = True
 
     # Create and return an environment instance:
     return environment.Environment(
