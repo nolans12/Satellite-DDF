@@ -17,13 +17,13 @@ function yes_or_no() {
 function check_if_ubuntu() {
     # Check if the OS is Ubuntu
     if [ ! -f /etc/os-release ]; then
-        return 0
+        return 1
     fi
     source /etc/os-release
     if [ "$ID" != "ubuntu" ]; then
-        return 0
+        return 1
     fi
-    return 1
+    return 0
 }
 
 function setup_python() {
@@ -105,7 +105,9 @@ function success() {
 
 function main() {
     # Only run setup_python (apt installs) if the OS is Ubuntu
-    check_if_ubuntu && setup_python
+    if check_if_ubuntu; then
+        setup_python
+    fi
     setup_venv
     install_requirements
     success
