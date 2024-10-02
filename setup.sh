@@ -14,6 +14,18 @@ function yes_or_no() {
     done
 }
 
+function check_if_ubuntu() {
+    # Check if the OS is Ubuntu
+    if [ ! -f /etc/os-release ]; then
+        return 0
+    fi
+    source /etc/os-release
+    if [ "$ID" != "ubuntu" ]; then
+        return 0
+    fi
+    return 1
+}
+
 function setup_python() {
     # Check if deadsnakes PPA is installed
     if ! apt-cache policy | grep -q deadsnakes; then
@@ -92,7 +104,8 @@ function success() {
 }
 
 function main() {
-    # setup_python
+    # Only run setup_python (apt installs) if the OS is Ubuntu
+    check_if_ubuntu && setup_python
     setup_venv
     install_requirements
     success
