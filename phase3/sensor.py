@@ -8,9 +8,9 @@ from numpy import typing as npt
 from scipy import spatial
 
 if TYPE_CHECKING:
-    from phase3 import satelliteClass
+    from phase3 import satellite
 
-from phase3 import targetClass
+from phase3 import target
 
 
 class Sensor:
@@ -44,7 +44,7 @@ class Sensor:
         self.projBox = np.array([0, 0, 0])
 
     def get_measurement(
-        self, sat: 'satelliteClass.Satellite', targ: targetClass.Target
+        self, sat: 'satellite.Satellite', targ: target.Target
     ) -> npt.NDArray | None:
         """
         Get sensor measurement of a target if visible within sensor's field of view.
@@ -73,7 +73,7 @@ class Sensor:
             return None
 
     def sensor_model(
-        self, sat: 'satelliteClass.Satellite', targ: targetClass.Target
+        self, sat: 'satellite.Satellite', targ: target.Target
     ) -> npt.NDArray:
         """
         Simulate sensor measurement with added error.
@@ -98,7 +98,7 @@ class Sensor:
         return np.array([in_track_meas, cross_track_meas])
 
     def convert_to_bearings(
-        self, sat: 'satelliteClass.Satellite', meas_ECI: npt.NDArray
+        self, sat: 'satellite.Satellite', meas_ECI: npt.NDArray
     ) -> tuple[float, float]:
         """
         Convert satellite and target ECI positions to bearings angles.
@@ -198,7 +198,7 @@ class Sensor:
         return jnp.array([in_track_angle_deg, cross_track_angle_deg])
 
     def jacobian_ECI_to_bearings(
-        self, sat: 'satelliteClass.Satellite', meas_ECI_full: npt.NDArray
+        self, sat: 'satellite.Satellite', meas_ECI_full: npt.NDArray
     ) -> npt.NDArray:
         """
         Compute the Jacobian matrix H used in a Kalman filter for the sensor. Describes
@@ -232,7 +232,7 @@ class Sensor:
 
         return new_jacobian
 
-    def inFOV(self, sat: 'satelliteClass.Satellite', targ: targetClass.Target) -> bool:
+    def inFOV(self, sat: 'satellite.Satellite', targ: target.Target) -> bool:
         """
         Check if the target is within the satellite's field of view (FOV).
 
@@ -270,7 +270,7 @@ class Sensor:
             # Target is outside the FOV
             return False
 
-    def visible_projection(self, sat: 'satelliteClass.Satellite') -> None:
+    def visible_projection(self, sat: 'satellite.Satellite') -> None:
         """
         Compute the projection box of the sensor based on satellite position and FOV.
 
@@ -297,7 +297,7 @@ class Sensor:
         self.projBox = np.array(points)  # update the projection box
         return
 
-    def projection_vectors(self, sat: 'satelliteClass.Satellite') -> npt.NDArray:
+    def projection_vectors(self, sat: 'satellite.Satellite') -> npt.NDArray:
         """
         Compute the direction vectors that define the projection box based on FOV and satellite position.
         Each direction vector is 45 degrees diagonally from radial vector forming a polygon.
