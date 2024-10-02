@@ -207,14 +207,12 @@ class Environment:
             if plot_config.plot_et_network:
                 # Update the dynamic comms plot
                 self.plot_dynamic_comms()
-                plt.pause(pause_step)
-                plt.draw()
 
         print("Simulation Complete")
 
         if plot_config.plot_groundStation_results:
             self.plot_gs_results(
-                time_vec, saveName=saveName
+                time_vec, saveName=plot_config.output_prefix
             )  # Plot the ground station results
 
         # Plot the filter results
@@ -2846,34 +2844,34 @@ class Environment:
                     targetID = targ.targetID
                     targ_color = targ.color
 
-                    # If the satellites synchronize, add an edge
-                    if sat.etEstimator.synchronizeFlag[targetID][sat][sat2]:
-                        if (
-                            sat.etEstimator.synchronizeFlag[targetID][sat][sat2].get(
-                                envTime
-                            )
-                            == True
-                        ):
-                            diComms.add_edge(sat, sat2)
+                    # find the common EKFs
+                    commonEKF = None
+                    for each_etEstimator in sat.etEstimators:
+                        if each_etEstimator.shareWith == sat2.name:
+                            commonEKF = each_etEstimator
+                            break
+
+                    if commonEKF is not None:
+                        # If the satellites synchronize, add an edge
+                        if commonEKF.synchronizeFlag[targetID][envTime] == True:
+                            diComms.add_edge(sat2, sat)
                             style = self.get_edge_style(
                                 comms, targetID, sat, sat2, envTime, CI=True
                             )
-                            edge_styles.append((sat, sat2, style, targ_color))
+                            edge_styles.append((sat2, sat, style, targ_color))
 
-                    value = comms.used_comm_et_data_values[targetID][sat.name][
-                        sat2.name
-                    ][envTime]
-                    print(f"Receiver {sat.name}, Sender {sat2.name}, Value {value}")
-                    # If there is a communication between the two satellites, add an edge
-                    if isinstance(
-                        comms.used_comm_et_data_values[targ.targetID][sat.name][
-                            sat2.name
-                        ][envTime],
-                        np.ndarray,
-                    ):
-                        diComms.add_edge(sat2, sat)
-                        style = self.get_edge_style(comms, targetID, sat, sat2, envTime)
-                        edge_styles.append((sat2, sat, style, targ_color))
+                        # If there is a communication between the two satellites, add an edge
+                        if isinstance(
+                            comms.total_comm_et_data_values[targ.targetID][sat.name][
+                                sat2.name
+                            ][envTime],
+                            np.ndarray,
+                        ):
+                            diComms.add_edge(sat2, sat)
+                            style = self.get_edge_style(
+                                comms, targetID, sat, sat2, envTime
+                            )
+                            edge_styles.append((sat2, sat, style, targ_color))
 
             # Draw the graph with the nodes and edges
 
@@ -2936,7 +2934,7 @@ class Environment:
         if CI:
             return (0, ())
 
-        alpha, beta = comms.used_comm_et_data_values[targetID][sat1.name][sat2.name][
+        alpha, beta = comms.total_comm_et_data_values[targetID][sat1.name][sat2.name][
             envTime
         ]
         if np.isnan(alpha) and np.isnan(beta):
@@ -2961,9 +2959,7 @@ class Environment:
         fig.savefig(ios, format='raw')
         ios.seek(0)
         w, h = fig.canvas.get_width_height()
-        img = np.reshape(
-            np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4)
-        )[:, :, 0:4]
+        img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
         return img
 
     # TODO: helpful for visualizing/debugging

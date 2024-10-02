@@ -49,6 +49,7 @@ class Comms:
 
         self.total_comm_et_data = util.NestedDict()
         self.used_comm_et_data = util.NestedDict()
+        self.total_comm_et_data_values = util.NestedDict()
         self.used_comm_et_data_values = util.NestedDict()
 
         self.max_neighbors = maxNeighbors
@@ -223,6 +224,10 @@ class Comms:
         self.total_comm_et_data[target_id][receiver.name][sender.name][
             time
         ] = measVector_size
+
+        self.total_comm_et_data_values[target_id][receiver.name][sender.name][time] = (
+            np.array(meas_vector)
+        )
 
     # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
