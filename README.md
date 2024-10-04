@@ -1,14 +1,13 @@
-# Distributed Data Fusion for Space Based Target Tracking 
+# Distributed Data Fusion for Space Based Target Tracking
 
 ## Overview
 Simulates cooperative localization in discrete time using satellite agents sensing targets near earth. Each
-agent individually estimates the position and velocity of targets in FOV and communicates infromation with 
-their neighbors for collective estimation. 
+agent individually estimates the position and velocity of targets in FOV and communicates infromation with
+their neighbors for collective estimation.
 
 ## Table of Contents
 1. [Installation](#installation)
 2. [Usage](#usage)
-3. [Project Structure](#project-structure)
 4. [Contact](#contact)
 
 ## Installation
@@ -36,7 +35,8 @@ pip install -r requirements_lock.txt
 ## Usage
 ```bash
 # Run the simulation
-python main.py
+# can also use the `satellite_ddf` entrypoint
+python phase3/main.py
 
 # Estimation Results
 State Estimation Error: "plots"
@@ -50,29 +50,12 @@ Simulation Visualization: "gifs"
 # Data Dump File
 Data Dump File: "data"
 
-# Modify the simulation parameters in main.py file
+# Modify the simulation parameters in scenarios/default.yaml file
 #   - Number of satellites
 #   - Number of targets
 #   - Placement of satellites and targets
 #   - Sensor parameters
 #   - Communication Strucutre
-```
-## Project Structure
-```
-Satellite-DDF
-│   README.md
-│   requirements.txt
-│   .gitignore
-│   phase1
-│   ├── main.py
-│   ├── satelliteClass.py
-│   ├── targetClass.py
-│   ├── sensorClass.py
-│   ├── estimatorClass.py
-│   ├── communicationClass.py
-│   ├── environmentClass.py
-│   ├── import_libraries.py
-
 ```
 
 ## Contact
