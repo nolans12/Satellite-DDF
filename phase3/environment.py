@@ -188,6 +188,7 @@ class Environment:
             # self.send_to_ground_god_mode()
             # self.send_to_ground_centralized()
             # self.send_to_ground_avaliable_sats()
+            ## MUST CHOOSE THIS TO MATCH THE ACTUAL DDF YOUR DOING
             # self.send_to_ground_best_sat_local()
             self.send_to_ground_best_sat_ci()
             # self.send_to_ground_best_sat_et()

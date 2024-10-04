@@ -34,6 +34,8 @@ pip install -r requirements_lock.txt
 
 ## Usage
 ```bash
+# Different yaml files are specifies for different mission scenarios in "scenarios/"
+
 # Run the simulation
 # can also use the `satellite_ddf` entrypoint
 python phase3/main.py

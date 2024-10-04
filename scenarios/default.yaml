@@ -4,7 +4,7 @@ sim_time_step_m: .166666
 plot:
   output_prefix: "test"
 
-  show_env: false
+  show_env: true
 
   plot_groundStation_results: true
   plot_estimation: true
