@@ -37,19 +37,17 @@ class Environment:
         comms: comms.Comms,
         groundStations: list[groundStation.GroundStation],
         commandersIntent: util.CommandersIndent,
-        localEstimatorBool: bool,
-        centralEstimatorBool: bool,
-        ciEstimatorBool: bool,
-        etEstimatorBool: bool,
+        estimator_config: sim_config.EstimatorConfig,
     ):
         """
         Initialize an environment object with satellites, targets, communication network, and optional central estimator.
         """
+        self.estimator_config = estimator_config
 
         # For each satellite, define its initial goal and initialize the estimation algorithms
         for sat in sats:
             targPriorityInitial = commandersIntent[0][
-                sat
+                sat.name
             ]  # grab the initial target priorities for the satellite
 
             # Update the Satellite with the initial target priorities
@@ -62,26 +60,22 @@ class Environment:
             }  # dictionary of [targetID: {time: measurement}] pairs
 
             # Create estimation algorithms for each satellite
-            self.localEstimatorBool = localEstimatorBool
-            if localEstimatorBool:
+            if self.estimator_config.local:
                 sat.indeptEstimator = estimator.IndeptEstimator(
-                    commandersIntent[0][sat]
+                    commandersIntent[0][sat.name]
                 )  # initialize the independent estimator for these targets
 
-            self.centralEstimatorBool = centralEstimatorBool
-            if centralEstimatorBool:
+            if self.estimator_config.central:
                 self.centralEstimator = estimator.CentralEstimator(
-                    commandersIntent[0][sat]
+                    commandersIntent[0][sat.name]
                 )  # initialize the central estimator for these targets
 
-            self.ciEstimatorBool = ciEstimatorBool
-            if ciEstimatorBool:
-                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat])
+            if self.estimator_config.ci:
+                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat.name])
 
-            self.etEstimatorBool = etEstimatorBool
-            if etEstimatorBool:
+            if self.estimator_config.et:
                 sat.etEstimators = [
-                    estimator.EtEstimator(commandersIntent[0][sat], shareWith=None)
+                    estimator.EtEstimator(commandersIntent[0][sat.name], shareWith=None)
                 ]
 
         ## Populate the environment variables
@@ -184,7 +178,7 @@ class Environment:
                 for sat in self.sats:
                     sat.targPriority = self.commandersIntent[
                         t_net.to_value(t_net.unit)
-                    ][sat]
+                    ][sat.name]
                     sat.targetIDs = sat.targPriority.keys()
 
             # Collect individual data measurements for satellites and then do data fusion
@@ -229,7 +223,7 @@ class Environment:
             # self.plot_used_comms(saveName=plot_config.output_prefix)
 
             # For the CI estimators, plot time hist of comms
-            if self.ciEstimatorBool:
+            if self.estimator_config.ci:
                 self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
 
         # Save the uncertainty ellipse plots
@@ -289,30 +283,30 @@ class Environment:
         collectedFlag, measurements = self.collect_all_measurements()
 
         # If a central estimator is present, perform central fusion
-        if self.centralEstimatorBool:
+        if self.estimator_config.central:
             self.central_fusion(collectedFlag, measurements)
 
         # Now send estimates for future CI
-        if self.ciEstimatorBool:
+        if self.estimator_config.ci:
             self.send_estimates_optimize()
             # self.send_estimates()
 
         # Now send measurements for future ET
-        if self.etEstimatorBool:
+        if self.estimator_config.et:
             self.send_measurements()
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
         for sat in self.sats:
-            if self.ciEstimatorBool:
+            if self.estimator_config.ci:
                 sat.ciEstimator.CI(sat, self.comms)
 
-            if self.etEstimatorBool:
+            if self.estimator_config.et:
                 etEKF = sat.etEstimators[0]
                 etEKF.event_trigger_processing(sat, self.time.to_value(), self.comms)
 
         # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
         for sat in self.sats:
-            if self.etEstimatorBool:
+            if self.estimator_config.et:
                 etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
 
     def collect_all_measurements(self) -> tuple[defaultdict, defaultdict]:
@@ -1470,13 +1464,13 @@ class Environment:
 
                     targetID = targ.targetID
                     trueHist = targ.hist
-                    if self.localEstimatorBool:
+                    if self.estimator_config.local:
                         localEKF = sat.indeptEstimator
-                    if self.centralEstimatorBool:
+                    if self.estimator_config.central:
                         centralEKF = self.centralEstimator
-                    if self.ciEstimatorBool:
+                    if self.estimator_config.ci:
                         ciEKF = sat.ciEstimator
-                    if self.etEstimatorBool:
+                    if self.estimator_config.et:
                         etEKF = sat.etEstimators[0]
 
                     fig = plt.figure(figsize=(15, 8))
@@ -1485,7 +1479,7 @@ class Environment:
                     handles = []
 
                     # Check, do we have local estimates?
-                    if self.localEstimatorBool:
+                    if self.estimator_config.local:
                         (
                             times,
                             estHist,
@@ -1537,7 +1531,7 @@ class Environment:
                         )
 
                     # Check, do we have central estimates?
-                    if self.centralEstimatorBool:
+                    if self.estimator_config.central:
                         (
                             central_times,
                             central_estHist,
@@ -1582,7 +1576,7 @@ class Environment:
                         )
 
                     # Check, do we have CI estimates?
-                    if self.ciEstimatorBool:
+                    if self.estimator_config.ci:
                         (
                             ci_times,
                             ci_estHist,
@@ -1632,7 +1626,7 @@ class Environment:
                         )
 
                     # Check, do we have ET estimates?
-                    if self.etEstimatorBool:
+                    if self.estimator_config.et:
                         (
                             et_times,
                             et_estHist,
@@ -2065,7 +2059,7 @@ class Environment:
         """PLOTS THE TOTAL DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS"""
 
         ## Plot comm data sent for CI Algo
-        if self.ciEstimatorBool:
+        if self.estimator_config.ci:
 
             # Create a figure
             fig = plt.figure(figsize=(15, 8))
@@ -2203,7 +2197,7 @@ class Environment:
                 plt.savefig(os.path.join(plotPath, f"total_ci_comms.png"), dpi=300)
 
         ## Plot comm data sent for ET Algo
-        if self.etEstimatorBool:
+        if self.estimator_config.et:
 
             fig = plt.figure(figsize=(15, 8))
             fig.suptitle(f"ET Data Sent and Received by Satellites", fontsize=14)
@@ -2343,7 +2337,7 @@ class Environment:
         """
 
         ## Plot comm data sent for CI Algo
-        if self.ciEstimatorBool:
+        if self.estimator_config.ci:
 
             # Create a figure
             fig = plt.figure(figsize=(15, 8))
@@ -2481,7 +2475,7 @@ class Environment:
                 plt.savefig(os.path.join(plotPath, f"used_ci_comms.png"), dpi=300)
 
         ## Plot comm data sent for ET Algo
-        if self.etEstimatorBool:
+        if self.estimator_config.et:
 
             # DO the exact same thing for ET data
             # Create a figure
@@ -2708,7 +2702,7 @@ class Environment:
 
                     # Now plot a dashed line for the targetPriority
                     ax1.hlines(
-                        y=self.commandersIntent[time][sat][targ.targetID],
+                        y=self.commandersIntent[time][sat.name][targ.targetID],
                         xmin=xMin,
                         xmax=xMax,
                         color=targ.color,
@@ -2717,9 +2711,9 @@ class Environment:
                     )
 
                     # Now plot a dashed line for the targetPriority
-                    # ax1.axhline(y=self.commandersIntent[time][sat][targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
+                    # ax1.axhline(y=self.commandersIntent[time][sat.name][targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
                     # Add a text label on the above right side of the dashed line
-                    # ax1.text(xMin, self.commandersIntent[time][sat][targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+                    # ax1.text(xMin, self.commandersIntent[time][sat.name][targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
 
             # # Now for each target make the dashed lines for the target quality
             # for targ in self.targs:
@@ -2959,7 +2953,9 @@ class Environment:
         fig.savefig(ios, format='raw')
         ios.seek(0)
         w, h = fig.canvas.get_width_height()
-        img = np.reshape(np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4))[:, :, 0:4]
+        img = np.reshape(
+            np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4)
+        )[:, :, 0:4]
         return img
 
     # TODO: helpful for visualizing/debugging

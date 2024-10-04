@@ -1,7 +1,8 @@
 import numpy as np
 
-from phase3 import util
 from phase3 import estimator
+from phase3 import util
+
 
 class GroundStation:
     """
@@ -10,7 +11,7 @@ class GroundStation:
 
     def __init__(
         self,
-        estimator: 'estimator.Estimator',
+        estimator: 'estimator.GsEstimator',
         lat: float,
         lon: float,
         fov: float,
@@ -18,7 +19,6 @@ class GroundStation:
         name: str,
         color: str,
     ):
-
         """Initialize a GroundStation object.
 
         Args:
@@ -37,12 +37,18 @@ class GroundStation:
         # Location of the ground station in ECEF
         lat = np.deg2rad(lat)
         lon = np.deg2rad(lon)
-        self.loc = np.array([6371 * np.cos(lat) * np.cos(lon), 6371 * np.cos(lat) * np.sin(lon), 6371 * np.sin(lat)])
+        self.loc = np.array(
+            [
+                6371 * np.cos(lat) * np.cos(lon),
+                6371 * np.cos(lat) * np.sin(lon),
+                6371 * np.sin(lat),
+            ]
+        )
 
         # Track communication sent/recieved
-            # Dictionary containing [type][time][target][sat] = measurement, for mailbox system
+        # Dictionary containing [type][time][target][sat] = measurement, for mailbox system
         self.queued_data = util.NestedDict()
-            # Make a dictionary containing [targetID][time][satName] = measurement, for post processing
+        # Make a dictionary containing [targetID][time][satName] = measurement, for post processing
         self.commData = util.NestedDict()
 
         # Communication range of a satellite to the ground station
@@ -54,9 +60,7 @@ class GroundStation:
         self.color = color
         self.time = 0
 
-    def queue_data(
-        self, data: dict[int, dict[str, dict[int, int]]]
-    ) -> None:
+    def queue_data(self, data: dict[int, dict[str, dict[int, int]]]) -> None:
         """
         Adds the data to the queued data struct to be used later in processing, the mailbox system.
 
@@ -69,11 +73,11 @@ class GroundStation:
             for time in data[type].keys():
                 for targ in data[type][time].keys():
                     for sat in data[type][time][targ].keys():
-                        self.queued_data[type][time][targ][sat] = data[type][time][targ][sat]
+                        self.queued_data[type][time][targ][sat] = data[type][time][
+                            targ
+                        ][sat]
 
-    def process_queued_data(
-        self, time: int
-    ) -> None:
+    def process_queued_data(self, time: int) -> None:
         """
         Processes the data queued to be sent to the ground station.
 
@@ -115,7 +119,9 @@ class GroundStation:
 
                     # Else, update the estimator
                     self.estimator.gs_EKF_pred(targ.targetID, time)
-                    self.estimator.gs_EKF_update(sats, measurements, targ.targetID, time)
+                    self.estimator.gs_EKF_update(
+                        sats, measurements, targ.targetID, time
+                    )
 
         if est_data:
             # DO COVARIANCE INTERSECTION HERE!!!
@@ -132,14 +138,15 @@ class GroundStation:
                         self.estimator.gs_CI(targ.targetID, est, cov, time)
 
                         # Store the queued data into the commData, for post processing
-                        self.commData[targ.targetID][time][sat.name] = {'est': est, 'cov': cov}
+                        self.commData[targ.targetID][time][sat.name] = {
+                            'est': est,
+                            'cov': cov,
+                        }
 
         # Clear the queued data
         self.queued_data = util.NestedDict()
 
-    def can_communicate(
-        self, x_sat: float, y_sat: float, z_sat: float
-    ) -> bool:
+    def can_communicate(self, x_sat: float, y_sat: float, z_sat: float) -> bool:
         """
         Returns True if the satellite can communicate with the ground station at the given time.
 
@@ -162,7 +169,10 @@ class GroundStation:
         gs_to_sat_vec = [x_sat - x_gs, y_sat - y_gs, z_sat - z_gs]
 
         # Get the angle between the two vectors
-        angle = np.arccos(np.dot(e_to_gs_vec, gs_to_sat_vec) / (np.linalg.norm(e_to_gs_vec) * np.linalg.norm(gs_to_sat_vec)))
+        angle = np.arccos(
+            np.dot(e_to_gs_vec, gs_to_sat_vec)
+            / (np.linalg.norm(e_to_gs_vec) * np.linalg.norm(gs_to_sat_vec))
+        )
 
         # Now check, can the satellite talk with the ground station
         if angle < np.deg2rad(self.fov):

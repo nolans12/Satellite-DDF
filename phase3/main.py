@@ -1,5 +1,3 @@
-# Import pre-defined libraries
-import copy
 import pathlib
 from typing import cast
 
@@ -24,7 +22,7 @@ from phase3 import util
 
 
 ### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
-def create_environment():
+def create_environment(cfg: sim_config.SimConfig) -> environment.Environment:
 
     # Define the targets for the satellites to track:
     # We will use the Reds color map for the targets
@@ -33,131 +31,46 @@ def create_environment():
         reds.reversed()
     )  # inverse the order so that 0 is most intense, 7 is least intense
 
-    targ1_color = '#e71714'
-    targ2_color = '#eea62a'
-    targ3_color = '#58b428'
-    targ4_color = '#2879b4'
-    targ5_color = '#b228b4'
+    targs = [
+        target.Target(
+            name=name,
+            tqReq=t.tq_req,
+            targetID=t.target_id,
+            coords=np.array(t.coords),
+            heading=t.heading,
+            speed=t.speed,
+            uncertainty=np.array(t.uncertainty),
+            color=t.color,
+        )
+        for name, t in cfg.targets.items()
+    ]
 
-    # Define the targets
-    targ1 = target.Target(
-        name='Targ1',
-        tqReq=1,
-        targetID=1,
-        coords=np.array([45, 0, 0]),
-        heading=0,
-        speed=80,
-        uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
-        color=targ1_color,
-    )
-    targ2 = target.Target(
-        name='Targ2',
-        tqReq=2,
-        targetID=2,
-        coords=np.array([45, 0, 0]),
-        heading=0,
-        speed=50,
-        uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
-        color=targ2_color,
-    )
-    targ3 = target.Target(
-        name='Targ3',
-        tqReq=3,
-        targetID=3,
-        coords=np.array([45, 0, 0]),
-        heading=0,
-        speed=40,
-        uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
-        color=targ3_color,
-    )
-    targ4 = target.Target(
-        name='Targ4',
-        tqReq=4,
-        targetID=4,
-        coords=np.array([45, 0, 0]),
-        heading=0,
-        speed=30,
-        uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
-        color=targ4_color,
-    )
-    targ5 = target.Target(
-        name='Targ5',
-        tqReq=5,
-        targetID=5,
-        coords=np.array([45, 0, 0]),
-        heading=0,
-        speed=20,
-        uncertainty=np.array([3, 7.5, 0, 90, 0.1]),
-        color=targ5_color,
-    )
-
-    targs = [targ1, targ2, targ3, targ4, targ5]
-
-    # Define the satellite structure:
-    sens_good = sensor.Sensor(
-        name='Sensor', fov=115, bearingsError=np.array([115 * 0.01, 115 * 0.01])
-    )  # 1% error on FOV bearings
-    sens_bad = sensor.Sensor(
-        name='Sensor', fov=115, bearingsError=np.array([115 * 0.1, 115 * 0.1])
-    )  # 10% error on FOV bearings
-
-    sat1a = satellite.Satellite(
-        name='Sat1a',
-        sensor=copy.deepcopy(sens_good),
-        a=bodies.Earth.R + 1000 * u.km,
-        ecc=0,
-        inc=60,
-        raan=-45,
-        argp=45,
-        nu=0,
-        color='#669900',
-    )
-    sat1b = satellite.Satellite(
-        name='Sat1b',
-        sensor=copy.deepcopy(sens_good),
-        a=bodies.Earth.R + 1000 * u.km,
-        ecc=0,
-        inc=60,
-        raan=-45,
-        argp=30,
-        nu=0,
-        color='#66a3ff',
-    )
-    sat2a = satellite.Satellite(
-        name='Sat2a',
-        sensor=copy.deepcopy(sens_bad),
-        a=bodies.Earth.R + 1000 * u.km,
-        ecc=0,
-        inc=120,
-        raan=45,
-        argp=45 + 7,
-        nu=0,
-        color='#9966ff',
-    )
-    sat2b = satellite.Satellite(
-        name='Sat2b',
-        sensor=copy.deepcopy(sens_bad),
-        a=bodies.Earth.R + 1000 * u.km,
-        ecc=0,
-        inc=120,
-        raan=45,
-        argp=30 + 7,
-        nu=0,
-        color='#ffff33',
-    )
-
-    sats = [sat1a, sat1b, sat2a, sat2b]
+    sats = {
+        name: satellite.Satellite(
+            name=name,
+            sensor=sensor.Sensor(
+                name=s.sensor,
+                fov=cfg.sensors[s.sensor].fov,
+                bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
+            ),
+            a=bodies.Earth.R + s.altitude * u.km,
+            ecc=s.ecc,
+            inc=s.inc,
+            raan=s.raan,
+            argp=s.argp,
+            nu=s.nu,
+            color=s.color,
+        )
+        for name, s in cfg.satellites.items()
+    }
 
     # Define the goal of the system:
-    commandersIntent: util.CommandersIndent = {}
-
-    # For minute 0+: We want the following tracks:
-    commandersIntent[0] = {
-        sat1a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
-        sat1b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
-        sat2a: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
-        sat2b: {1: 100, 2: 150, 3: 200, 4: 250, 5: 300},
+    commandersIntent: util.CommandersIndent = {
+        time: {sat: intent for sat, intent in sat_intents.items()}
+        for time, sat_intents in cfg.commanders_intent.items()
     }
+
+    first_intent = next(iter(next(iter(commandersIntent.values())).values()))
 
     # commandersIntent[4] = {
     #     sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
@@ -167,45 +80,37 @@ def create_environment():
     # }
 
     # Define the ground stations:
-    gs1 = groundStation.GroundStation(
-        estimator=estimator.GsEstimator(commandersIntent[0][sat1a]),
-        lat=60,
-        lon=10,
-        fov=80,
-        commRange=10000,
-        name='GS1',
-        color='black',
-    )
-
-    groundStations = [gs1]
+    groundStations = [
+        groundStation.GroundStation(
+            estimator=estimator.GsEstimator(first_intent),
+            lat=gs.lat,
+            lon=gs.lon,
+            fov=gs.fov,
+            commRange=gs.comms_range,
+            name=name,
+            color=gs.color,
+        )
+        for name, gs in cfg.ground_stations.items()
+    ]
 
     # Define the communication network:
     comms_network = comms.Comms(
-        sats,
-        maxBandwidth=60,
-        maxNeighbors=3,
-        maxRange=10000 * u.km,
-        minRange=500 * u.km,
-        displayStruct=True,
+        list(sats.values()),
+        maxBandwidth=cfg.comms.max_bandwidth,
+        maxNeighbors=cfg.comms.max_neighbors,
+        maxRange=cfg.comms.max_range * u.km,
+        minRange=cfg.comms.min_range * u.km,
+        displayStruct=cfg.comms.display_struct,
     )
-
-    # Define the estimators used:
-    central = False
-    local = True
-    ci = False
-    et = True
 
     # Create and return an environment instance:
     return environment.Environment(
-        sats,
+        list(sats.values()),
         targs,
         comms_network,
         groundStations,
         commandersIntent,
-        localEstimatorBool=local,
-        centralEstimatorBool=central,
-        ciEstimatorBool=ci,
-        etEstimatorBool=et,
+        cfg.estimators,
     )
 
 
@@ -293,10 +198,10 @@ def main(
     )
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m * 1 + 1) * u.minute
+    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m + 1) * u.minute
 
     # Create the environment
-    env = create_environment()
+    env = create_environment(cfg)
 
     # Simulate the satellites through the vector of time:
     env.simulate(
