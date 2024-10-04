@@ -18,7 +18,7 @@ from phase3 import target
 class Satellite:
     def __init__(
         self,
-        a: float,
+        a: u.Quantity[u.km],
         ecc: float,
         inc: float,
         raan: float,
@@ -59,25 +59,12 @@ class Satellite:
         self.measurementHist: dict[int, defaultdict] = {}
 
         # Create the orbit
-        # Check if already in units, if not convert
-        if type(a) == int:
-            a = a * u.km
         self.a = a
-        if type(ecc) == int:
-            ecc = ecc * u.dimensionless_unscaled
-        self.ecc = ecc
-        if type(inc) == int:
-            inc = inc * u.deg
-        self.inc = inc
-        if type(raan) == int:
-            raan = raan * u.deg
-        self.raan = raan
-        if type(argp) == int:
-            argp = argp * u.deg
-        self.argp = argp
-        if type(nu) == int:
-            nu = nu * u.deg
-        self.nu = nu
+        self.ecc = ecc * u.dimensionless_unscaled
+        self.inc = inc * u.deg
+        self.raan = raan * u.deg
+        self.argp = argp * u.deg
+        self.nu = nu * u.deg
 
         # Create the poliastro orbit
         self.orbit = twobody.Orbit.from_classical(

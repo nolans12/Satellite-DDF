@@ -3,6 +3,8 @@ import enum
 
 import marshmallow_dataclass
 
+from phase3 import util
+
 
 class GifType(enum.Enum):
     SATELLITE_SIMULATION = 'satellite_simulation'
@@ -30,12 +32,88 @@ class PlotConfig:
 
 
 @dataclasses.dataclass
+class CommsConfig:
+    max_bandwidth: int
+    max_neighbors: int
+    max_range: int
+    min_range: int
+    display_struct: bool
+
+
+@dataclasses.dataclass
+class EstimatorConfig:
+    central: bool
+    local: bool
+    ci: bool
+    et: bool
+
+
+@dataclasses.dataclass
+class Target:
+    tq_req: int
+    target_id: int
+    coords: tuple[float, float, float]
+    heading: int
+    speed: int
+    uncertainty: tuple[float, float, float, float, float]
+    color: str
+
+
+@dataclasses.dataclass
+class Sensor:
+    fov: int
+    bearings_error: tuple[float, float]
+
+
+@dataclasses.dataclass
+class Satellite:
+    sensor: str
+    altitude: float
+    ecc: float
+    inc: float
+    raan: float
+    argp: float
+    nu: float
+    color: str
+
+
+@dataclasses.dataclass
+class GroundStation:
+    lat: float
+    lon: float
+    fov: int
+    comms_range: int
+    color: str
+
+
+@dataclasses.dataclass
 class SimConfig:
     # Simulation duration in minutes
     sim_duration_m: int
 
     # Plot configuration
     plot: PlotConfig
+
+    # Comms network
+    comms: CommsConfig
+
+    # Estimators
+    estimators: EstimatorConfig
+
+    # Targets
+    targets: dict[str, Target]
+
+    # Sensors
+    sensors: dict[str, Sensor]
+
+    # Satellites
+    satellites: dict[str, Satellite]
+
+    # Commanders' Intents
+    commanders_intent: util.CommandersIndent
+
+    # Ground Stations
+    ground_stations: dict[str, GroundStation]
 
     def merge_overrides(
         self,
@@ -63,6 +141,13 @@ class SimConfig:
                 or self.plot.plot_groundStation_results,
                 gifs=gifs or self.plot.gifs,
             ),
+            comms=self.comms,
+            estimators=self.estimators,
+            targets=self.targets,
+            sensors=self.sensors,
+            satellites=self.satellites,
+            commanders_intent=self.commanders_intent,
+            ground_stations=self.ground_stations,
         )
 
 

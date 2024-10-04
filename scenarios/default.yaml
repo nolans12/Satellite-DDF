@@ -14,3 +14,141 @@ plot:
   gifs:
     - "SATELLITE_SIMULATION"
     - "DYNAMIC_COMMS"
+
+comms:
+  max_bandwidth: 60
+  max_neighbors: 3
+  max_range: 10000
+  min_range: 500
+  display_struct: true
+
+estimators:
+  central: false
+  local: true
+  ci: false
+  et: true
+
+targets:
+  Targ1:
+    tq_req: 1
+    target_id: 1
+    coords: [45, 0, 0]
+    heading: 0
+    speed: 80
+    uncertainty: [3, 7.5, 0, 90, 0.1]
+    color: "#e71714"
+  Targ2:
+    tq_req: 2
+    target_id: 2
+    coords: [45, 0, 0]
+    heading: 0
+    speed: 50
+    uncertainty: [3, 7.5, 0, 90, 0.1]
+    color: "#eea62a"
+  Targ3:
+    tq_req: 3
+    target_id: 3
+    coords: [45, 0, 0]
+    heading: 0
+    speed: 40
+    uncertainty: [3, 7.5, 0, 90, 0.1]
+    color: "#58b428"
+  Targ4:
+    tq_req: 4
+    target_id: 4
+    coords: [45, 0, 0]
+    heading: 0
+    speed: 30
+    uncertainty: [3, 7.5, 0, 90, 0.1]
+    color: "#2879b4"
+  Targ5:
+    tq_req: 5
+    target_id: 5
+    coords: [45, 0, 0]
+    heading: 0
+    speed: 20
+    uncertainty: [3, 7.5, 0, 90, 0.1]
+    color: "#b228b4"
+
+sensors:
+  SensorGood:
+    fov: 115
+    # 1%
+    bearings_error: [1.15, 1.15]
+  SensorBad:
+    fov: 115
+    # 10%
+    bearings_error: [11.5, 11.5]
+
+satellites:
+  Sat1a:
+    sensor: SensorGood
+    altitude: 1000
+    ecc: 0
+    inc: 60
+    raan: -45
+    argp: 45
+    nu: 0
+    color: "#669900"
+  Sat1b:
+    sensor: SensorGood
+    altitude: 1000
+    ecc: 0
+    inc: 60
+    raan: -45
+    argp: 30
+    nu: 0
+    color: "#66a3ff"
+  Sat2a:
+    sensor: SensorBad
+    altitude: 1000
+    ecc: 0
+    inc: 120
+    raan: 45
+    argp: 52
+    nu: 0
+    color: "#9966ff"
+  Sat2b:
+    sensor: SensorBad
+    altitude: 1000
+    ecc: 0
+    inc: 120
+    raan: 45
+    argp: 37
+    nu: 0
+    color: "#ffff33"
+
+commanders_intent:
+  0:
+    Sat1a:
+      1: 175
+      2: 225
+      3: 350
+      4: 110
+      5: 125
+    Sat1b:
+      1: 175
+      2: 225
+      3: 350
+      4: 110
+      5: 125
+    Sat2a:
+      1: 175
+      2: 225
+      3: 350
+      4: 110
+      5: 125
+    Sat2b:
+      1: 175
+      2: 225
+      3: 350
+      4: 110
+      5: 125
+
+ground_stations:
+  GS1:
+    lat: 60
+    lon: 10
+    fov: 80
+    comms_range: 10000
+    color: "black"
