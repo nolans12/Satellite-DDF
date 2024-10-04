@@ -197,8 +197,13 @@ def main(
         gifs=gifs,
     )
 
+    time_steps = cfg.sim_duration_m / cfg.sim_time_step_m
+
+    # round to the nearest int
+    time_steps = round(time_steps)
+
     # Vector of time for simulation:
-    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m + 1) * u.minute
+    time_vec = (np.linspace(0, cfg.sim_duration_m, time_steps + 1)) * u.minute
 
     # Create the environment
     env = create_environment(cfg)

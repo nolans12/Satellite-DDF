@@ -1,4 +1,5 @@
 sim_duration_m: 10
+sim_time_step_m: .166666
 
 plot:
   output_prefix: "test"
@@ -8,7 +9,7 @@ plot:
   plot_groundStation_results: true
   plot_estimation: true
   plot_communication: true
-  plot_et_network: true
+  plot_et_network: false
   plot_uncertainty_ellipses: false
 
   gifs:
@@ -25,8 +26,8 @@ comms:
 estimators:
   central: false
   local: true
-  ci: false
-  et: true
+  ci: true
+  et: false
 
 targets:
   Targ1:

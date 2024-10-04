@@ -189,8 +189,8 @@ class Environment:
             # self.send_to_ground_centralized()
             # self.send_to_ground_avaliable_sats()
             # self.send_to_ground_best_sat_local()
-            # self.send_to_ground_best_sat_ci()
-            self.send_to_ground_best_sat_et()
+            self.send_to_ground_best_sat_ci()
+            # self.send_to_ground_best_sat_et()
 
             if plot_config.show_env:
                 # Update the plot environment

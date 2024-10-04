@@ -91,6 +91,8 @@ class SimConfig:
     # Simulation duration in minutes
     sim_duration_m: int
 
+    sim_time_step_m: float
+
     # Plot configuration
     plot: PlotConfig
 
@@ -129,6 +131,7 @@ class SimConfig:
     ) -> 'SimConfig':
         return SimConfig(
             sim_duration_m=sim_duration_m or self.sim_duration_m,
+            sim_time_step_m=self.sim_time_step_m,
             plot=PlotConfig(
                 output_prefix=output_prefix or self.plot.output_prefix,
                 show_env=show_env or self.plot.show_env,
