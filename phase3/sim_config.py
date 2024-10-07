@@ -1,8 +1,12 @@
 import dataclasses
 import enum
+import pathlib
+from typing import cast
 
 import marshmallow_dataclass
+import yaml
 
+from common import path_utils
 from phase3 import util
 
 
@@ -155,3 +159,20 @@ class SimConfig:
 
 
 SimConfigSchema = marshmallow_dataclass.class_schema(SimConfig)
+
+
+def load_sim_config(file: pathlib.Path) -> SimConfig:
+    schema = SimConfigSchema()
+    return cast(SimConfig, schema.load(yaml.safe_load(file.read_text())))
+
+
+def load_default_sim_config() -> SimConfig:
+    return load_sim_config(path_utils.SCENARIOS / 'default.yaml')
+
+
+def save_sim_config(config: SimConfig, file: pathlib.Path) -> None:
+    schema = SimConfigSchema()
+    contents = yaml.dump(schema.dump(config))
+    # Purge the !!python/tuple tag
+    contents = contents.replace(' !!python/tuple', '')
+    file.write_text(contents)

@@ -114,11 +114,6 @@ def create_environment(cfg: sim_config.SimConfig) -> environment.Environment:
     )
 
 
-def _load_sim_config(file: pathlib.Path) -> sim_config.SimConfig:
-    schema = sim_config.SimConfigSchema()
-    return cast(sim_config.SimConfig, schema.load(yaml.safe_load(file.read_text())))
-
-
 @click.command()
 @click.option(
     '--config',
@@ -184,7 +179,7 @@ def main(
     plot_groundstation_results: bool,
     gifs: list[sim_config.GifType],
 ) -> None:
-    cfg = _load_sim_config(config)
+    cfg = sim_config.load_sim_config(config)
     cfg.merge_overrides(
         sim_duration_m=time,
         output_prefix=output_prefix,
