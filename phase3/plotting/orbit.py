@@ -29,17 +29,17 @@ def plot_orbits(
     ax.plot_surface(x, y, z, color='blue', alpha=0.4, zorder=1)
 
     # Initialize points for each orbit
-    points = []
-    for _ in orbits:
-        (point,) = ax.plot([], [], [], 'go', markersize=5, zorder=3)
-        points.append(point)
+    (points,) = ax.plot([], [], [], 'go', markersize=5, zorder=3)
 
     frames = 360
 
     # Function to update the positions of the satellites
-    def update(num, orbits, points):
+    def update(num, orbits_, points_):
         count = 0
-        for point, orb in zip(points, orbits):
+        x_s = []
+        y_s = []
+        z_s = []
+        for orb in orbits_:
             a, e, inc, raan, argp, nu = (
                 bodies.Earth.R.to(u.km) + orb.altitude,
                 orb.ecc,
@@ -47,16 +47,19 @@ def plot_orbits(
                 orb.raan,
                 orb.argp,
                 # Simple true anomaly update for circular orbits
-                orb.nu + (360 / frames) * u.deg,
+                orb.nu + (num * (360 / frames)) * u.deg,
             )
             orbit = twobody.Orbit.from_classical(
                 bodies.Earth, a, e, inc, raan, argp, nu
             )
             x, y, z = orbit.r.value
-            point.set_data((x, y))
-            point.set_3d_properties(z)
+            x_s.append(x)
+            y_s.append(y)
+            z_s.append(z)
             count += 1
-        return points
+        points_.set_data(x_s, y_s)
+        points_.set_3d_properties(z_s)
+        return points_
 
     # Plot the orbit lines
     for orb in orbits:
@@ -95,7 +98,7 @@ def plot_orbits(
 
 
 if __name__ == '__main__':
-    from common.constellation import walker_delta
+    from phase3.constellation import walker_delta
 
     # Change the backend
     plt.switch_backend('qtagg')
@@ -116,6 +119,7 @@ if __name__ == '__main__':
 
     # Save a gif of the animation
     # from common import path_utils
+
     # ani.save(
     #     str(path_utils.REPO_ROOT / 'satellite_orbits.gif'),
     #     writer='imagemagick',
