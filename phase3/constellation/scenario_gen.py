@@ -94,6 +94,7 @@ def _prompt_for_output() -> pathlib.Path:
 
 @click.command()
 def main() -> None:
+    """Interactive CLI to generate a scenario."""
     constellation = _prompt_for_constellation()
 
     if constellation == Constellelation.WALKER_DELTA:

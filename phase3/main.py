@@ -179,6 +179,7 @@ def main(
     plot_groundstation_results: bool,
     gifs: list[sim_config.GifType],
 ) -> None:
+    """Run the DDF simulation."""
     cfg = sim_config.load_sim_config(config)
     cfg.merge_overrides(
         sim_duration_m=time,
