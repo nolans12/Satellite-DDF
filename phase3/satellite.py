@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from phase3 import estimator
     from phase3 import sensor
 
+from phase3 import orbit
 from phase3 import target
 
 ## Creates the satellite class, will contain the poliastro orbit and all other parameters needed to define the orbit
@@ -18,12 +19,7 @@ from phase3 import target
 class Satellite:
     def __init__(
         self,
-        a: u.Quantity[u.km],
-        ecc: float,
-        inc: float,
-        raan: float,
-        argp: float,
-        nu: float,
+        orbit: orbit.Orbit,
         sensor: 'sensor.Sensor',
         name: str,
         color: str,
@@ -48,6 +44,7 @@ class Satellite:
         # Other parameters
         self.name = name
         self.color = color
+        self._orbit_params = orbit
 
         # Set the estimators to None on initalization
         self.indeptEstimator: 'estimator.IndeptEstimator | None' = None
@@ -58,18 +55,8 @@ class Satellite:
         self.targetIDs: list[int] = []
         self.measurementHist: dict[int, defaultdict] = {}
 
-        # Create the orbit
-        self.a = a
-        self.ecc = ecc * u.dimensionless_unscaled
-        self.inc = inc * u.deg
-        self.raan = raan * u.deg
-        self.argp = argp * u.deg
-        self.nu = nu * u.deg
-
         # Create the poliastro orbit
-        self.orbit = twobody.Orbit.from_classical(
-            bodies.Earth, self.a, self.ecc, self.inc, self.raan, self.argp, self.nu
-        )
+        self.orbit = self._orbit_params.to_poliastro()
         self.orbitHist = defaultdict(dict)  # contains time and xyz of orbit history
         self.velHist = defaultdict(dict)  # contains time and xyz of velocity history
         self.time = 0

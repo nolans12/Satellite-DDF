@@ -115,12 +115,14 @@ def main() -> None:
     satellites = {
         f'Sat{i}': sim_config.Satellite(
             sensor=sensor,
-            altitude=orbit.altitude.value,
-            ecc=orbit.ecc.value,
-            inc=orbit.inc.value,
-            raan=orbit.raan.value,
-            argp=orbit.argp.value,
-            nu=orbit.nu.value,
+            orbit=sim_config.Orbit(
+                altitude=orbit.altitude.value,
+                ecc=orbit.ecc.value,
+                inc=orbit.inc.value,
+                raan=orbit.raan.value,
+                argp=orbit.argp.value,
+                nu=orbit.nu.value,
+            ),
             color='green',
         )
         for i, orbit in enumerate(orbits)

@@ -70,14 +70,19 @@ class Sensor:
 
 
 @dataclasses.dataclass
-class Satellite:
-    sensor: str
+class Orbit:
     altitude: float
     ecc: float
     inc: float
     raan: float
     argp: float
     nu: float
+
+
+@dataclasses.dataclass
+class Satellite:
+    sensor: str
+    orbit: Orbit
     color: str
 
 

@@ -84,39 +84,43 @@ sensors:
 satellites:
   Sat1a:
     sensor: SensorGood
-    altitude: 1000
-    ecc: 0
-    inc: 60
-    raan: -45
-    argp: 45
-    nu: 0
+    orbit:
+      altitude: 1000
+      ecc: 0
+      inc: 60
+      raan: -45
+      argp: 45
+      nu: 0
     color: "#669900"
   Sat1b:
     sensor: SensorGood
-    altitude: 1000
-    ecc: 0
-    inc: 60
-    raan: -45
-    argp: 30
-    nu: 0
+    orbit:
+      altitude: 1000
+      ecc: 0
+      inc: 60
+      raan: -45
+      argp: 30
+      nu: 0
     color: "#66a3ff"
   Sat2a:
     sensor: SensorBad
-    altitude: 1000
-    ecc: 0
-    inc: 120
-    raan: 45
-    argp: 52
-    nu: 0
+    orbit:
+      altitude: 1000
+      ecc: 0
+      inc: 120
+      raan: 45
+      argp: 52
+      nu: 0
     color: "#9966ff"
   Sat2b:
     sensor: SensorBad
-    altitude: 1000
-    ecc: 0
-    inc: 120
-    raan: 45
-    argp: 37
-    nu: 0
+    orbit:
+      altitude: 1000
+      ecc: 0
+      inc: 120
+      raan: 45
+      argp: 37
+      nu: 0
     color: "#ffff33"
 
 commanders_intent:

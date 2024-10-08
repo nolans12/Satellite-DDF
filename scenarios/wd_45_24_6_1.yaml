@@ -175,220 +175,244 @@ plot:
   show_env: true
 satellites:
   Sat0:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 0.0
-    raan: 0.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 0.0
+      raan: 0.0
     sensor: SensorGood
   Sat1:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 90.0
-    raan: 0.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 90.0
+      raan: 0.0
     sensor: SensorGood
   Sat10:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 182.0
-    raan: 120.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 182.0
+      raan: 120.0
     sensor: SensorGood
   Sat11:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 272.0
-    raan: 120.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 272.0
+      raan: 120.0
     sensor: SensorGood
   Sat12:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 3.0
-    raan: 180.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 3.0
+      raan: 180.0
     sensor: SensorGood
   Sat13:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 93.0
-    raan: 180.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 93.0
+      raan: 180.0
     sensor: SensorGood
   Sat14:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 183.0
-    raan: 180.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 183.0
+      raan: 180.0
     sensor: SensorGood
   Sat15:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 273.0
-    raan: 180.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 273.0
+      raan: 180.0
     sensor: SensorGood
   Sat16:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 4.0
-    raan: 240.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 4.0
+      raan: 240.0
     sensor: SensorGood
   Sat17:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 94.0
-    raan: 240.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 94.0
+      raan: 240.0
     sensor: SensorGood
   Sat18:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 184.0
-    raan: 240.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 184.0
+      raan: 240.0
     sensor: SensorGood
   Sat19:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 274.0
-    raan: 240.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 274.0
+      raan: 240.0
     sensor: SensorGood
   Sat2:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 180.0
-    raan: 0.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 180.0
+      raan: 0.0
     sensor: SensorGood
   Sat20:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 5.0
-    raan: 300.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 5.0
+      raan: 300.0
     sensor: SensorGood
   Sat21:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 95.0
-    raan: 300.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 95.0
+      raan: 300.0
     sensor: SensorGood
   Sat22:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 185.0
-    raan: 300.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 185.0
+      raan: 300.0
     sensor: SensorGood
   Sat23:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 275.0
-    raan: 300.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 275.0
+      raan: 300.0
     sensor: SensorGood
   Sat3:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 270.0
-    raan: 0.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 270.0
+      raan: 0.0
     sensor: SensorGood
   Sat4:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 1.0
-    raan: 60.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 1.0
+      raan: 60.0
     sensor: SensorGood
   Sat5:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 91.0
-    raan: 60.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 91.0
+      raan: 60.0
     sensor: SensorGood
   Sat6:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 181.0
-    raan: 60.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 181.0
+      raan: 60.0
     sensor: SensorGood
   Sat7:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 271.0
-    raan: 60.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 271.0
+      raan: 60.0
     sensor: SensorGood
   Sat8:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 2.0
-    raan: 120.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 2.0
+      raan: 120.0
     sensor: SensorGood
   Sat9:
-    altitude: 550.0
-    argp: 0.0
     color: green
-    ecc: 0.0
-    inc: 45.0
-    nu: 92.0
-    raan: 120.0
+    orbit:
+      altitude: 550.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 92.0
+      raan: 120.0
     sensor: SensorGood
 sensors:
   SensorBad:
