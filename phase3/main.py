@@ -1,12 +1,9 @@
 import pathlib
-from typing import cast
 
 import numpy as np
 import rich_click as click
-import yaml
 from astropy import units as u
 from matplotlib import cm
-from poliastro import bodies
 
 from common import click_utils
 from common import path_utils
@@ -14,6 +11,7 @@ from phase3 import comms
 from phase3 import environment
 from phase3 import estimator
 from phase3 import groundStation
+from phase3 import orbit
 from phase3 import satellite
 from phase3 import sensor
 from phase3 import sim_config
@@ -53,12 +51,7 @@ def create_environment(cfg: sim_config.SimConfig) -> environment.Environment:
                 fov=cfg.sensors[s.sensor].fov,
                 bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
             ),
-            a=bodies.Earth.R + s.altitude * u.km,
-            ecc=s.ecc,
-            inc=s.inc,
-            raan=s.raan,
-            argp=s.argp,
-            nu=s.nu,
+            orbit=orbit.Orbit.from_sim_config(s.orbit),
             color=s.color,
         )
         for name, s in cfg.satellites.items()

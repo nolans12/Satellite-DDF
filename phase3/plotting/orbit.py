@@ -1,10 +1,14 @@
+import dataclasses
+from typing import cast
+
 import numpy as np
 from astropy import units as u
 from matplotlib import animation
 from matplotlib import figure
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import art3d
+from mpl_toolkits.mplot3d import axes3d
 from poliastro import bodies
-from poliastro import twobody
 
 from phase3 import orbit
 
@@ -19,67 +23,51 @@ def plot_orbits(
     """
     # Create the figure and 3D axis
     fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection="3d")
+    ax: axes3d.Axes3D = cast(
+        axes3d.Axes3D, fig.add_subplot(111, projection="3d", computed_zorder=False)
+    )
 
     # Plot the Earth
     u_, v = np.mgrid[0 : 2 * np.pi : 40j, 0 : np.pi : 20j]
     x = bodies.Earth.R.to(u.km).value * np.cos(u_) * np.sin(v)
     y = bodies.Earth.R.to(u.km).value * np.sin(u_) * np.sin(v)
     z = bodies.Earth.R.to(u.km).value * np.cos(v)
-    ax.plot_surface(x, y, z, color='blue', alpha=0.4, zorder=1)
-
-    # Initialize points for each orbit
-    (points,) = ax.plot([], [], [], 'go', markersize=5, zorder=3)
-
-    frames = 360
-
-    # Function to update the positions of the satellites
-    def update(num, orbits_, points_):
-        count = 0
-        x_s = []
-        y_s = []
-        z_s = []
-        for orb in orbits_:
-            a, e, inc, raan, argp, nu = (
-                bodies.Earth.R.to(u.km) + orb.altitude,
-                orb.ecc,
-                orb.inc,
-                orb.raan,
-                orb.argp,
-                # Simple true anomaly update for circular orbits
-                orb.nu + (num * (360 / frames)) * u.deg,
-            )
-            orbit = twobody.Orbit.from_classical(
-                bodies.Earth, a, e, inc, raan, argp, nu
-            )
-            x, y, z = orbit.r.value
-            x_s.append(x)
-            y_s.append(y)
-            z_s.append(z)
-            count += 1
-        points_.set_data(x_s, y_s)
-        points_.set_3d_properties(z_s)
-        return points_
+    ax.plot_surface(x, y, z, color='blue', alpha=0.6)
 
     # Plot the orbit lines
     for orb in orbits:
-        a, e, inc, raan, argp, nu = (
-            bodies.Earth.R.to(u.km) + orb.altitude,
-            orb.ecc,
-            orb.inc,
-            orb.raan,
-            orb.argp,
-            orb.nu,
-        )
-        orbit = twobody.Orbit.from_classical(bodies.Earth, a, e, inc, raan, argp, nu)
-        r = orbit.sample()
+        r = orb.to_poliastro().sample()
         ax.plot(
             r.x.to(u.km).value,
             r.y.to(u.km).value,
             r.z.to(u.km).value,
             color='red',
-            zorder=2,
         )
+
+    # Initialize points for each orbit
+    (points,) = ax.plot([], [], [], 'go', markersize=5)
+
+    frames = 360
+
+    # Function to update the positions of the satellites
+    def update(
+        num: int, orbits_: list[orbit.Orbit], points_: art3d.Line3D
+    ) -> tuple[art3d.Line3D]:
+        count = 0
+        x_s = []
+        y_s = []
+        z_s = []
+        for orb in orbits_:
+            updated_orbit = dataclasses.replace(
+                orb, nu=orb.nu + (num * (360 / frames)) * u.deg
+            ).to_poliastro()
+            x, y, z = updated_orbit.r.value
+            x_s.append(x)
+            y_s.append(y)
+            z_s.append(z)
+            count += 1
+        points_.set_data_3d(x_s, y_s, z_s)
+        return (points_,)
 
     # Create the animation
     ani = animation.FuncAnimation(
