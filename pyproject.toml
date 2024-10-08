@@ -24,3 +24,4 @@ single_line_exclusions = ["typing"]
 
 [project.scripts]
 satellite_ddf = "phase3.main:main"
+scenario_gen = "phase3.constellation.scenario_gen:main"
