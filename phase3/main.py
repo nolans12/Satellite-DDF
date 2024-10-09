@@ -3,108 +3,11 @@ import pathlib
 import numpy as np
 import rich_click as click
 from astropy import units as u
-from matplotlib import cm
 
 from common import click_utils
 from common import path_utils
-from phase3 import comms
 from phase3 import environment
-from phase3 import estimator
-from phase3 import groundStation
-from phase3 import orbit
-from phase3 import satellite
-from phase3 import sensor
 from phase3 import sim_config
-from phase3 import target
-from phase3 import util
-
-
-### This environment is used for the base case, with 12 satellites, all with different track qualitys being tracked by 4 satellites from 2 different constellations
-def create_environment(cfg: sim_config.SimConfig) -> environment.Environment:
-
-    # Define the targets for the satellites to track:
-    # We will use the Reds color map for the targets
-    reds = cm.get_cmap('Reds', 7)
-    reds = (
-        reds.reversed()
-    )  # inverse the order so that 0 is most intense, 7 is least intense
-
-    targs = [
-        target.Target(
-            name=name,
-            tqReq=t.tq_req,
-            targetID=t.target_id,
-            coords=np.array(t.coords),
-            heading=t.heading,
-            speed=t.speed,
-            uncertainty=np.array(t.uncertainty),
-            color=t.color,
-        )
-        for name, t in cfg.targets.items()
-    ]
-
-    sats = {
-        name: satellite.Satellite(
-            name=name,
-            sensor=sensor.Sensor(
-                name=s.sensor,
-                fov=cfg.sensors[s.sensor].fov,
-                bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
-            ),
-            orbit=orbit.Orbit.from_sim_config(s.orbit),
-            color=s.color,
-        )
-        for name, s in cfg.satellites.items()
-    }
-
-    # Define the goal of the system:
-    commandersIntent: util.CommandersIndent = {
-        time: {sat: intent for sat, intent in sat_intents.items()}
-        for time, sat_intents in cfg.commanders_intent.items()
-    }
-
-    first_intent = next(iter(next(iter(commandersIntent.values())).values()))
-
-    # commandersIntent[4] = {
-    #     sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-    #     sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-    #     sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-    #     sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
-    # }
-
-    # Define the ground stations:
-    groundStations = [
-        groundStation.GroundStation(
-            estimator=estimator.GsEstimator(first_intent),
-            lat=gs.lat,
-            lon=gs.lon,
-            fov=gs.fov,
-            commRange=gs.comms_range,
-            name=name,
-            color=gs.color,
-        )
-        for name, gs in cfg.ground_stations.items()
-    ]
-
-    # Define the communication network:
-    comms_network = comms.Comms(
-        list(sats.values()),
-        maxBandwidth=cfg.comms.max_bandwidth,
-        maxNeighbors=cfg.comms.max_neighbors,
-        maxRange=cfg.comms.max_range * u.km,
-        minRange=cfg.comms.min_range * u.km,
-        displayStruct=cfg.comms.display_struct,
-    )
-
-    # Create and return an environment instance:
-    return environment.Environment(
-        list(sats.values()),
-        targs,
-        comms_network,
-        groundStations,
-        commandersIntent,
-        cfg.estimators,
-    )
 
 
 @click.command()
@@ -192,10 +95,10 @@ def main(
     time_steps = round(time_steps)
 
     # Vector of time for simulation:
-    time_vec = (np.linspace(0, cfg.sim_duration_m, time_steps + 1)) * u.minute
+    time_vec = u.Quantity(np.linspace(0, cfg.sim_duration_m, time_steps + 1), u.minute)
 
     # Create the environment
-    env = create_environment(cfg)
+    env = environment.Environment.from_config(cfg)
 
     # Simulate the satellites through the vector of time:
     env.simulate(
