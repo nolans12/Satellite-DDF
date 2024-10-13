@@ -1,12 +1,19 @@
 """Interfaces & utilities for collected data from the simulation."""
 
 import dataclasses
+import enum
 from collections import defaultdict
 from typing import Sequence
 
+import numpy as np
 from numpy import typing as npt
 
 TargetAggregator = dict[int, dict[str, int]]
+
+
+class GsDataType(enum.Enum):
+    CI = enum.auto()
+    MEAS = enum.auto()
 
 
 @dataclasses.dataclass
@@ -19,8 +26,34 @@ class Transmission:
 
 
 @dataclasses.dataclass
-class ArrayTransmission(Transmission):
-    data: npt.NDArray | None
+class MeasurementTransmission(Transmission):
+    alpha: float
+    beta: float
+
+    @property
+    def has_alpha_beta(self) -> bool:
+        return not np.isnan(self.alpha) and not np.isnan(self.beta)
+
+
+@dataclasses.dataclass
+class GsTransmission:
+    target_id: int
+    # Sending satellite
+    sender: str
+    # Receiving ground station
+    receiver: str
+    time: float
+
+
+@dataclasses.dataclass
+class GsEstimateTransmission(GsTransmission):
+    estimate: npt.NDArray
+    covariance: npt.NDArray
+
+
+@dataclasses.dataclass
+class GsMeasurementTransmission(GsTransmission):
+    measurement: npt.NDArray | None
 
 
 def aggregate_transmissions(

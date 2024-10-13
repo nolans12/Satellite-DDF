@@ -1,16 +1,19 @@
 import pathlib
-from typing import Sequence
 
 import numpy as np
 from matplotlib import figure
 from matplotlib import pyplot as plt
 
+from common import dataclassframe
 from phase3 import collection
 from phase3 import target
 
 
 def create_comms_plot(
-    transmissions: Sequence[collection.Transmission],
+    transmissions: (
+        dataclassframe.DataClassFrame[collection.Transmission]
+        | dataclassframe.DataClassFrame[collection.MeasurementTransmission]
+    ),
     targets: list[target.Target],
     sat_names: list[str],
     super_title: str,
@@ -25,7 +28,7 @@ def create_comms_plot(
     ax = fig.add_subplot(111)
 
     prev_data, target_sent_data, target_rec_data = collection.aggregate_transmissions(
-        transmissions,
+        transmissions.to_dataclasses(),
         sat_names,
     )
 

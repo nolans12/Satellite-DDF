@@ -912,13 +912,14 @@ class EtEstimator(BaseEstimator):
                 )
 
                 comms.used_comm_et_data.append(
-                    collection.ArrayTransmission(
+                    collection.MeasurementTransmission(
                         target_id=targetID,
                         sender=sender.name,
                         receiver=sat.name,
                         time=time_sent,
                         size=measVec_size,
-                        data=np.array([alpha, beta]),
+                        alpha=alpha,
+                        beta=beta,
                     )
                 )
 
@@ -1202,14 +1203,22 @@ class EtEstimator(BaseEstimator):
             commonEKF.covarianceHist[targetID][envTime] = cov
             commonEKF.trackErrorHist[targetID][envTime] = self.calcTrackError(est, cov)
 
-    def event_trigger(self, sat, neighbor, targetID, time):
+    def event_trigger(
+        self,
+        sat: 'satellite.Satellite',
+        neighbor: 'satellite.Satellite',
+        targetID: int,
+        time: float,
+    ) -> tuple[float, float]:
         """
         Event Trigger function to determine if an explict or implicit
         measurement update is needed.
 
         Args:
-        - sat (object): Satellite object that is receiving information.
-        - target (object): Target object.
+        - sat: Satellite object that is receiving information.
+        - neighbor: Neighbor satellite object.
+        - targetID: Target ID.
+        - time: Current environment time.
 
         Returns:
         - send_alpha (float): Alpha value to send to neighbor - NaN if not needed.
