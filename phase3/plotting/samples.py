@@ -37,7 +37,7 @@ def _sample_comm(save_animation: bool) -> None:
     env = environment.Environment.from_config(scenario)
 
     # Plot the communication links
-    fig, ani = orbit.plot_comms(env.comms)
+    fig, ani = orbit.plot_comms(env.comms, frames=90)
     plt.show()
 
     if save_animation:

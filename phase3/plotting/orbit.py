@@ -34,6 +34,7 @@ def _create_earth_plot() -> tuple[figure.Figure, axes3d.Axes3D]:
 
 def plot_comms(
     comm: comms.Comms,
+    frames: int = 360,
 ) -> tuple[figure.Figure, animation.FuncAnimation]:
     """Create an interactive 3D plot of the satellite communication links.
 
@@ -61,8 +62,6 @@ def plot_comms(
         for _ in range(len(comm.G.nodes) * comm.max_neighbors)
     ]
 
-    frames = 360
-
     # Function to update the positions of the satellites and links
     def update(
         num: int, points_: art3d.Line3D, lines_: list[art3d.Line3D]
@@ -74,7 +73,7 @@ def plot_comms(
             sat: satellite.Satellite
             updated_orbit = dataclasses.replace(
                 sat._orbit_params,
-                nu=sat.orbit.nu + u.Quantity(360 / frames, u.deg),
+                nu=sat.orbit.nu + u.Quantity(1, u.deg),
             ).to_poliastro()
             sat.orbit = updated_orbit
             x, y, z = updated_orbit.r.value
@@ -126,6 +125,7 @@ def plot_comms(
 
 def plot_orbits(
     orbits: list[orbit.Orbit],
+    frames: int = 360,
 ) -> tuple[figure.Figure, animation.FuncAnimation]:
     """Create an interactive 3D plot of the satellite orbits.
 
@@ -147,17 +147,13 @@ def plot_orbits(
     # Initialize points for each orbit
     (points,) = ax.plot([], [], [], 'go', markersize=5)
 
-    frames = 360
-
     # Function to update the positions of the satellites
     def update(num: int, points_: art3d.Line3D) -> tuple[art3d.Line3D]:
         x_s = []
         y_s = []
         z_s = []
         for orb in orbits:
-            orb = dataclasses.replace(
-                orb, nu=orb.nu + u.Quantity(num * 360 / frames, u.deg)
-            )
+            orb = dataclasses.replace(orb, nu=orb.nu + u.Quantity(num * 1, u.deg))
             x, y, z = orb.to_poliastro().r.value
             x_s.append(x)
             y_s.append(y)
