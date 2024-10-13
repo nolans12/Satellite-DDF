@@ -5,8 +5,8 @@ import numpy as np
 from astropy import units as u
 from numpy import typing as npt
 
+from phase3 import collection
 from phase3 import satellite
-from phase3 import util
 
 
 class Comms:
@@ -38,13 +38,11 @@ class Comms:
         self.maxBandwidth = maxBandwidth
 
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        self.total_comm_data = util.NestedDict()
-        self.used_comm_data = util.NestedDict()
+        self.total_comm_data: list[collection.Transmission] = []
+        self.used_comm_data: list[collection.Transmission] = []
 
-        self.total_comm_et_data = util.NestedDict()
-        self.used_comm_et_data = util.NestedDict()
-        self.total_comm_et_data_values = util.NestedDict()
-        self.used_comm_et_data_values = util.NestedDict()
+        self.total_comm_et_data: list[collection.ArrayTransmission] = []
+        self.used_comm_et_data: list[collection.ArrayTransmission] = []
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -152,8 +150,14 @@ class Comms:
             sender.name
         )
 
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = (
-            est_meas.size * 2 + cov_meas.size / 2
+        self.total_comm_data.append(
+            collection.Transmission(
+                target_id=target_id,
+                sender=sender.name,
+                receiver=receiver.name,
+                time=time,
+                size=est_meas.size * 2 + cov_meas.size // 2,
+            )
         )
 
     def send_measurements(
@@ -228,12 +232,15 @@ class Comms:
         if np.isnan(meas_vector[1]):
             measVector_size -= 1
 
-        self.total_comm_et_data[target_id][receiver.name][sender.name][
-            time
-        ] = measVector_size
-
-        self.total_comm_et_data_values[target_id][receiver.name][sender.name][time] = (
-            np.array(meas_vector)
+        self.total_comm_et_data.append(
+            collection.ArrayTransmission(
+                target_id=target_id,
+                sender=sender.name,
+                receiver=receiver.name,
+                time=time,
+                size=measVector_size,
+                data=meas_vector,
+            )
         )
 
     # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data

@@ -9,6 +9,7 @@ from numpy import typing as npt
 from scipy import optimize
 from scipy import stats
 
+from phase3 import collection
 from phase3 import comms
 
 if TYPE_CHECKING:
@@ -549,7 +550,7 @@ class CiEstimator(BaseEstimator):
         """
         super().EKF_update(sats, measurements, targetID, envTime)
 
-    def CI(self, sat: 'satellite.Satellite', comms) -> None:
+    def CI(self, sat: 'satellite.Satellite', comms: comms.Comms) -> None:
         """
         Covariance Intersection function to conservatively combine received estimates and covariances
         into updated target state and covariance.
@@ -615,8 +616,14 @@ class CiEstimator(BaseEstimator):
                         continue
 
                 # We will now use the estimate and covariance that were sent, so we should store this
-                comms.used_comm_data[targetID][sat.name][senderName][time_sent] = (
-                    est_sent.size * 2 + cov_sent.size / 2
+                comms.used_comm_data.append(
+                    collection.Transmission(
+                        target_id=targetID,
+                        sender=senderName,
+                        receiver=sat.name,
+                        time=time_sent,
+                        size=est_sent.size * 2 + cov_sent.size // 2,
+                    )
                 )
 
                 # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
@@ -904,8 +911,16 @@ class EtEstimator(BaseEstimator):
                     est, cov
                 )
 
-                # comms.used_comm_et_data_values[targetID][sat.name][sender.name][time_sent] = np.array([alpha, beta])
-                # comms.used_comm_et_data[targetID][sat.name][sender.name][time_sent] = measVec_size
+                comms.used_comm_et_data.append(
+                    collection.ArrayTransmission(
+                        target_id=targetID,
+                        sender=sender.name,
+                        receiver=sat.name,
+                        time=time_sent,
+                        size=measVec_size,
+                        data=np.array([alpha, beta]),
+                    )
+                )
 
     def update_common_filters(
         self, sat: 'satellite.Satellite', envTime: float, comms: comms.Comms
