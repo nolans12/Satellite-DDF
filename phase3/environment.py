@@ -21,7 +21,9 @@ from common import path_utils
 from phase3 import comms
 from phase3 import estimator
 from phase3 import groundStation
+from phase3 import orbit
 from phase3 import satellite
+from phase3 import sensor
 from phase3 import sim_config
 from phase3 import target
 from phase3 import util
@@ -274,7 +276,7 @@ class Environment:
             )  # Store the history of sat time and xyz velocity
 
         # Update the communication network for the new sat positions
-        self.comms.make_edges(self.sats)
+        self.comms.update_edges()
 
     def data_fusion(self) -> None:
         """
@@ -379,7 +381,12 @@ class Environment:
 
         #### MIXED INTEGER LINEAR PROGRAMMING ####
         # Redefine goodness function to be based on a source and reciever node pair, not a path:
-        def goodness(source, reciever, trackUncertainty, targetID):
+        def goodness(
+            source: satellite.Satellite,
+            reciever: satellite.Satellite,
+            trackUncertainty,
+            targetID,
+        ):
             """A paths goodness is defined as the sum of the deltas in track uncertainty on a targetID, as far as that node hasnt already recieved data from that satellite"""
 
             # If either the source or reciever targetUncertainty doesnt contain that targetID, reward of 0
@@ -412,7 +419,7 @@ class Environment:
         # Now goal is to find the set of paths that maximize the total goodness, while also respecting the bandwidth constraints and not double counting, farying information is allowed
 
         # Generate all possible non cyclic paths up to a reasonable length (e.g., max 3 hops)
-        def generate_all_paths(graph, max_hops):
+        def generate_all_paths(graph, max_hops) -> list[list[satellite.Satellite]]:
             paths = []
             for source in graph.nodes():
                 for target in graph.nodes():
@@ -4067,3 +4074,82 @@ class Environment:
                 else:
                     row += ['', '', '']
                 writer.writerow(row)
+
+    @classmethod
+    def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
+        targs = [
+            target.Target(
+                name=name,
+                tqReq=t.tq_req,
+                targetID=t.target_id,
+                coords=np.array(t.coords),
+                heading=t.heading,
+                speed=t.speed,
+                uncertainty=np.array(t.uncertainty),
+                color=t.color,
+            )
+            for name, t in cfg.targets.items()
+        ]
+
+        sats = {
+            name: satellite.Satellite(
+                name=name,
+                sensor=sensor.Sensor(
+                    name=s.sensor,
+                    fov=cfg.sensors[s.sensor].fov,
+                    bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
+                ),
+                orbit=orbit.Orbit.from_sim_config(s.orbit),
+                color=s.color,
+            )
+            for name, s in cfg.satellites.items()
+        }
+
+        # Define the goal of the system:
+        commandersIntent: util.CommandersIndent = {
+            time: {sat: intent for sat, intent in sat_intents.items()}
+            for time, sat_intents in cfg.commanders_intent.items()
+        }
+
+        first_intent = next(iter(next(iter(commandersIntent.values())).values()))
+
+        # commandersIntent[4] = {
+        #     sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+        #     sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+        #     sat2a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+        #     sat2b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
+        # }
+
+        # Define the ground stations:
+        groundStations = [
+            groundStation.GroundStation(
+                estimator=estimator.GsEstimator(first_intent),
+                lat=gs.lat,
+                lon=gs.lon,
+                fov=gs.fov,
+                commRange=gs.comms_range,
+                name=name,
+                color=gs.color,
+            )
+            for name, gs in cfg.ground_stations.items()
+        ]
+
+        # Define the communication network:
+        comms_network = comms.Comms(
+            list(sats.values()),
+            maxBandwidth=cfg.comms.max_bandwidth,
+            maxNeighbors=cfg.comms.max_neighbors,
+            maxRange=u.Quantity(cfg.comms.max_range, u.km),
+            minRange=u.Quantity(cfg.comms.min_range, u.km),
+            displayStruct=cfg.comms.display_struct,
+        )
+
+        # Create and return an environment instance:
+        return cls(
+            list(sats.values()),
+            targs,
+            comms_network,
+            groundStations,
+            commandersIntent,
+            cfg.estimators,
+        )

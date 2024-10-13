@@ -10,17 +10,12 @@ from mpl_toolkits.mplot3d import art3d
 from mpl_toolkits.mplot3d import axes3d
 from poliastro import bodies
 
+from phase3 import comms
 from phase3 import orbit
+from phase3 import satellite
 
 
-def plot_orbits(
-    orbits: list[orbit.Orbit],
-) -> tuple[figure.Figure, animation.FuncAnimation]:
-    """Create an interactive 3D plot of the satellite orbits.
-
-    Args:
-        orbits: List of Orbit objects to plot.
-    """
+def _create_earth_plot() -> tuple[figure.Figure, axes3d.Axes3D]:
     # Create the figure and 3D axis
     fig = plt.figure(figsize=(10, 10))
     ax: axes3d.Axes3D = cast(
@@ -34,13 +29,118 @@ def plot_orbits(
     z = bodies.Earth.R.to(u.km).value * np.cos(v)
     ax.plot_surface(x, y, z, color='blue', alpha=0.6)
 
+    return fig, ax
+
+
+def plot_comms(
+    comm: comms.Comms,
+) -> tuple[figure.Figure, animation.FuncAnimation]:
+    """Create an interactive 3D plot of the satellite communication links.
+
+    Args:
+        comm: Comms object to plot.
+    """
+    fig, ax = _create_earth_plot()
+
+    # Plot the orbit lines
+    for sat in comm.G.nodes:
+        sat: satellite.Satellite
+        r_s = sat.orbit.sample()
+        ax.plot(
+            r_s.xyz[0].to(u.km).value,
+            r_s.xyz[1].to(u.km).value,
+            r_s.xyz[2].to(u.km).value,
+            color='red',
+        )
+
+    # Initialize points for each link
+    (points,) = ax.plot([], [], [], 'go', markersize=5)
+    # Initialize lines for each possible link
+    lines = [
+        ax.plot([], [], [], 'c--')[0]
+        for _ in range(len(comm.G.nodes) * comm.max_neighbors)
+    ]
+
+    frames = 360
+
+    # Function to update the positions of the satellites and links
+    def update(
+        num: int, points_: art3d.Line3D, lines_: list[art3d.Line3D]
+    ) -> list[art3d.Line3D]:
+        x_s = []
+        y_s = []
+        z_s = []
+        for sat in comm.G.nodes:
+            sat: satellite.Satellite
+            updated_orbit = dataclasses.replace(
+                sat._orbit_params,
+                nu=sat.orbit.nu + u.Quantity(360 / frames, u.deg),
+            ).to_poliastro()
+            sat.orbit = updated_orbit
+            x, y, z = updated_orbit.r.value
+            x_s.append(x)
+            y_s.append(y)
+            z_s.append(z)
+        points_.set_data_3d(x_s, y_s, z_s)
+
+        # Update the network graph
+        comm.update_edges()
+
+        for i, (u_, v) in enumerate(comm.G.edges):
+            u_: satellite.Satellite
+            v: satellite.Satellite
+            x_u, y_u, z_u = u_.orbit.r.value
+            x_v, y_v, z_v = v.orbit.r.value
+            lines_[i].set_data_3d(
+                [x_u, x_v],
+                [y_u, y_v],
+                [z_u, z_v],
+            )
+
+        # Reset the lines that are not used
+        for i in range(len(comm.G.edges), len(lines_)):
+            lines_[i].set_data_3d([], [], [])
+
+        return [points_] + lines_
+
+    # Create the animation
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=frames,
+        fargs=(points, lines),
+        interval=50,
+        blit=False,
+    )
+
+    # Set the title
+    ax.set_title("Satellite Communication Links")
+
+    # Set the labels
+    ax.set_xlabel("x (km)")
+    ax.set_ylabel("y (km)")
+    ax.set_zlabel("z (km)")
+
+    return fig, ani
+
+
+def plot_orbits(
+    orbits: list[orbit.Orbit],
+) -> tuple[figure.Figure, animation.FuncAnimation]:
+    """Create an interactive 3D plot of the satellite orbits.
+
+    Args:
+        orbits: List of Orbit objects to plot.
+    """
+    fig, ax = _create_earth_plot()
+
     # Plot the orbit lines
     for orb in orbits:
-        r = orb.to_poliastro().sample()
+        r_s = orb.to_poliastro().sample()
         ax.plot(
-            r.x.to(u.km).value,
-            r.y.to(u.km).value,
-            r.z.to(u.km).value,
+            r_s.xyz[0].to(u.km).value,
+            r_s.xyz[1].to(u.km).value,
+            r_s.xyz[2].to(u.km).value,
             color='red',
         )
 
@@ -50,28 +150,24 @@ def plot_orbits(
     frames = 360
 
     # Function to update the positions of the satellites
-    def update(
-        num: int, orbits_: list[orbit.Orbit], points_: art3d.Line3D
-    ) -> tuple[art3d.Line3D]:
-        count = 0
+    def update(num: int, points_: art3d.Line3D) -> tuple[art3d.Line3D]:
         x_s = []
         y_s = []
         z_s = []
-        for orb in orbits_:
-            updated_orbit = dataclasses.replace(
-                orb, nu=orb.nu + (num * (360 / frames)) * u.deg
-            ).to_poliastro()
-            x, y, z = updated_orbit.r.value
+        for orb in orbits:
+            orb = dataclasses.replace(
+                orb, nu=orb.nu + u.Quantity(num * 360 / frames, u.deg)
+            )
+            x, y, z = orb.to_poliastro().r.value
             x_s.append(x)
             y_s.append(y)
             z_s.append(z)
-            count += 1
         points_.set_data_3d(x_s, y_s, z_s)
         return (points_,)
 
     # Create the animation
     ani = animation.FuncAnimation(
-        fig, update, frames=frames, fargs=(orbits, points), interval=50, blit=False
+        fig, update, frames=frames, fargs=(points,), interval=50, blit=False
     )
 
     # Set the title
@@ -83,32 +179,3 @@ def plot_orbits(
     ax.set_zlabel("z (km)")
 
     return fig, ani
-
-
-if __name__ == '__main__':
-    from phase3.constellation import walker_delta
-
-    # Change the backend
-    plt.switch_backend('qtagg')
-
-    # Generate a Walker Delta constellation
-    total_sats = 24
-    num_planes = 6
-    inc_deg = 45
-    altitude_km = 550
-    phasing_deg = 1
-    orbits = walker_delta.walker_delta(
-        total_sats, num_planes, inc_deg, altitude_km, phasing_deg
-    )
-
-    # Plot the orbits
-    fig, ani = plot_orbits(orbits)
-    plt.show()
-
-    # Save a gif of the animation
-    # from common import path_utils
-
-    # ani.save(
-    #     str(path_utils.REPO_ROOT / 'satellite_orbits.gif'),
-    #     writer='imagemagick',
-    # )

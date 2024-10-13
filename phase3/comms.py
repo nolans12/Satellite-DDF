@@ -1,5 +1,8 @@
+import itertools
+
 import networkx as nx
 import numpy as np
+from astropy import units as u
 from numpy import typing as npt
 
 from phase3 import satellite
@@ -15,8 +18,8 @@ class Comms:
         self,
         sats: list[satellite.Satellite],
         maxNeighbors: int,
-        maxRange: float,
-        minRange: float,
+        maxRange: u.Quantity[u.km],
+        minRange: u.Quantity[u.km],
         maxBandwidth: int = 100000000,
         dataRate: int = 0,
         displayStruct: bool = False,
@@ -32,15 +35,6 @@ class Comms:
             data_rate: Data rate. Defaults to 0.
             display_struct: Flag to display structure. Defaults to False.
         """
-        # Create a graph instance with the satellites as nodes
-        self.G = nx.DiGraph()
-
-        # Add nodes with a dict for queued data (list of arrays)
-        for sat in sats:
-            self.G.add_node(
-                sat, estimate_data={}, received_measurements={}, sent_measurements={}
-            )
-
         self.maxBandwidth = maxBandwidth
 
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
@@ -57,6 +51,19 @@ class Comms:
         self.min_range = minRange
         self.data_rate = dataRate
         self.displayStruct = displayStruct
+
+        # Create a graph instance with the satellites as nodes
+        self._sats = sats
+        self.G = nx.DiGraph()
+        # Add nodes with a dict for queued data (list of arrays)
+        for sat in sats:
+            self.G.add_node(
+                sat,
+                estimate_data={},
+                received_measurements={},
+                sent_measurements={},
+            )
+        self.update_edges()
 
     def send_estimate_path(
         self,
@@ -231,47 +238,40 @@ class Comms:
 
     # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
-    def make_edges(self, sats: list[satellite.Satellite]) -> None:
+    def update_edges(self) -> None:
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
-                Performs double loop through all satellites to check known pairs.
-                An edge represnts a theorical communication link between two satellites.
-
-        Args:
-            sats: List of satellites.
+        Iterates through combinations of satellites to check known pairs.
+        An edge represnts a theorical communication link between two satellites.
         """
         # Clear all edges in the graph
         self.G.clear_edges()
 
         # Loop through each satellite pair and remake the edges
-        for sat1 in sats:
-            for sat2 in sats:
-                if sat1 != sat2:
-                    # Check if an edge already exists between the two satellites
-                    if not self.G.has_edge(sat1, sat2):
-                        # Check if the distance is within range
-                        dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
-                        if self.min_range < dist < self.max_range:
-                            # Check if the Earth is blocking the two satellites
-                            if not self.intersect_earth(sat1, sat2):
-                                # Add the edge
-                                self.G.add_edge(
-                                    sat1,
-                                    sat2,
-                                    maxBandwidth=self.maxBandwidth,
-                                    usedBandwidth=0,
-                                    active=False,
-                                )
-                                # also add the edge in the opposite direction
-                                self.G.add_edge(
-                                    sat2,
-                                    sat1,
-                                    maxBandwidth=self.maxBandwidth,
-                                    usedBandwidth=0,
-                                    active=False,
-                                )
+        for sat1, sat2 in itertools.combinations(self._sats, 2):
+            # Check if the distance is within range
+            dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
+            if self.min_range < dist < self.max_range:
+                # Check if the Earth is blocking the two satellites
+                if not self.intersect_earth(sat1, sat2):
+                    # Add the edge
+                    self.G.add_edge(
+                        sat1,
+                        sat2,
+                        maxBandwidth=self.maxBandwidth,
+                        usedBandwidth=0,
+                        active=False,
+                    )
+                    # also add the edge in the opposite direction
+                    self.G.add_edge(
+                        sat2,
+                        sat1,
+                        maxBandwidth=self.maxBandwidth,
+                        usedBandwidth=0,
+                        active=False,
+                    )
 
         # Restrict to just the maximum number of neighbors
-        for sat in sats:
+        for sat in self._sats:
             # If the number of neighbors is greater than the max, remove the extra neighbors
             if len(list(self.G.neighbors(sat))) > self.max_neighbors:
                 # Get the list of neighbors
@@ -311,7 +311,7 @@ class Comms:
 
         # Check if there is an intersection with the Earth
         if (
-            self.sphere_line_intersection([0, 0, 0], 6378, sat1.orbit.r.value, line)
+            self.sphere_line_intersection((0, 0, 0), 6378, sat1.orbit.r.value, line)
             is not None
         ):
             return True
