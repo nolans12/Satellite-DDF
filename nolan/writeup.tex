@@ -1,0 +1,78 @@
+\documentclass{article}
+\usepackage[margin=1in]{geometry} % Sets all margins to 1 inch
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+
+\title{Lazy DDF}
+\author{Nolan Stevenson}
+\date{} % This removes the date
+
+\begin{document}
+
+\maketitle
+
+\newpage
+\section{Introduction}
+
+
+\section{Problem Formulation}
+
+    The problem can be formulated as a optimization problem, consisting of three key components:
+
+    \begin{enumerate}
+        \item Decision variables ($x$): These represent the possible choices in the optimization problem.
+        \item Objective function: This is the function to be maximized or minimized.
+        \item Constraints: These are the limitations or requirements that must be satisfied.
+    \end{enumerate}
+
+    The objective function and constraints are expressed in linear combination of the decision variables, creating a mathematical formulation suitable for a linear program solver. In this case, we will use the Python package PuLP, which can efficiently solve complex optimization problems.
+
+    The problem can be written as: \\
+
+    \begin{equation}
+        \underset{x_{st}}{\text{minimize}} \sum_{s} \sum_{t} c_{st} x_{st} \quad \text{for } t = [t_0, t_{lookahead}]
+        \label{eq:objective}
+    \end{equation}
+
+    \text{subject to}
+
+    \begin{equation}
+        x_{st} \in \{0, 1\}
+        \label{eq:binary}
+    \end{equation}
+
+    \begin{equation}
+        DDF[ \sum_{s} TU_{pred}(x_{st}, t_{lookahead}) ] \leq TU_t \quad \forall t
+        \label{eq:constraint1}
+    \end{equation}
+
+
+    Here, $f$ is the index for faculty, $c$ is the index for course, and $s$ is the index for number of sections taught.
+    $TC(x_{fcs})$ is the total TC for a given course and section.
+    $TC_f$ is the amount of TC a faculty has to teach.
+    $TC_c$ is the total amount of TC a course contains.
+    This type of problem is called a mixed-integer linear program (MILP) because it has integer decision variables and constraints
+     and an objective that are linear functions of the decision variables.
+
+    The decision variables $x_{fcs}$ are binary, as defined in Equation \eqref{eq:binary}.
+    The optimization solvers job is to decide which decision variables are "turned on" (1) and which are "turned off" (0).
+    If $x_{fcs} = 1$, then faculty $f$ is assigned to teach $s$ many sections of course $c$.
+    If $x_{fcs} = 0$, then faculty $f$ is not assigned to teach course $c$.
+
+    The objective function, given in Equation \eqref{eq:objective}, is to minimize the total cost of faculty-course assignments based on the survey preferences.
+    To make the problem fair for all faculty, the cost coefficients, $c_{fcs}$, are calculated so that the cost of assigning
+    a faculty to a course with preference $p + 1$ (a lower preference) is higher than the cost of assigning all other faculty members
+    a preference of $p$. This can be achieved with:
+
+    \begin{equation}
+        c_{fcs} = 2^{\log_2(n)(p_{fcs}-1)}
+        \label{eq:cost}
+    \end{equation}
+
+    Where $n$ is the total number of faculty members and $p_{fcs}$ is the preference of faculty $f$ for $s$ sections of course $c$.
+
+    The constraints are given in Equations \eqref{eq:constraint1} and \eqref{eq:constraint2}.
+    Equation \eqref{eq:constraint1} ensures that the total TC allocated to each faculty member matches the required TC for the faculty.
+    Equation \eqref{eq:constraint2} ensures that the total TC allocated to each course does not exceed the course's TC capacity, this does allow a course to not have all of its TC filled.
+
+\end{document}
