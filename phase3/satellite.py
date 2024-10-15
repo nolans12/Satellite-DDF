@@ -49,7 +49,7 @@ class Satellite:
         # Set the estimators to None on initalization
         self.indeptEstimator: 'estimator.IndeptEstimator | None' = None
         self.ciEstimator: 'estimator.CiEstimator | None' = None
-        self.etEstimators: list['estimator.EtEstimator'] | None = None
+        self.etEstimators: list['estimator.EtEstimator'] = []
 
         self.targPriority: dict[int, int] = {}
         self.targetIDs: list[int] = []
@@ -100,7 +100,7 @@ class Satellite:
             if self.etEstimators:
                 self.update_et_estimator(measurement, target, self.time)
 
-            return collectedFlag
+        return collectedFlag
 
     def update_indept_estimator(
         self, measurement, target: target.Target, time: float
@@ -115,6 +115,7 @@ class Satellite:
             target (object): Target object containing targetID and other relevant information.
             time (float): Current time at which the measurement is taken.
         """
+        assert self.indeptEstimator is not None
         targetID = target.targetID
         if len(self.indeptEstimator.estHist[targetID]) < 1:
             self.indeptEstimator.local_EKF_initialize(target, time)
@@ -137,6 +138,7 @@ class Satellite:
             target (object): Target object containing targetID and other relevant information.
             time (float): Current time at which the measurement is taken.
         """
+        assert self.ciEstimator is not None
         targetID = target.targetID
 
         if (

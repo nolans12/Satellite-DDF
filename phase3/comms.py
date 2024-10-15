@@ -5,8 +5,9 @@ import numpy as np
 from astropy import units as u
 from numpy import typing as npt
 
+from common import dataclassframe
+from phase3 import collection
 from phase3 import satellite
-from phase3 import util
 
 
 class Comms:
@@ -38,13 +39,17 @@ class Comms:
         self.maxBandwidth = maxBandwidth
 
         # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        self.total_comm_data = util.NestedDict()
-        self.used_comm_data = util.NestedDict()
+        self.total_comm_data = dataclassframe.DataClassFrame(
+            clz=collection.Transmission
+        )
+        self.used_comm_data = dataclassframe.DataClassFrame(clz=collection.Transmission)
 
-        self.total_comm_et_data = util.NestedDict()
-        self.used_comm_et_data = util.NestedDict()
-        self.total_comm_et_data_values = util.NestedDict()
-        self.used_comm_et_data_values = util.NestedDict()
+        self.total_comm_et_data = dataclassframe.DataClassFrame(
+            clz=collection.MeasurementTransmission
+        )
+        self.used_comm_et_data = dataclassframe.DataClassFrame(
+            clz=collection.MeasurementTransmission
+        )
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -152,15 +157,22 @@ class Comms:
             sender.name
         )
 
-        self.total_comm_data[target_id][receiver.name][sender.name][time] = (
-            est_meas.size * 2 + cov_meas.size / 2
+        self.total_comm_data.append(
+            collection.Transmission(
+                target_id=target_id,
+                sender=sender.name,
+                receiver=receiver.name,
+                time=time,
+                size=est_meas.size * 2 + cov_meas.size // 2,
+            )
         )
 
     def send_measurements(
         self,
         sender: satellite.Satellite,
         receiver: satellite.Satellite,
-        meas_vector: npt.NDArray,
+        alpha: float,
+        beta: float,
         target_id: int,
         time: float,
     ) -> None:
@@ -177,7 +189,8 @@ class Comms:
         Args:
             sender: Satellite sending the measurements.
             receiver: Satellite receiving the measurements.
-            meas_vector: Measurement vector to send.
+            alpha: Alpha measurement to send.
+            beta: Beta measurement to send.
             target_id: ID of the target the measurements are from.
             time: Time the measurements were taken.
         """
@@ -198,7 +211,7 @@ class Comms:
 
         # Add the measurement vector to the receiver's measurement data at the specified target_id and time
         self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(
-            meas_vector
+            (alpha, beta)
         )
         self.G.nodes[receiver]['received_measurements'][time][target_id][
             'sender'
@@ -215,28 +228,32 @@ class Comms:
             }
 
         self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(
-            meas_vector
+            (alpha, beta)
         )
         self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(
             receiver
         )
 
         measVector_size = 2 + 2  # 2 for the meas vector, 2 for the sensor noise
-        if np.isnan(meas_vector[0]):
+        if np.isnan(alpha):
             measVector_size -= 1
 
-        if np.isnan(meas_vector[1]):
+        if np.isnan(beta):
             measVector_size -= 1
 
-        self.total_comm_et_data[target_id][receiver.name][sender.name][
-            time
-        ] = measVector_size
-
-        self.total_comm_et_data_values[target_id][receiver.name][sender.name][time] = (
-            np.array(meas_vector)
+        self.total_comm_et_data.append(
+            collection.MeasurementTransmission(
+                target_id=target_id,
+                sender=sender.name,
+                receiver=receiver.name,
+                time=time,
+                size=measVector_size,
+                alpha=alpha,
+                beta=beta,
+            )
         )
 
-    # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
+        # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
 
     def update_edges(self) -> None:
         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.

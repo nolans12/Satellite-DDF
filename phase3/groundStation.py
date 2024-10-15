@@ -1,7 +1,13 @@
+from collections import defaultdict
+from typing import Literal, overload
+
 import numpy as np
 
+from common import dataclassframe
+from phase3 import collection
 from phase3 import estimator
-from phase3 import util
+from phase3 import satellite
+from phase3 import target
 
 
 class GroundStation:
@@ -46,10 +52,18 @@ class GroundStation:
         )
 
         # Track communication sent/recieved
-        # Dictionary containing [type][time][target][sat] = measurement, for mailbox system
-        self.queued_data = util.NestedDict()
-        # Make a dictionary containing [targetID][time][satName] = measurement, for post processing
-        self.commData = util.NestedDict()
+        self.queued_ci_data = dataclassframe.DataClassFrame(
+            clz=collection.GsEstimateTransmission
+        )
+        self.queued_meas_data = dataclassframe.DataClassFrame(
+            clz=collection.GsMeasurementTransmission
+        )
+        self.comm_ci_data = dataclassframe.DataClassFrame(
+            clz=collection.GsEstimateTransmission
+        )
+        self.comm_meas_data = dataclassframe.DataClassFrame(
+            clz=collection.GsMeasurementTransmission
+        )
 
         # Communication range of a satellite to the ground station
         self.fov = fov
@@ -60,91 +74,93 @@ class GroundStation:
         self.color = color
         self.time = 0
 
-    def queue_data(self, data: dict[int, dict[str, dict[int, int]]]) -> None:
+    @overload
+    def queue_data(
+        self,
+        data: collection.GsMeasurementTransmission,
+        dtype: Literal[collection.GsDataType.MEAS],
+    ) -> None: ...
+
+    @overload
+    def queue_data(
+        self,
+        data: collection.GsEstimateTransmission,
+        dtype: Literal[collection.GsDataType.CI],
+    ) -> None: ...
+
+    def queue_data(
+        self,
+        data: collection.GsMeasurementTransmission | collection.GsEstimateTransmission,
+        dtype: Literal[collection.GsDataType.MEAS] | Literal[collection.GsDataType.CI],
+    ) -> None:
         """
         Adds the data to the queued data struct to be used later in processing, the mailbox system.
 
         Args:
             data, in order of [type][time][targetID][sat] = measurement
         """
+        if dtype is collection.GsDataType.CI:
+            self.queued_ci_data.append(data)
+        elif dtype is collection.GsDataType.MEAS:
+            self.queued_meas_data.append(data)
+        else:
+            raise ValueError(f'Unexpected data type: {dtype}')
 
-        # Add the data to the queued data struct
-        for type in data.keys():
-            for time in data[type].keys():
-                for targ in data[type][time].keys():
-                    for sat in data[type][time][targ].keys():
-                        self.queued_data[type][time][targ][sat] = data[type][time][
-                            targ
-                        ][sat]
-
-    def process_queued_data(self, time: int) -> None:
+    def process_queued_data(
+        self, sats: list[satellite.Satellite], targs: list[target.Target]
+    ) -> None:
         """
         Processes the data queued to be sent to the ground station.
 
         This function uses the estimator object to process the data.
-        Queued data is of the form: [type][time][targetID][sat] = measurement
-
-        Args:
-            time: The time at which the data is being processed.
         """
+        if len(self.queued_meas_data):
+            # Perform standard EKF with queued measurements
 
-        # First, figure out what data is available
-        meas_data = self.queued_data['meas']
-        est_data = self.queued_data['ci']
+            # Map (target_id, time) -> transmissions
+            measurements: dict[tuple[int, float], list[collection.GsTransmission]] = (
+                defaultdict(list)
+            )
+            for transmission in self.queued_meas_data.to_dataclasses(
+                self.queued_meas_data
+            ):
+                # Store the queued data into the commData, for post processing
+                self.comm_meas_data.append(transmission)
 
-        if meas_data:
-            # DO STANDARD EKF HERE WITH QUEUE MEASUREMENTS
-            # Get the time for the data
-            for time in meas_data.keys():
-                # Get the target we are talking about
-                for targ in meas_data[time].keys():
-                    # Create blank list for all measurements and sats at that time on that target
-                    measurements = []
-                    sats = []
-                    for sat in meas_data[time][targ].keys():
-                        # Get the measurement
-                        meas = meas_data[time][targ][sat]
+                measurements[transmission.target_id, transmission.time].append(
+                    transmission
+                )
 
-                        # Store the measurement and satellite
-                        measurements.append(meas)
-                        sats.append(sat)
+                # Now, with the lists of measurements and sats, send to the estimator
+                targ = next(
+                    filter(lambda t: t.targetID == transmission.target_id, targs)
+                )
+                if len(self.estimator.estHist[transmission.target_id]) < 1:
+                    self.estimator.gs_EKF_initialize(targ, transmission.time)
+                    return
 
-                        # Store the queued data into the commData, for post processing
-                        self.commData[targ.targetID][time][sat.name] = meas
+            for (target_id, meas_time), transmission in measurements.items():
+                # Else, update the estimator
+                self.estimator.gs_EKF_pred(target_id, meas_time)
+                self.estimator.gs_EKF_update(sats, measurements, target_id, meas_time)
 
-                    # Now, with the lists of measurements and sats, send to the estimator
-                    if len(self.estimator.estHist[targ.targetID]) < 1:
-                        self.estimator.gs_EKF_initialize(targ, time)
-                        return
+        if len(self.queued_ci_data):
+            # Perform covariance intersection here
+            for transmission in self.queued_ci_data.to_dataclasses(self.queued_ci_data):
 
-                    # Else, update the estimator
-                    self.estimator.gs_EKF_pred(targ.targetID, time)
-                    self.estimator.gs_EKF_update(
-                        sats, measurements, targ.targetID, time
-                    )
+                # Now do CI with the data
+                self.estimator.gs_CI(
+                    transmission.target_id,
+                    transmission.estimate,
+                    transmission.covariance,
+                    transmission.time,
+                )
 
-        if est_data:
-            # DO COVARIANCE INTERSECTION HERE!!!
-            # Get the time for the data
-            for time in est_data.keys():
-                # Get the target we are talking about
-                for targ in est_data[time].keys():
-                    for sat in est_data[time][targ].keys():
-                        # Get the est and cov
-                        est = est_data[time][targ][sat]['est']
-                        cov = est_data[time][targ][sat]['cov']
-
-                        # Now do CI with the data
-                        self.estimator.gs_CI(targ.targetID, est, cov, time)
-
-                        # Store the queued data into the commData, for post processing
-                        self.commData[targ.targetID][time][sat.name] = {
-                            'est': est,
-                            'cov': cov,
-                        }
+                # Store the queued data into the commData, for post processing
+                self.comm_ci_data.append(transmission)
 
         # Clear the queued data
-        self.queued_data = util.NestedDict()
+        self.queued_ci_data.drop(self.queued_ci_data.index, inplace=True)
 
     def can_communicate(self, x_sat: float, y_sat: float, z_sat: float) -> bool:
         """

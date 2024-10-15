@@ -5,6 +5,7 @@ import os
 import pathlib
 import random
 from collections import defaultdict
+from typing import cast
 
 import imageio
 import networkx as nx
@@ -15,9 +16,11 @@ from matplotlib import gridspec
 from matplotlib import patches
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import art3d
+from mpl_toolkits.mplot3d import axes3d
 from numpy import typing as npt
 
 from common import path_utils
+from phase3 import collection
 from phase3 import comms
 from phase3 import estimator
 from phase3 import groundStation
@@ -27,6 +30,7 @@ from phase3 import sensor
 from phase3 import sim_config
 from phase3 import target
 from phase3 import util
+from phase3.plotting import comms as comms_plot
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -91,17 +95,13 @@ class Environment:
 
         self.groundStations = groundStations  # define the ground stations
 
-        # Define variables to track the comms
-        self.comms.total_comm_data = util.NestedDict()
-        self.used_comm_data = util.NestedDict()
-
         # Initialize time parameter to 0
-        self.time: u.Quantity[u.minute] = 0 * u.minute
+        self.time = u.Quantity(0, u.minute)
         self.delta_t = None
 
         # Environemnt Plotting parameters
         self.fig = plt.figure(figsize=(10, 8))
-        self.ax = self.fig.add_subplot(111, projection='3d')
+        self.ax = cast(axes3d.Axes3D, self.fig.add_subplot(111, projection='3d'))
 
         # If you want to do clustered case:
         self.ax.set_xlim([2000, 8000])
@@ -140,7 +140,7 @@ class Environment:
 
     def simulate(
         self,
-        time_vec: npt.NDArray,
+        time_vec: u.Quantity,
         plot_config: sim_config.PlotConfig,
         pause_step: float = 0.0001,
         save_estimation_data: bool = False,
@@ -164,7 +164,7 @@ class Environment:
 
         # Initialize based on the current time
         time_vec = time_vec + self.time
-        self.delta_t = (time_vec[1] - time_vec[0]).to_value(time_vec.unit)
+        self.delta_t = (time_vec[1] - time_vec[0]).value
         for t_net in time_vec:
 
             print(f"Time: {t_net:.2f}")
@@ -181,7 +181,7 @@ class Environment:
                     sat.targPriority = self.commandersIntent[
                         t_net.to_value(t_net.unit)
                     ][sat.name]
-                    sat.targetIDs = sat.targPriority.keys()
+                    sat.targetIDs = list(sat.targPriority.keys())
 
             # Collect individual data measurements for satellites and then do data fusion
             self.data_fusion()
@@ -642,7 +642,7 @@ class Environment:
             ) in self.targs:  # TODO: iniitalize with senders est and cov + noise?
                 if target.targetID in sat.targetIDs:
                     targetID = target.targetID
-                    envTime = self.time.to_value()
+                    envTime = self.time.value
                     # Skip if there are no measurements for this targetID
                     if isinstance(
                         sat.measurementHist[target.targetID][envTime], np.ndarray
@@ -710,21 +710,28 @@ class Environment:
                                 commonEKF.et_EKF_initialize(target, envTime)
 
                             # Create implicit and explicit measurements vector for this neighbor
-                            meas = local_EKF.event_trigger(
+                            alpha, beta = local_EKF.event_trigger(
                                 sat, neighbor, targetID, satTime
                             )
 
                             # Send that to neightbor
                             self.comms.send_measurements(
-                                sat, neighbor, meas, targetID, satTime
+                                sat, neighbor, alpha, beta, targetID, satTime
                             )
 
                             if commonEKF.synchronizeFlag[targetID][envTime]:
-                                self.comms.total_comm_et_data[targetID][sat.name][
-                                    neighbor.name
-                                ][
-                                    envTime
-                                ] = 50  # since this runs twice, we need to make sure we don't double count the data
+                                # Since this runs twice, we need to make sure we don't double count the data
+                                self.comms.total_comm_et_data.append(
+                                    collection.MeasurementTransmission(
+                                        target_id=targetID,
+                                        sender=sat.name,
+                                        receiver=neighbor.name,
+                                        time=envTime,
+                                        size=50,
+                                        alpha=alpha,
+                                        beta=beta,
+                                    )
+                                )
 
     def central_fusion(self, collectedFlag, measurements):
         """
@@ -791,17 +798,20 @@ class Environment:
                         # Get the measurement
                         meas = sat.measurementHist[targ.targetID][self.time.to_value()]
 
-                        # Make a dictionary containing [type][time][target][sat] = measurement
-                        data_dict = {
-                            'meas': {self.time.to_value(): {targ: {sat: meas}}}
-                        }
+                        data = collection.GsMeasurementTransmission(
+                            target_id=targ.targetID,
+                            sender=sat.name,
+                            receiver=gs.name,
+                            time=self.time.value,
+                            measurement=meas,
+                        )
 
-                        # Now, add that data to the queued data onboard the ground station
-                        gs.queue_data(data_dict)
+                        # Add the data to the queued data onboard the ground station
+                        gs.queue_data(data, dtype=collection.GsDataType.MEAS)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     def send_to_ground_centralized(self):
         """
@@ -838,17 +848,20 @@ class Environment:
                                 self.time.to_value()
                             ]
 
-                            # Make a dictionary containing [type][time][target][sat] = measurement
-                            data_dict = {
-                                'meas': {self.time.to_value(): {targ: {sat: meas}}}
-                            }
+                            data = collection.GsMeasurementTransmission(
+                                target_id=targ.targetID,
+                                sender=sat.name,
+                                receiver=gs.name,
+                                time=self.time.value,
+                                measurement=meas,
+                            )
 
-                            # Now, add that data to the queued data onboard the ground station
-                            gs.queue_data(data_dict)
+                            # Add the data to the queued data onboard the ground station
+                            gs.queue_data(data, dtype=collection.GsDataType.MEAS)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     def send_to_ground_avaliable_sats(self):
         """
@@ -886,21 +899,21 @@ class Environment:
                                 timePrior
                             ]
 
-                            # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                            data_dict = {
-                                'ci': {
-                                    self.time.to_value(): {
-                                        targ: {sat: {'est': est, 'cov': cov}}
-                                    }
-                                }
-                            }
+                            data = collection.GsEstimateTransmission(
+                                target_id=targ.targetID,
+                                sender=sat.name,
+                                receiver=gs.name,
+                                time=self.time.value,
+                                estimate=est,
+                                covariance=cov,
+                            )
 
-                            # Now, add that data to the queued data onboard the ground station
-                            gs.queue_data(data_dict)
+                            # Add the data to the queued data onboard the ground station
+                            gs.queue_data(data, dtype=collection.GsDataType.CI)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     def send_to_ground_best_sat_local(self):
         """
@@ -957,21 +970,21 @@ class Environment:
                         timePrior
                     ]
 
-                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {
-                        'ci': {
-                            self.time.to_value(): {
-                                targ: {bestSat: {'est': est, 'cov': cov}}
-                            }
-                        }
-                    }
+                    data = collection.GsEstimateTransmission(
+                        target_id=targ.targetID,
+                        sender=bestSat.name,
+                        receiver=gs.name,
+                        time=self.time.value,
+                        estimate=est,
+                        covariance=cov,
+                    )
 
-                    # Now, add that data to the queued data onboard the ground station
-                    gs.queue_data(data_dict)
+                    # Add the data to the queued data onboard the ground station
+                    gs.queue_data(data, dtype=collection.GsDataType.CI)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     def send_to_ground_best_sat_ci(self):
         """
@@ -1020,21 +1033,21 @@ class Environment:
                     est = bestSat.ciEstimator.estHist[targ.targetID][timePrior]
                     cov = bestSat.ciEstimator.covarianceHist[targ.targetID][timePrior]
 
-                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {
-                        'ci': {
-                            self.time.to_value(): {
-                                targ: {bestSat: {'est': est, 'cov': cov}}
-                            }
-                        }
-                    }
+                    data = collection.GsEstimateTransmission(
+                        target_id=targ.targetID,
+                        sender=bestSat.name,
+                        receiver=gs.name,
+                        time=self.time.value,
+                        estimate=est,
+                        covariance=cov,
+                    )
 
-                    # Now, add that data to the queued data onboard the ground station
-                    gs.queue_data(data_dict)
+                    # Add the data to the queued data onboard the ground station
+                    gs.queue_data(data, dtype=collection.GsDataType.CI)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     def send_to_ground_best_sat_et(self):
         # TODO: MERGE SUCH THAT DONT NEED SEPERATE ET CALL?
@@ -1093,21 +1106,21 @@ class Environment:
                         timePrior
                     ]
 
-                    # Make a dictionary containing [ci][time][target][sat]['est] = est and [type][time][target][sat]['cov'] = cov
-                    data_dict = {
-                        'ci': {
-                            self.time.to_value(): {
-                                targ: {bestSat: {'est': est, 'cov': cov}}
-                            }
-                        }
-                    }
+                    data = collection.GsEstimateTransmission(
+                        target_id=targ.targetID,
+                        sender=bestSat.name,
+                        receiver=gs.name,
+                        time=self.time.value,
+                        estimate=est,
+                        covariance=cov,
+                    )
 
-                    # Now, add that data to the queued data onboard the ground station
-                    gs.queue_data(data_dict)
+                    # Add the data to the queued data onboard the ground station
+                    gs.queue_data(data, dtype=collection.GsDataType.CI)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
-            gs.process_queued_data(self.time.to_value())
+            gs.process_queued_data(self.sats, self.targs)
 
     ### 3D Dynamic Environment Plot ###
     def plot(self) -> None:
@@ -1344,76 +1357,102 @@ class Environment:
                     # Where there is a bar for each satellite in the network at everytime step,
                     # But, the bars are only filled of the satellite communicated with the ground station at that time:
                     # Thus, the bar plot will show the communication structure of the network
-                    for targetID in gs.commData:
-                        if targetID != targ.targetID:
-                            continue
+                    target_estimates = gs.comm_ci_data.loc[
+                        gs.comm_ci_data['targetID'] == targ.targetID
+                    ]
+                    target_measures = gs.comm_meas_data.loc[
+                        gs.comm_meas_data['targetID'] == targ.targetID
+                    ]
+                    times = sorted(
+                        set(target_estimates['time']).union(
+                            set(target_measures['time'])
+                        )
+                    )
 
-                        # Find the target that has that targetID:
-                        targ = [
-                            targ for targ in self.targs if targ.targetID == targetID
-                        ][0]
+                    prevData = 0
+                    for time in times:
+                        target_estimates_t = target_estimates.loc[
+                            target_estimates['time'] == time
+                        ]
+                        target_measures_t = target_measures.loc[
+                            target_measures['time'] == time
+                        ]
 
-                        # Now, loop through all times for that targs history
-                        for time in targ.hist.keys():
-                            prevData = 0
-                            if time in gs.commData[targetID]:
-                                # If the ground station recieved information at that time:
-                                for sat in self.sats:
-                                    # IF THE SATELLITE DID COMMUNICATE, PLOT A SOLID BOX WITH SAT COLOR
-                                    if sat.name in gs.commData[targetID][time]:
-                                        axComm.bar(
-                                            time,
-                                            1,
-                                            bottom=prevData,
-                                            color=sat.color,
-                                            edgecolor='k',
-                                            width=self.delta_t,
-                                        )
-                                        prevData += 1
-                                    # If the satellite didint communcate with the ground station at that time
-                                    else:
-                                        # Get the position of the satellite at that time, use sat.orbitHist
-                                        x_sat, y_sat, z_sat = sat.orbitHist[time]
-                                        if gs.can_communicate(x_sat, y_sat, z_sat):
-                                            # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
-                                            axComm.bar(
-                                                time,
-                                                1,
-                                                bottom=prevData,
-                                                color='w',
-                                                edgecolor=sat.color,
-                                                hatch='//',
-                                                linewidth=0,
-                                                width=self.delta_t,
-                                            )
-                                            prevData += 1
-                                        else:
-                                            # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
-                                            axComm.bar(
-                                                time,
-                                                1,
-                                                bottom=prevData,
-                                                color='w',
-                                                edgecolor='k',
-                                                hatch='//',
-                                                linewidth=0,
-                                                width=self.delta_t,
-                                            )
-                                            prevData += 1
+                        transmissions = gs.comm_ci_data.to_dataclasses(
+                            target_estimates_t
+                        ) + gs.comm_meas_data.to_dataclasses(target_measures_t)
+                        sats_uncommunicated = set(self.sats)
+                        for transmission in transmissions:
+                            # Find the target that has that targetID:
+                            targ = next(
+                                filter(
+                                    lambda t: t.targetID == transmission.target_id,
+                                    self.targs,
+                                )
+                            )
+
+                            sat = next(
+                                filter(
+                                    lambda s: transmission.sender == s.name, self.sats
+                                )
+                            )
+
+                            # If the satellite did communicate, plot a solid box with satellite color
+                            axComm.bar(
+                                time,
+                                1,
+                                bottom=prevData,
+                                color=sat.color,
+                                edgecolor='k',
+                                width=self.delta_t,
+                            )
+                            prevData += 1
+                            sats_uncommunicated.remove(sat)
+
+                        # If the satellite didint communcate with the ground station at that time
+                        for sat in sats_uncommunicated:
+                            # Get the position of the satellite at that time, use sat.orbitHist
+                            x_sat, y_sat, z_sat = sat.orbitHist[time]
+                            if gs.can_communicate(x_sat, y_sat, z_sat):
+                                # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
+                                axComm.bar(
+                                    time,
+                                    1,
+                                    bottom=prevData,
+                                    color='w',
+                                    edgecolor=sat.color,
+                                    hatch='//',
+                                    linewidth=0,
+                                    width=self.delta_t,
+                                )
+                                prevData += 1
                             else:
-                                # Case where no sats communicated to gs, plot black hatches for all
-                                for i in range(len(self.sats)):
-                                    axComm.bar(
-                                        time,
-                                        1,
-                                        bottom=prevData,
-                                        color='w',
-                                        edgecolor='k',
-                                        hatch='//',
-                                        linewidth=0,
-                                        width=self.delta_t,
-                                    )
-                                    prevData += 1
+                                # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
+                                axComm.bar(
+                                    time,
+                                    1,
+                                    bottom=prevData,
+                                    color='w',
+                                    edgecolor='k',
+                                    hatch='//',
+                                    linewidth=0,
+                                    width=self.delta_t,
+                                )
+                                prevData += 1
+                        if len(sats_uncommunicated) == len(self.sats):
+                            # Case where no sats communicated to gs, plot black hatches for all
+                            for _ in range(len(self.sats)):
+                                axComm.bar(
+                                    time,
+                                    1,
+                                    bottom=prevData,
+                                    color='w',
+                                    edgecolor='k',
+                                    hatch='//',
+                                    linewidth=0,
+                                    width=self.delta_t,
+                                )
+                                prevData += 1
 
                     # Make a patch for legend for the satellite colors
                     handles = [
@@ -1819,7 +1858,14 @@ class Environment:
                         linewidth=linewidth,
                     )
 
-    def plot_et_messages(self, ax, sat, sat2, targetID, timeVec):
+    def plot_et_messages(
+        self,
+        ax,
+        sat: satellite.Satellite,
+        sat2: satellite.Satellite,
+        targetID: int,
+        timeVec,
+    ):
         # TODO: EITHER USE THIS OR DONT USE THIS!, SHOWS THE ET MESSAGING
 
         # Find common EKF
@@ -1835,15 +1881,21 @@ class Environment:
                     ax.scatter(time, 0.5, color='g', marker='D', s=70)
                     continue
 
-            if isinstance(
-                self.comms.used_comm_et_data_values[targetID][sat.name][sat2.name][
-                    time
-                ],
-                np.ndarray,
+            related_comms = self.comms.used_comm_et_data.loc[
+                (self.comms.used_comm_et_data['sender'] == sat.name)
+                & (self.comms.used_comm_et_data['receiver'] == sat2.name)
+                & (self.comms.used_comm_et_data['target_id'] == targetID)
+                & (self.comms.used_comm_et_data['time'] == time)
+            ]
+            related_transmissions = self.comms.used_comm_et_data.to_dataclasses(
+                related_comms
+            )
+            if (
+                len(related_transmissions) > 0
+                and related_transmissions[0].has_alpha_beta is not None
             ):
-                alpha, beta = self.comms.used_comm_et_data_values[targetID][sat.name][
-                    sat2.name
-                ][time]
+                alpha = related_transmissions[0].alpha
+                beta = related_transmissions[0].beta
                 if not np.isnan(alpha):
                     ax.scatter(time, 0.9, color='r', marker=r'$\alpha$', s=80)
                 else:
@@ -2063,563 +2115,76 @@ class Environment:
 
     ### Plot communications sent/recieved
     # Plot the total data sent and received by satellites
-    def plot_global_comms(self, saveName):
-        """PLOTS THE TOTAL DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS"""
+    def plot_global_comms(self, saveName: str | None):
+        """Plots the total data sent and received by satellites in DDF algorithms"""
+        # Get the names of satellites:
+        sat_names = [sat.name for sat in self.sats]
 
         ## Plot comm data sent for CI Algo
         if self.estimator_config.ci:
-
-            # Create a figure
-            fig = plt.figure(figsize=(15, 8))
-            fig.suptitle(f"TOTAL Data Sent and Received by Satellites", fontsize=14)
-            ax = fig.add_subplot(111)
-
-            # Get the names of satellites:
-            satNames = [sat.name for sat in self.sats]
-
-            # Save previous data, to stack the bars
-            # prev_data = np.zeros(len(satNames))
-            # make prev_data a dictionary
-            prev_data = {sat: 0 for sat in satNames}
-
-            # Loop through all targets, in order listed in the environment
-            # for target_id in self.comms.total_comm_data:
-            count = 0
-            for targ in self.targs:
-
-                sent_data = defaultdict(dict)
-                rec_data = defaultdict(dict)
-
-                # Get the color for the target:
-                color = targ.color
-
-                # Get the target id
-                target_id = targ.targetID
-
-                # Now check, does that target have any communication data
-                if target_id not in self.comms.total_comm_data:
-                    continue
-
-                count += 1
-
-                for reciever in self.comms.total_comm_data[target_id]:
-
-                    for sender in self.comms.total_comm_data[target_id][reciever]:
-                        if sender == reciever:
-                            continue
-
-                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-
-                        for time in self.comms.total_comm_data[target_id][reciever][
-                            sender
-                        ]:
-
-                            # Get the data
-                            data = self.comms.total_comm_data[target_id][reciever][
-                                sender
-                            ][time]
-
-                            # Count the amount of data receiver by the receiver
-                            if reciever not in rec_data:
-                                rec_data[reciever] = 0
-                            rec_data[reciever] += data
-
-                            # Count the amount of data sent by the sender
-                            if sender not in sent_data:
-                                sent_data[sender] = 0
-                            sent_data[sender] += data
-
-                # If there are keys that dont exist in sent_data, make them and their value 0
-                for key in prev_data.keys():
-                    if key not in sent_data:
-                        sent_data[key] = 0
-                    if key not in rec_data:
-                        rec_data[key] = 0
-
-                # Order the data the same way, according to "sats" variable
-                sent_data = dict(
-                    sorted(sent_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-                rec_data = dict(
-                    sorted(rec_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-
-                p1 = ax.bar(
-                    list(sent_data.keys()),
-                    list(sent_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                )
-
-                # Add text labels to show which target is which.
-                for i, v in enumerate(list(sent_data.values())):
-                    ax.text(
-                        i,
-                        list(prev_data.values())[i],
-                        targ.name,
-                        ha='center',
-                        va='bottom',
-                        color='black',
-                    )
-
-                # Add the sent_data values to the prev_data
-                for key in sent_data.keys():
-                    prev_data[key] += sent_data[key]
-
-                p2 = ax.bar(
-                    list(rec_data.keys()),
-                    list(rec_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                    fill=False,
-                    hatch='//',
-                    edgecolor=color,
-                )
-
-                # Add the rec_data values to the prev_data
-                for key in rec_data.keys():
-                    prev_data[key] += rec_data[key]
-
-                if count == 1:
-                    # Add legend
-                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-            # Add the labels
-            ax.set_ylabel('Total Data Sent/Recieved (# of numbers)')
-
-            # Add the x-axis labels
-            ax.set_xticks(np.arange(len(satNames)))
-            ax.set_xticklabels(satNames)
-
-            # Now save the plot
-            if saveName is not None:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                os.makedirs(plotPath, exist_ok=True)
-                plt.savefig(
-                    os.path.join(plotPath, f"{saveName}_total_ci_comms.png"), dpi=300
-                )
-            else:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                plt.savefig(os.path.join(plotPath, f"total_ci_comms.png"), dpi=300)
+            comms_plot.create_comms_plot(
+                self.comms.total_comm_data,
+                self.targs,
+                sat_names,
+                super_title='TOTAL Data Sent and Received by Satellites',
+                y_label='Total Data Sent/Recieved (# of numbers)',
+                filename='total_ci_comms',
+                prefix=saveName,
+                save=True,
+            )
 
         ## Plot comm data sent for ET Algo
         if self.estimator_config.et:
-
-            fig = plt.figure(figsize=(15, 8))
-            fig.suptitle(f"ET Data Sent and Received by Satellites", fontsize=14)
-
-            ax = fig.add_subplot(111)
-
-            # Get the names of satellites:
-            satNames = [sat.name for sat in self.sats]
-
-            # Save previous data, to stack the bars
-            prev_data = {sat: 0 for sat in satNames}
-
-            # Loop through all targets, in order listed in the environment
-            count = 0
-            for targ in self.targs:
-
-                sent_data = defaultdict(dict)
-                rec_data = defaultdict(dict)
-
-                # Get the color for the target:
-                color = targ.color
-
-                # Get the target id
-                target_id = targ.targetID
-
-                # Now check, does that target have any communication data
-                if target_id not in self.comms.total_comm_et_data:
-                    continue
-
-                count += 1
-
-                for reciever in self.comms.total_comm_et_data[target_id]:
-
-                    for sender in self.comms.total_comm_et_data[target_id][reciever]:
-                        if sender == reciever:
-                            continue
-
-                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-
-                        for time in self.comms.total_comm_et_data[target_id][reciever][
-                            sender
-                        ]:
-
-                            # Get the data
-                            data = self.comms.total_comm_et_data[target_id][reciever][
-                                sender
-                            ][time]
-
-                            # Count the amount of data receiver by the receiver
-                            if reciever not in rec_data:
-                                rec_data[reciever] = 0
-                            rec_data[reciever] += data
-
-                            # Count the amount of data sent by the sender
-                            if sender not in sent_data:
-                                sent_data[sender] = 0
-                            sent_data[sender] += data
-
-                # If there are keys that dont exist in sent_data, make them and their value 0
-                for key in prev_data.keys():
-                    if key not in sent_data:
-                        sent_data[key] = 0
-                    if key not in rec_data:
-                        rec_data[key] = 0
-
-                # Order the data the same way, according to "sats" variable
-                sent_data = dict(
-                    sorted(sent_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-                rec_data = dict(
-                    sorted(rec_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-
-                p1 = ax.bar(
-                    list(sent_data.keys()),
-                    list(sent_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                )
-
-                # Add text labels to show which target is which.
-                for i, v in enumerate(list(sent_data.values())):
-                    ax.text(
-                        i,
-                        list(prev_data.values())[i],
-                        targ.name,
-                        ha='center',
-                        va='bottom',
-                        color='black',
-                    )
-
-                # Add the sent_data values to the prev_data
-                for key in sent_data.keys():
-                    prev_data[key] += sent_data[key]
-
-                p2 = ax.bar(
-                    list(rec_data.keys()),
-                    list(rec_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                    fill=False,
-                    hatch='//',
-                    edgecolor=color,
-                )
-
-                # Add the rec_data values to the prev_data
-                for key in rec_data.keys():
-                    prev_data[key] += rec_data[key]
-
-                if count == 1:
-                    # Add legend
-                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-            # Add the labels
-            ax.set_ylabel('ET Data Sent/Recieved (# of numbers)')
-
-            # Add the x-axis labels
-            ax.set_xticks(np.arange(len(satNames)))
-            ax.set_xticklabels(satNames)
-
-            # Now save the plot
-            filePath = os.path.dirname(os.path.realpath(__file__))
-            plotPath = os.path.join(filePath, 'plots')
-            os.makedirs(plotPath, exist_ok=True)
-            plt.savefig(
-                os.path.join(plotPath, f"{saveName}_total_et_comms.png"), dpi=300
+            comms_plot.create_comms_plot(
+                self.comms.total_comm_et_data,
+                self.targs,
+                sat_names,
+                super_title='TOTAL ET Data Sent and Received by Satellites',
+                y_label='Total ET Data Sent/Recieved (# of numbers)',
+                filename='total_et_comms',
+                prefix=saveName,
+                save=True,
             )
 
     # Plots the actual data amount used by the satellites
-    # TODO: REMOVE? IT HONESTLY DOESNT MATTER
-    def plot_used_comms(self, saveName):
+    # TODO: Remove? It honestly doesn't matter
+    def plot_used_comms(self, saveName: str | None):
         """
-        PLOTS THE USED DATA SEND AND RECEIVED BY SATELLITES IN DDF ALGORITHMS
+        Plots the used data sent and received by satellites in DDF algorithms.
 
-            Used means information used for a sat to meet TQ requirements
-
+        'Used' means information used for a satellite to meet TQ requirements.
         """
+        sat_names = [sat.name for sat in self.sats]
 
         ## Plot comm data sent for CI Algo
         if self.estimator_config.ci:
-
-            # Create a figure
-            fig = plt.figure(figsize=(15, 8))
-            fig.suptitle(f"USED Data Sent and Received by Satellites", fontsize=14)
-            ax = fig.add_subplot(111)
-
-            # Get the names of satellites:
-            satNames = [sat.name for sat in self.sats]
-
-            # Save previous data, to stack the bars
-            # prev_data = np.zeros(len(satNames))
-            # make prev_data a dictionary
-            prev_data = {sat: 0 for sat in satNames}
-
-            # Loop through all targets, in order listed in the environment
-            # for target_id in self.comms.total_comm_data:
-            count = 0
-            for targ in self.targs:
-
-                sent_data = defaultdict(dict)
-                rec_data = defaultdict(dict)
-
-                # Get the color for the target:
-                color = targ.color
-
-                # Get the target id
-                target_id = targ.targetID
-
-                # Now check, does that target have any communication data
-                if target_id not in self.comms.used_comm_data:
-                    continue
-
-                count += 1
-
-                for reciever in self.comms.used_comm_data[target_id]:
-
-                    for sender in self.comms.used_comm_data[target_id][reciever]:
-                        if sender == reciever:
-                            continue
-
-                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-
-                        for time in self.comms.used_comm_data[target_id][reciever][
-                            sender
-                        ]:
-
-                            # Get the data
-                            data = self.comms.used_comm_data[target_id][reciever][
-                                sender
-                            ][time]
-
-                            # Count the amount of data receiver by the receiver
-                            if reciever not in rec_data:
-                                rec_data[reciever] = 0
-                            rec_data[reciever] += data
-
-                            # Count the amount of data sent by the sender
-                            if sender not in sent_data:
-                                sent_data[sender] = 0
-                            sent_data[sender] += data
-
-                # If there are keys that dont exist in sent_data, make them and their value 0
-                for key in prev_data.keys():
-                    if key not in sent_data:
-                        sent_data[key] = 0
-                    if key not in rec_data:
-                        rec_data[key] = 0
-
-                # Order the data the same way, according to "sats" variable
-                sent_data = dict(
-                    sorted(sent_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-                rec_data = dict(
-                    sorted(rec_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-
-                p1 = ax.bar(
-                    list(sent_data.keys()),
-                    list(sent_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                )
-
-                # Add text labels to show which target is which.
-                for i, v in enumerate(list(sent_data.values())):
-                    ax.text(
-                        i,
-                        list(prev_data.values())[i],
-                        targ.name,
-                        ha='center',
-                        va='bottom',
-                        color='black',
-                    )
-
-                # Add the sent_data values to the prev_data
-                for key in sent_data.keys():
-                    prev_data[key] += sent_data[key]
-
-                p2 = ax.bar(
-                    list(rec_data.keys()),
-                    list(rec_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                    fill=False,
-                    hatch='//',
-                    edgecolor=color,
-                )
-
-                # Add the rec_data values to the prev_data
-                for key in rec_data.keys():
-                    prev_data[key] += rec_data[key]
-
-                if count == 1:
-                    # Add legend
-                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-            # Add the labels
-            ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
-
-            # Add the x-axis labels
-            ax.set_xticks(np.arange(len(satNames)))
-            ax.set_xticklabels(satNames)
-
-            # Now save the plot
-            if saveName is not None:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                os.makedirs(plotPath, exist_ok=True)
-                plt.savefig(
-                    os.path.join(plotPath, f"{saveName}_used_ci_comms.png"), dpi=300
-                )
-            else:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                plt.savefig(os.path.join(plotPath, f"used_ci_comms.png"), dpi=300)
+            comms_plot.create_comms_plot(
+                self.comms.used_comm_data,
+                self.targs,
+                sat_names,
+                super_title='USED Data Sent and Received by Satellites',
+                y_label='Used Data Sent/Recieved (# of numbers)',
+                filename='used_ci_comms',
+                prefix=saveName,
+                save=True,
+            )
 
         ## Plot comm data sent for ET Algo
         if self.estimator_config.et:
-
-            # DO the exact same thing for ET data
-            # Create a figure
-            fig = plt.figure(figsize=(15, 8))
-            fig.suptitle(f"USED ET Data Sent and Received by Satellites", fontsize=14)
-            ax = fig.add_subplot(111)
-
-            # Get the names of satellites:
-            satNames = [sat.name for sat in self.sats]
-
-            # Save previous data, to stack the bars
-            # prev_data = np.zeros(len(satNames))
-            # make prev_data a dictionary
-            prev_data = {sat: 0 for sat in satNames}
-
-            # Loop through all targets, in order listed in the environment
-            # for target_id in self.comms.total_comm_data:
-            count = 0
-            for targ in self.targs:
-
-                sent_data = defaultdict(dict)
-                rec_data = defaultdict(dict)
-
-                # Get the color for the target:
-                color = targ.color
-
-                # Get the target id
-                target_id = targ.targetID
-
-                # Now check, does that target have any communication data
-                if target_id not in self.comms.used_comm_et_data:
-                    continue
-
-                count += 1
-
-                for reciever in self.comms.used_comm_et_data[target_id]:
-
-                    for sender in self.comms.used_comm_et_data[target_id][reciever]:
-                        if sender == reciever:
-                            continue
-
-                        # Goal is to count the amoutn of data reciever has receieved as well as sender has sent
-
-                        for time in self.comms.used_comm_et_data[target_id][reciever][
-                            sender
-                        ]:
-
-                            # Get the data
-                            data = self.comms.used_comm_et_data[target_id][reciever][
-                                sender
-                            ][time]
-
-                            # Count the amount of data receiver by the receiver
-                            if reciever not in rec_data:
-                                rec_data[reciever] = 0
-                            rec_data[reciever] += data
-
-                            # Count the amount of data sent by the sender
-                            if sender not in sent_data:
-                                sent_data[sender] = 0
-                            sent_data[sender] += data
-
-                # If there are keys that dont exist in sent_data, make them and their value 0
-                for key in prev_data.keys():
-                    if key not in sent_data:
-                        sent_data[key] = 0
-                    if key not in rec_data:
-                        rec_data[key] = 0
-
-                # Order the data the same way, according to "sats" variable
-                sent_data = dict(
-                    sorted(sent_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-                rec_data = dict(
-                    sorted(rec_data.items(), key=lambda item: satNames.index(item[0]))
-                )
-
-                p1 = ax.bar(
-                    list(sent_data.keys()),
-                    list(sent_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                )
-
-                # Add text labels to show which target is which.
-                for i, v in enumerate(list(sent_data.values())):
-                    ax.text(
-                        i,
-                        list(prev_data.values())[i],
-                        targ.name,
-                        ha='center',
-                        va='bottom',
-                        color='black',
-                    )
-
-                # Add the sent_data values to the prev_data
-                for key in sent_data.keys():
-                    prev_data[key] += sent_data[key]
-
-                p2 = ax.bar(
-                    list(rec_data.keys()),
-                    list(rec_data.values()),
-                    bottom=list(prev_data.values()),
-                    color=color,
-                    fill=False,
-                    hatch='//',
-                    edgecolor=color,
-                )
-
-                # Add the rec_data values to the prev_data
-                for key in rec_data.keys():
-                    prev_data[key] += rec_data[key]
-
-                if count == 1:
-                    # Add legend
-                    ax.legend((p1[0], p2[0]), ('Sent Data', 'Received Data'))
-
-            # Add the labels
-            ax.set_ylabel('Used Data Sent/Recieved (# of numbers)')
-
-            # Add the x-axis labels
-            ax.set_xticks(np.arange(len(satNames)))
-            ax.set_xticklabels(satNames)
-
-            # Now save the plot
-            if saveName is not None:
-                filePath = os.path.dirname(os.path.realpath(__file__))
-                plotPath = os.path.join(filePath, 'plots')
-                os.makedirs(plotPath, exist_ok=True)
-                plt.savefig(
-                    os.path.join(plotPath, f"{saveName}_used_et_comms.png"), dpi=300
-                )
+            comms_plot.create_comms_plot(
+                self.comms.used_comm_et_data,
+                self.targs,
+                sat_names,
+                super_title='USED ET Data Sent and Received by Satellites',
+                y_label='Used ET Data Sent/Recieved (# of numbers)',
+                filename='used_et_comms',
+                prefix=saveName,
+                save=True,
+            )
 
     # Sub plots for each satellite showing the track uncertainty for each target and then the comms sent/recieved about each target vs time
-    def plot_timeHist_comms_ci(self, saveName):
-        """PLOTS A TIME HISTORY OF THE CI COMMS RECIEVED FOR EACH SATELLITE ON EVERY TARGET"""
+    def plot_timeHist_comms_ci(self, saveName: str | None):
+        """Plots a time history of the CI communications received for each satellite on every target."""
 
         # For each satellite make a plot:
         for sat in self.sats:
@@ -2742,7 +2307,7 @@ class Environment:
             nonEmptyTime.sort()
 
             # also now use a specified order of sats
-            satNames = [sat.name for sat in self.sats]
+            sat_names = [sat.name for sat in self.sats]
 
             # Use the nonEmptyTime to get the minimum difference between time steps
             differences = [j - i for i, j in zip(nonEmptyTime[:-1], nonEmptyTime[1:])]
@@ -2757,17 +2322,31 @@ class Environment:
                     continue
 
                 # Check if the target has any communication data
-                if targ.targetID not in self.comms.used_comm_data:
+                related_comms = self.comms.used_comm_data.loc[
+                    self.comms.used_comm_data['target_id'] == targ.targetID
+                ]
+                if not len(related_comms):
                     continue
 
-                for sender in satNames:
+                for sender in sat_names:
                     if sender == sat:
                         continue
 
                     # So now, we have a satellite, the reciever, recieving information about targetID from sender
                     # We want to count, how much information did the reciever recieve from the sender in a time history and plot that on a bar chart
-
-                    data = self.comms.used_comm_data[targ.targetID][sat.name][sender]
+                    related_comms = self.comms.used_comm_data.loc[
+                        (self.comms.used_comm_data['sender'] == sender)
+                        & (self.comms.used_comm_data['receiver'] == sat.name)
+                        & (self.comms.used_comm_data['target_id'] == targ.targetID)
+                    ]
+                    related_transmissions = self.comms.used_comm_data.to_dataclasses(
+                        related_comms
+                    )
+                    data = {
+                        comm.time: comm.size
+                        for comm in related_transmissions
+                        if comm.time in nonEmptyTime
+                    }
 
                     # Check, does any of the data contain [] or None? If so, make it a 0
                     for key in data:
@@ -2863,11 +2442,21 @@ class Environment:
                             edge_styles.append((sat2, sat, style, targ_color))
 
                         # If there is a communication between the two satellites, add an edge
-                        if isinstance(
-                            comms.total_comm_et_data_values[targ.targetID][sat.name][
-                                sat2.name
-                            ][envTime],
-                            np.ndarray,
+                        related_comms = self.comms.total_comm_et_data.loc[
+                            (self.comms.total_comm_et_data['sender'] == sat.name)
+                            & (self.comms.total_comm_et_data['receiver'] == sat2.name)
+                            & (
+                                self.comms.total_comm_et_data['target_id']
+                                == targ.targetID
+                            )
+                            & (self.comms.total_comm_et_data['time'] == envTime)
+                        ]
+                        related_transmissions = (
+                            self.comms.total_comm_et_data.to_dataclasses(related_comms)
+                        )
+                        if (
+                            len(related_transmissions)
+                            and related_transmissions[0].has_alpha_beta
                         ):
                             diComms.add_edge(sat2, sat)
                             style = self.get_edge_style(
@@ -2926,7 +2515,15 @@ class Environment:
         plt.close(fig)
 
     # TODO: IF REMOVE plot_dynamic_comms, REMOVE THIS
-    def get_edge_style(self, comms, targetID, sat1, sat2, envTime, CI=False):
+    def get_edge_style(
+        self,
+        comms: comms.Comms,
+        targetID: int,
+        sat1: satellite.Satellite,
+        sat2: satellite.Satellite,
+        envTime: float,
+        CI: bool = False,
+    ):
         """
         Helper function to determine the edge style based on communication data.
         Returns 'solid' if both alpha and beta are present, 'dashed' if only one is present,
@@ -2936,9 +2533,18 @@ class Environment:
         if CI:
             return (0, ())
 
-        alpha, beta = comms.total_comm_et_data_values[targetID][sat1.name][sat2.name][
-            envTime
+        related_comms = self.comms.total_comm_et_data.loc[
+            (self.comms.total_comm_et_data['sender'] == sat1.name)
+            & (self.comms.total_comm_et_data['receiver'] == sat2.name)
+            & (self.comms.total_comm_et_data['target_id'] == targetID)
+            & (self.comms.total_comm_et_data['time'] == envTime)
         ]
+        assert len(related_comms)
+        related_transmissions = self.comms.total_comm_et_data.to_dataclasses(
+            related_comms
+        )
+        alpha = related_transmissions[0].alpha
+        beta = related_transmissions[0].beta
         if np.isnan(alpha) and np.isnan(beta):
             return (0, (1, 10))
         elif np.isnan(alpha) or np.isnan(beta):
