@@ -22,6 +22,18 @@ def create_comms_plot(
     prefix: str | None = None,
     save: bool = True,
 ) -> figure.Figure:
+    """Create a bar plot of communication transmissions.
+
+    Args:
+        transmissions: DataClassFrame of Transmission objects.
+        targets: List of Target objects.
+        sat_names: List of satellite names.
+        super_title: Title of the plot.
+        y_label: Label of the y-axis.
+        filename: Name of the file to save the plot.
+        prefix: Prefix to add to the filename.
+        save: Whether to save the plot.
+    """
     # Create a figure
     fig = plt.figure(figsize=(15, 8))
     fig.suptitle(super_title, fontsize=14)
