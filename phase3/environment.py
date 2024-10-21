@@ -1414,7 +1414,7 @@ class Environment:
                             # Get the position of the satellite at that time, use sat.orbitHist
                             x_sat, y_sat, z_sat = sat.orbitHist[time]
                             if gs.can_communicate(x_sat, y_sat, z_sat):
-                                # IF SAT COULD HAVE COMMUNICATED, BUT DIDNT PLOT A HATCHED BOX WITH SAT COLOR
+                                # If the satellite could have communicated but didn't, plot a hatched box with the satellite's color
                                 axComm.bar(
                                     time,
                                     1,
@@ -1427,7 +1427,7 @@ class Environment:
                                 )
                                 prevData += 1
                             else:
-                                # IF THE SAT COULDNT HAVE COMMUNICATED, PLOT BLACK HATCH
+                                # If the satellite couldn't have communicated, plot black hatch
                                 axComm.bar(
                                     time,
                                     1,
