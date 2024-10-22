@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import art3d
 from mpl_toolkits.mplot3d import axes3d
 from numpy import typing as npt
+from poliastro import bodies
 
 from common import path_utils
 from phase3 import collection
@@ -121,7 +122,7 @@ class Environment:
         # Earth parameters for plotting
         u_earth = np.linspace(0, 2 * np.pi, 100)
         v_earth = np.linspace(0, np.pi, 100)
-        self.earth_r = 6378.0
+        self.earth_r: float = bodies.Earth.R.to_value(u.km)
         self.x_earth = self.earth_r * np.outer(np.cos(u_earth), np.sin(v_earth))
         self.y_earth = self.earth_r * np.outer(np.sin(u_earth), np.sin(v_earth))
         self.z_earth = self.earth_r * np.outer(
@@ -807,7 +808,7 @@ class Environment:
                         )
 
                         # Add the data to the queued data onboard the ground station
-                        gs.queue_data(data, dtype=collection.GsDataType.MEAS)
+                        gs.queue_data(data, dtype=collection.GsDataType.MEASUREMENT)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -857,7 +858,7 @@ class Environment:
                             )
 
                             # Add the data to the queued data onboard the ground station
-                            gs.queue_data(data, dtype=collection.GsDataType.MEAS)
+                            gs.queue_data(data, dtype=collection.GsDataType.MEASUREMENT)
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -909,7 +910,10 @@ class Environment:
                             )
 
                             # Add the data to the queued data onboard the ground station
-                            gs.queue_data(data, dtype=collection.GsDataType.CI)
+                            gs.queue_data(
+                                data,
+                                dtype=collection.GsDataType.COVARIANCE_INTERSECTION,
+                            )
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -980,7 +984,9 @@ class Environment:
                     )
 
                     # Add the data to the queued data onboard the ground station
-                    gs.queue_data(data, dtype=collection.GsDataType.CI)
+                    gs.queue_data(
+                        data, dtype=collection.GsDataType.COVARIANCE_INTERSECTION
+                    )
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -1043,7 +1049,9 @@ class Environment:
                     )
 
                     # Add the data to the queued data onboard the ground station
-                    gs.queue_data(data, dtype=collection.GsDataType.CI)
+                    gs.queue_data(
+                        data, dtype=collection.GsDataType.COVARIANCE_INTERSECTION
+                    )
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -1116,7 +1124,9 @@ class Environment:
                     )
 
                     # Add the data to the queued data onboard the ground station
-                    gs.queue_data(data, dtype=collection.GsDataType.CI)
+                    gs.queue_data(
+                        data, dtype=collection.GsDataType.COVARIANCE_INTERSECTION
+                    )
 
         # Now that the data is queued, process the data in the filter
         for gs in self.groundStations:
@@ -1206,30 +1216,19 @@ class Environment:
         """
         Plot the communication structure between satellites.
         """
-        if self.comms.displayStruct:
-            for edge in self.comms.G.edges:
-                sat1 = edge[0]
-                sat2 = edge[1]
-                x1, y1, z1 = sat1.orbit.r.value
-                x2, y2, z2 = sat2.orbit.r.value
-                if self.comms.G.edges[edge]['active']:
-                    self.ax.plot(
-                        [x1, x2],
-                        [y1, y2],
-                        [z1, z2],
-                        color=(0.3, 1.0, 0.3),
-                        linestyle='dashed',
-                        linewidth=2,
-                    )
-                else:
-                    self.ax.plot(
-                        [x1, x2],
-                        [y1, y2],
-                        [z1, z2],
-                        color='k',
-                        linestyle='dashed',
-                        linewidth=1,
-                    )
+        for edge in self.comms.G.edges:
+            sat1 = edge[0]
+            sat2 = edge[1]
+            x1, y1, z1 = sat1.pos
+            x2, y2, z2 = sat2.pos
+            self.ax.plot(
+                [x1, x2],
+                [y1, y2],
+                [z1, z2],
+                color='k',
+                linestyle='dashed',
+                linewidth=1,
+            )
 
     def plotGroundStations(self) -> None:
         """
@@ -1567,7 +1566,7 @@ class Environment:
                             axes,
                             trackError_times,
                             trackErrorHist,
-                            targ.tqReq,
+                            targ.targetID,
                             label_color=satColor,
                             linewidth=2.5,
                         )
@@ -1612,7 +1611,7 @@ class Environment:
                             axes,
                             central_trackError_times,
                             central_trackErrorHist,
-                            targ.tqReq,
+                            targ.targetID,
                             label_color=centralColor,
                             linewidth=1.5,
                         )
@@ -1664,7 +1663,7 @@ class Environment:
                             axes,
                             ci_trackError_times,
                             ci_trackErrorHist,
-                            targ.tqReq,
+                            targ.targetID,
                             label_color=ciColor,
                             linewidth=2.5,
                         )
@@ -1705,7 +1704,7 @@ class Environment:
                             axes,
                             et_trackError_times,
                             et_trackErrorHist,
-                            targ.tqReq,
+                            targ.targetID,
                             label_color=etColor,
                             linewidth=2.5,
                         )
@@ -2286,7 +2285,7 @@ class Environment:
                     # Now plot a dashed line for the targetPriority
                     # ax1.axhline(y=self.commandersIntent[time][sat.name][targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
                     # Add a text label on the above right side of the dashed line
-                    # ax1.text(xMin, self.commandersIntent[time][sat.name][targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+                    # ax1.text(xMin, self.commandersIntent[time][sat.name][targ.targetID] + 5, f"Target Quality: {targ.targetID}", fontsize=8, color=targ.color)
 
             # # Now for each target make the dashed lines for the target quality
             # for targ in self.targs:
@@ -2296,7 +2295,7 @@ class Environment:
             #     # Now plot a dashed line for the targetPriority
             #     ax1.axhline(y=sat.targPriority[targ.targetID], color=targ.color, linestyle='dashed', linewidth=1.5)
             #     # Add a text label on the above right side of the dashed line
-            #     # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.tqReq}", fontsize=8, color=targ.color)
+            #     # ax1.text(min(nonEmptyTime), sat.targPriority[targ.targetID] + 5, f"Target Quality: {targ.targetID}", fontsize=8, color=targ.color)
 
             # Now do the 2nd subplot, bar plot showing the data sent/recieved by each satellite about each target
 
@@ -3686,7 +3685,6 @@ class Environment:
         targs = [
             target.Target(
                 name=name,
-                tqReq=t.tq_req,
                 targetID=t.target_id,
                 coords=np.array(t.coords),
                 heading=t.heading,
@@ -3747,7 +3745,6 @@ class Environment:
             maxNeighbors=cfg.comms.max_neighbors,
             maxRange=u.Quantity(cfg.comms.max_range, u.km),
             minRange=u.Quantity(cfg.comms.min_range, u.km),
-            displayStruct=cfg.comms.display_struct,
         )
 
         # Create and return an environment instance:

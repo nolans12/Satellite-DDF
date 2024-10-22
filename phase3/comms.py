@@ -6,6 +6,7 @@ from astropy import units as u
 from numpy import typing as npt
 
 from common import dataclassframe
+from common import linalg
 from phase3 import collection
 from phase3 import satellite
 
@@ -22,8 +23,6 @@ class Comms:
         maxRange: u.Quantity[u.km],
         minRange: u.Quantity[u.km],
         maxBandwidth: int = 100000000,
-        dataRate: int = 0,
-        displayStruct: bool = False,
     ):
         """Initialize the communications network.
                 Using networkx, a python library, to create a graph of the satellites and their connections.
@@ -34,7 +33,6 @@ class Comms:
             max_range: Maximum range for communication.
             min_range: Minimum range for communication.
             data_rate: Data rate. Defaults to 0.
-            display_struct: Flag to display structure. Defaults to False.
         """
         self.maxBandwidth = maxBandwidth
 
@@ -54,8 +52,6 @@ class Comms:
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
         self.min_range = minRange
-        self.data_rate = dataRate
-        self.displayStruct = displayStruct
 
         # Create a graph instance with the satellites as nodes
         self._sats = sats
@@ -87,8 +83,6 @@ class Comms:
             self.send_estimate(
                 path[i - 1], path[i], est_meas_source, cov_meas_source, target_id, time
             )
-            # Activate that edge
-            # self.G.edges[path[i-1], path[i]]['active'] = True
 
     def send_estimate(
         self,
@@ -269,14 +263,13 @@ class Comms:
             dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
             if self.min_range < dist < self.max_range:
                 # Check if the Earth is blocking the two satellites
-                if not self.intersect_earth(sat1, sat2):
+                if not linalg.intersects_earth(sat1.orbit.r, sat2.orbit.r):
                     # Add the edge
                     self.G.add_edge(
                         sat1,
                         sat2,
                         maxBandwidth=self.maxBandwidth,
                         usedBandwidth=0,
-                        active=False,
                     )
                     # also add the edge in the opposite direction
                     self.G.add_edge(
@@ -284,7 +277,6 @@ class Comms:
                         sat1,
                         maxBandwidth=self.maxBandwidth,
                         usedBandwidth=0,
-                        active=False,
                     )
 
         # Restrict to just the maximum number of neighbors
@@ -309,88 +301,3 @@ class Comms:
                 # Remove the extra neighbors
                 for i in range(self.max_neighbors, len(sorted_neighbors)):
                     self.G.remove_edge(sat, sorted_neighbors[i])
-
-    def intersect_earth(
-        self, sat1: satellite.Satellite, sat2: satellite.Satellite
-    ) -> bool:
-        """Check if the Earth is blocking the two satellites using line-sphere intersection.
-                Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
-
-        Args:
-            sat1: The first satellite.
-            sat2: The second satellite.
-
-        Returns:
-            bool: True if the Earth is blocking the line of sight, False otherwise.
-        """
-        # Make a line between the two satellites
-        line = (sat2.orbit.r - sat1.orbit.r).value  # This is from sat1 to sat2
-
-        # Check if there is an intersection with the Earth
-        if (
-            self.sphere_line_intersection((0, 0, 0), 6378, sat1.orbit.r.value, line)
-            is not None
-        ):
-            return True
-
-        # If there is no intersection, return False
-        return False
-
-    def sphere_line_intersection(
-        self,
-        sphere_center: tuple[float, float, float],
-        sphere_radius: float,
-        line_point: tuple[float, float, float],
-        line_direction: tuple[float, float, float],
-    ):
-        """Check if a line intersects with a sphere.
-                Uses known fomrula for line-sphere intersection in 3D space.
-
-        Args:
-            sphere_center (list): Coordinates of the sphere center.
-            sphere_radius (float): Radius of the sphere.
-            line_point (list): Point on the line.
-            line_direction (list): Direction of the line.
-
-        Returns:
-            array or None: Intersection point(s) or None if no intersection.
-        """
-        # Unpack sphere parameters
-        x0, y0, z0 = sphere_center
-        r = sphere_radius
-
-        # Unpack line parameters
-        x1, y1, z1 = line_point
-        dx, dy, dz = line_direction
-
-        # Compute coefficients for the quadratic equation
-        a = dx**2 + dy**2 + dz**2
-        b = 2 * (dx * (x1 - x0) + dy * (y1 - y0) + dz * (z1 - z0))
-        c = (x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2 - r**2
-
-        # Compute discriminant
-        discriminant = b**2 - 4 * a * c
-
-        if discriminant < 0:
-            # No intersection
-            return None
-        elif discriminant == 0:
-            # One intersection
-            t = -b / (2 * a)
-            intersection_point = np.array([x1 + t * dx, y1 + t * dy, z1 + t * dz])
-            return intersection_point
-        else:
-            # Two intersections
-            t1 = (-b + np.sqrt(discriminant)) / (2 * a)
-            t2 = (-b - np.sqrt(discriminant)) / (2 * a)
-            intersection_point1 = np.array([x1 + t1 * dx, y1 + t1 * dy, z1 + t1 * dz])
-            intersection_point2 = np.array([x1 + t2 * dx, y1 + t2 * dy, z1 + t2 * dz])
-
-            # Calculate distances
-            dist1 = np.linalg.norm(intersection_point1 - line_point)
-            dist2 = np.linalg.norm(intersection_point2 - line_point)
-
-            if dist1 < dist2:
-                return intersection_point1
-            else:
-                return intersection_point2
