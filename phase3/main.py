@@ -293,7 +293,7 @@ def main(
     )
 
     # Vector of time for simulation:
-    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m * 6 + 1) * u.minute
+    time_vec = np.linspace(0, cfg.sim_duration_m, cfg.sim_duration_m * 1 + 1) * u.minute
 
     # Create the environment
     env = create_environment()

@@ -3,7 +3,7 @@ sim_duration_m: 10
 plot:
   output_prefix: "test"
 
-  show_env: true
+  show_env: false
 
   plot_estimation: true
   plot_communication: true
