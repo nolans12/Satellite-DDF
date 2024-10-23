@@ -2,7 +2,7 @@ sim_duration_m: 10
 sim_time_step_m: .166666
 
 plot:
-  output_prefix: "local"
+  output_prefix: "ci"
 
   show_env: true
 
@@ -24,9 +24,9 @@ comms:
   display_struct: true
 
 estimators:
-  central: true
+  central: false
   local: false
-  ci: false
+  ci: true
   et: false
 
 targets:

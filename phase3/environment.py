@@ -278,7 +278,7 @@ class Environment:
 
         # If a central estimator is present, perform central fusion
         if self.estimator_config.central:
-            self.central_fusion()  # TODO: fix central filter
+            self.central_fusion()
 
         # Now send estimates for future CI
         if self.estimator_config.ci:
@@ -709,64 +709,42 @@ class Environment:
         for targ in self.targs:
 
             targetID = targ.targetID
-            measurements = []
+            measurements = (
+                []
+            )  # needs to look like [array([44.21412194,  2.32977878]), array([41.48069992, 29.14226864])] for [alpha, beta] for each satellite
+
+            sats_w_measurements = []
 
             for sat in self.sats:
                 if targetID in sat.measurementHist['targetID'].values:
 
                     # Get the measurement at the current time
-                    meas = sat.measurementHist[(sat.measurementHist['targetID'] == targetID) & (sat.measurementHist['time'] == self.time.value)]['measurement'].values[0]
+                    meas = sat.measurementHist[
+                        (sat.measurementHist['targetID'] == targetID)
+                        & (sat.measurementHist['time'] == self.time.value)
+                    ]['measurement'].values[0]
 
                     if meas is not None:
-                        test = 1
+                        measurements.append(meas)
+                        sats_w_measurements.append(sat)
+            # Now, perform the central fusion, using the estimator, decide to do initization or pred then update
+            if len(measurements) > 0:
 
-
-    ## GROUND STATION PROTOCOLS, NEED TO CHOOSE JUST ONE MAYBE
-    def send_to_ground_god_mode(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
-
-        GOD MODE:
-            Every satellite that took a measurement on a target, send the measurement to the ground station.
-            Regardless of if the sat can communicate with the ground station.
-        """
-
-        # TODO: this function is kinda hard because the EKF estimator needs the true position of the targets to initalize.
-        # But most other things just use targetID, thus, have to get target in the data queue even though only need targetID for everything besides the initalization.
-
-        # For each satellite, check, did it get a new measurement?
-        # Compare the environment time with most recent measurement history time
-
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-                # Check to see if a satellite has a measurement for that targetID at the given time
-                for sat in self.sats:
-                    if isinstance(
-                        sat.measurementHist[targ.targetID][self.time.to_value()],
-                        np.ndarray,
-                    ):
-
-                        # Get the measurement
-                        meas = sat.measurementHist[targ.targetID][self.time.to_value()]
-
-                        data = collection.GsMeasurementTransmission(
-                            target_id=targ.targetID,
-                            sender=sat.name,
-                            receiver=gs.name,
-                            time=self.time.value,
-                            measurement=meas,
+                if self.estimator.estimation_data.empty:
+                    # Initialize
+                    self.estimator.EKF_initialize(targ, self.time.value)
+                else:
+                    # Check, do we have an estimate for this targetID?
+                    if targetID in self.estimator.estimation_data['targetID'].values:
+                        # Predict
+                        self.estimator.EKF_pred(targetID, self.time.value)
+                        # Update
+                        self.estimator.EKF_update(
+                            sats_w_measurements, measurements, targetID, self.time.value
                         )
-
-                        # Add the data to the queued data onboard the ground station
-                        gs.queue_data(data, dtype=collection.GsDataType.MEAS)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
+                    else:
+                        # Initialize
+                        self.estimator.EKF_initialize(targ, self.time.value)
 
     def send_to_ground_best_sat(self):
         """
@@ -1029,12 +1007,20 @@ class Environment:
         os.makedirs(estimator_path, exist_ok=True)
         # Now, save all estimator data
         for sat in self.sats:
-            sat.estimator.estimation_data.to_csv(  # TODO: this should just be sat.estimator.estimation_data, need to change naming syntax
-                os.path.join(estimator_path, f"{sat.name}_estimator.csv")
-            )
+            if sat.estimator is not None:
+                sat.estimator.estimation_data.to_csv(  # TODO: this should just be sat.estimator.estimation_data, need to change naming syntax
+                    os.path.join(estimator_path, f"{sat.name}_estimator.csv")
+                )
         for gs in self.groundStations:
-            gs.estimator.estimation_data.to_csv(
-                os.path.join(estimator_path, f"{gs.name}_estimator.csv")
+            if gs.estimator is not None:
+                gs.estimator.estimation_data.to_csv(
+                    os.path.join(estimator_path, f"{gs.name}_estimator.csv")
+                )
+
+        if self.estimator_config.central:
+            if self.estimator is not None:
+                self.estimator.estimation_data.to_csv(
+                os.path.join(estimator_path, f"central_estimator.csv")
             )
 
     ### Estimation Errors and Track Uncertainty Plots ###
