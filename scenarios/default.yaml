@@ -26,7 +26,7 @@ comms:
 estimators:
   central: false
   local: true
-  ci: true
+  ci: false
   et: false
 
 targets:

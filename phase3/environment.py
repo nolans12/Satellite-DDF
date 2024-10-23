@@ -67,17 +67,13 @@ class Environment:
 
             # Create estimation algorithms for each satellite
             if self.estimator_config.local:
-                sat.indeptEstimator = estimator.IndeptEstimator(
-                    commandersIntent[0][sat.name]
-                )  # initialize the independent estimator for these targets
+                sat.indeptEstimator = estimator.IndeptEstimator()  # initialize the independent estimator for these targets
 
             if self.estimator_config.central:
-                self.centralEstimator = estimator.CentralEstimator(
-                    commandersIntent[0][sat.name]
-                )  # initialize the central estimator for these targets
+                self.centralEstimator = estimator.CentralEstimator()
 
             if self.estimator_config.ci:
-                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat.name])
+                sat.ciEstimator = estimator.CiEstimator()
 
             if self.estimator_config.et:
                 sat.etEstimators = [
@@ -192,7 +188,7 @@ class Environment:
             # self.send_to_ground_avaliable_sats()
             ## MUST CHOOSE THIS TO MATCH THE ACTUAL DDF YOUR DOING
             # self.send_to_ground_best_sat_local()
-            self.send_to_ground_best_sat_ci()
+            # self.send_to_ground_best_sat_ci()
             # self.send_to_ground_best_sat_et()
 
             if plot_config.show_env:
@@ -211,6 +207,7 @@ class Environment:
         self.save_data_frames(saveName=plot_config.output_prefix)
 
         ###### WE ARE TRANSITIONING TO MOVING ALL DATA TO BE SAVED IN A DATA FRAME, THEN PLOTTING FROM CSVS ######
+
         # if plot_config.plot_groundStation_results:
         #     self.plot_gs_results(
         #         time_vec, saveName=plot_config.output_prefix
@@ -1307,12 +1304,14 @@ class Environment:
                 os.path.join(comms_path, f"comm_data.csv")
             )
 
-        # ## Make an estimator folder
-        # estimator_path = os.path.join(savePath, f"estimators")
-        # os.makedirs(estimator_path, exist_ok=True)
-        # here would need to do a save for all Sat_Targ pairings, like Targ1_Sat1.csv, etc.
-
-        # We want to save each of these as a csv file in the savePath folder
+        ## Make an estimator folder
+        estimator_path = os.path.join(savePath, f"estimators")
+        os.makedirs(estimator_path, exist_ok=True)
+        # Now, save all estimator data
+        for sat in self.sats:
+            sat.indeptEstimator.estimation_data.to_csv(  # TODO: this should just be sat.estimator.estimation_data, need to change naming syntax
+                os.path.join(estimator_path, f"{sat.name}_estimator.csv")
+            )
 
     ### Estimation Errors and Track Uncertainty Plots ###
     def plot_gs_results(self, time_vec: u.Quantity[u.minute], saveName: str) -> None:
@@ -3783,7 +3782,7 @@ class Environment:
         # Define the ground stations:
         groundStations = [
             groundStation.GroundStation(
-                estimator=estimator.GsEstimator(first_intent),
+                estimator=estimator.GsEstimator(),
                 lat=gs.lat,
                 lon=gs.lon,
                 fov=gs.fov,

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pandas as pd
 from jax import typing as jnpt
 from numpy import typing as npt
 from scipy import optimize
@@ -20,50 +21,19 @@ from phase3 import target
 
 
 class BaseEstimator:
-    def __init__(self, targetPriorities: dict[int, int]):
+    def __init__(self):
         """
         Initialize the BaseEstimator object.
 
-        Args:
-        - targetIDs (list): List of target IDs to track.
+        Initalizes the data frame for storing the data
         """
 
-        # Define the targetPriorities dictioanry
-        self.targetPriorities = targetPriorities
-
-        # Define the targets to track
-        self.targs = targetPriorities.keys()
-
-        # Define history vectors for each extended Kalman filter
-        self.estHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of Kalman estimates in ECI coordinates
-        self.estPredHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of Kalman estimates in ECI coordinates
-        self.covarianceHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of covariance matrices
-        self.covariancePredHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of predicted covariance matrices
-        self.innovationHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of innovations
-        self.innovationCovHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of innovation covariances
-        self.neesHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of NEES (Normalized Estimation Error Squared)
-        self.nisHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of NIS (Normalized Innovation Squared)
-        self.trackErrorHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of track quality metric
+        ## DATA FRAMES ##
+        self.estimation_data = pd.DataFrame()
 
     def EKF_initialize(self, target: target.Target, envTime: float) -> None:
+        # Initialize the state with some noise (this is why the target is passed in)
+
         prior_pos = np.array(
             [target.pos[0], target.pos[1], target.pos[2]]
         ) + np.random.normal(0, 15, 3)
@@ -99,28 +69,20 @@ class BaseEstimator:
         )
 
     def EKF_pred(self, targetID: int, envTime: float) -> None:
+        """
+        Predict the next state of the target using the state transition function.
+        """
+
         # Get most recent estimate and covariance
-        time_prior = max(self.estHist[targetID].keys())
-        est_prior = self.estHist[targetID][time_prior]
-        P_prior = self.covarianceHist[targetID][time_prior]
+        latest_estimate = self.estimation_data[
+            self.estimation_data['targetID'] == targetID
+        ].iloc[-1]
+        time_prior = latest_estimate['time']
+        est_prior = latest_estimate['est']
+        P_prior = latest_estimate['cov']
 
         # Calculate time difference since last estimate
         dt = envTime - time_prior
-
-        # ### Also reset the filter if its been a certain amount of time since the last estimate
-        # if dt > 30:
-        #     prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
-        #     prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
-        #     est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
-        #     # Initial covariance matrix
-        #     P_prior = np.array([[2500, 0, 0, 0, 0, 0],
-        #                         [0, 100, 0, 0, 0, 0],
-        #                         [0, 0, 2500, 0, 0, 0],
-        #                         [0, 0, 0, 100, 0, 0],
-        #                         [0, 0, 0, 0, 2500, 0],
-        #                         [0, 0, 0, 0, 0, 100]])
-
-        #     dt = 0 # Reset the time difference since were just reinitializing at this time
 
         # Predict next state using state transition function
         est_pred = self.state_transition(est_prior, dt)
@@ -137,8 +99,6 @@ class BaseEstimator:
         self.save_current_estimation_data(
             targetID, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
         )
-        self.estPredHist[targetID][envTime] = est_pred
-        self.covariancePredHist[targetID][envTime] = P_pred
 
     def EKF_update(
         self,
@@ -147,14 +107,25 @@ class BaseEstimator:
         targetID: int,
         envTime: float,
     ) -> None:
+        """
+        Update the estimate of the target using the measurement.
+        """
 
         if not isinstance(measurements[0], np.ndarray):
             return
 
         # Get the prior estimate and covariance
-        time_prior = max(self.estHist[targetID].keys())
-        est_pred = self.estHist[targetID][time_prior]
-        P_pred = self.covarianceHist[targetID][time_prior]
+        latest_estimate = self.estimation_data[
+            self.estimation_data['targetID'] == targetID
+        ].iloc[-1]
+
+        # Does the current time equal the time of the latest estimate?
+        # If so, then latest was just a prediction, so we can remove it and replace it with the update
+        if envTime == latest_estimate['time']:
+            self.estimation_data = self.estimation_data.iloc[:-1]
+
+        est_pred = latest_estimate['est']
+        P_pred = latest_estimate['cov']
 
         # Assume that the measurements are in the form of [alpha, beta] for each satellite
         numMeasurements = 2 * len(measurements)
@@ -360,8 +331,6 @@ class BaseEstimator:
         # Multiple this value by 2 to get the total error the state could be in
         posError = 2 * posError_1side
 
-        # print(f"Position Error: {posError}")
-
         return posError
 
     def save_current_estimation_data(
@@ -385,28 +354,35 @@ class BaseEstimator:
         - innovationCov: Innovation covariance matrix.
         """
 
-        self.estHist[targetID][time] = est
-        self.covarianceHist[targetID][time] = cov
-        self.innovationHist[targetID][time] = innovation
-        self.innovationCovHist[targetID][time] = innovationCov
+        # Create a new row for the data frame
+        new_row = pd.DataFrame(
+            {
+                'targetID': [targetID],
+                'time': [time],
+                'est': [est],
+                'cov': [cov],
+                'innovation': [innovation],
+                'innovationCov': [innovationCov],
+                'trackError': [self.calcTrackError(est, cov)],
+            }
+        )
 
-        # Calculate Track Quaility Metric
-        trackError = self.calcTrackError(est, cov)
-        self.trackErrorHist[targetID][time] = trackError
+        # Concatenate the new row to the existing data frame
+        self.estimation_data = pd.concat(
+            [self.estimation_data, new_row], ignore_index=True
+        )
 
 
 ### Central Estimator Class
 class CentralEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
+    def __init__(self):
         """
         Initialize Central Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
+        super().__init__()
 
     def central_EKF_initialize(self, target: target.Target, envTime: float) -> None:
         """
@@ -449,16 +425,14 @@ class CentralEstimator(BaseEstimator):
 
 ### Independent Estimator Class
 class IndeptEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
+    def __init__(self):
         """
         Initialize Independent Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1
+        super().__init__()
 
     def local_EKF_initialize(self, target: target.Target, envTime: float) -> None:
         """
@@ -501,16 +475,14 @@ class IndeptEstimator(BaseEstimator):
 
 ### CI Estimator Class
 class CiEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
+    def __init__(self):
         """
         Initialize DDF Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
+        super().__init__()
 
     def ci_EKF_initialize(self, target: target.Target, envTime: float) -> None:
         """
@@ -700,7 +672,7 @@ class EtEstimator(BaseEstimator):
         - targetIDs (list): List of target IDs to track.
         - shareWith (list): List of satellite objects to share information with.
         """
-        super().__init__(targPriorities)
+        super().__init__()
 
         self.shareWith = (
             shareWith  # use this attribute to match common EKF with neighbor
@@ -708,7 +680,6 @@ class EtEstimator(BaseEstimator):
         self.synchronizeFlag = {
             targetID: defaultdict(dict) for targetID in targPriorities.keys()
         }  # Flag to synchronize filters
-        self.R_factor = 1
 
         # ET Parameters
         self.delta_alpha = 1
@@ -1049,7 +1020,7 @@ class EtEstimator(BaseEstimator):
 
         # Sensor Noise Matrix
         R = (
-            sender.sensor.bearingsError[scalarIdx] ** 2 * self.R_factor
+            sender.sensor.bearingsError[scalarIdx] ** 2
         )  # Sensor noise matrix scaled by 1000x
 
         # Compute innovation
@@ -1151,7 +1122,7 @@ class EtEstimator(BaseEstimator):
 
         # Compute Sensor Noise Matrix
         R = (
-            sender.sensor.bearingsError[scalarIdx] ** 2 * self.R_factor
+            sender.sensor.bearingsError[scalarIdx] ** 2
         )  # Sensor noise matrix scaled by 1000x
 
         # Define innovation covariance
@@ -1396,16 +1367,14 @@ class EtEstimator(BaseEstimator):
 
 ### Ground Station Estimator Class
 class GsEstimator(BaseEstimator):
-    def __init__(self, targetPriorities: dict[int, int]):
+    def __init__(self):
         """
         Initialize Ground Station Estimator object.
 
         Args:
         - targetIDs (list): List of target IDs to track.
         """
-        super().__init__(targetPriorities)
-
-        self.R_factor = 1
+        super().__init__()
 
     def gs_EKF_initialize(self, target: target.Target, envTime: float) -> None:
         """

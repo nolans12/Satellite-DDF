@@ -140,15 +140,27 @@ class Satellite:
             target (object): Target object containing targetID and other relevant information.
             time (float): Current time at which the measurement is taken.
         """
-        assert self.indeptEstimator is not None
+        # This assertion checks that the independent estimator exists
+        # It raises an AssertionError if self.indeptEstimator is None
+        assert (
+            self.indeptEstimator is not None
+        ), "Independent estimator is not initialized"
         targetID = target.targetID
-        if len(self.indeptEstimator.estHist[targetID]) < 1:
-            self.indeptEstimator.local_EKF_initialize(target, time)
-            return
 
-        # Update the independent estimator using the measurement
-        self.indeptEstimator.local_EKF_pred(targetID, time)
-        self.indeptEstimator.local_EKF_update([self], [measurement], targetID, time)
+        if self.indeptEstimator.estimation_data.empty:
+            # The estimator contains zero data in it (first target)
+            self.indeptEstimator.local_EKF_initialize(target, time)
+        else:
+            # Check, does the targetID already exist in the estimator?
+            if targetID in self.indeptEstimator.estimation_data['targetID'].values:
+                # If estimate exists, predict and update
+                self.indeptEstimator.local_EKF_pred(targetID, time)
+                self.indeptEstimator.local_EKF_update(
+                    [self], [measurement], targetID, time
+                )
+            else:
+                # If no estimate exists, initialize
+                self.indeptEstimator.local_EKF_initialize(target, time)
 
     def update_ci_estimator(
         self, measurement, target: target.Target, time: float
