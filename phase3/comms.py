@@ -55,7 +55,9 @@ class Comms:
         self.comm_data = pd.DataFrame(
             columns=['targetID', 'time', 'receiver', 'sender', 'type', 'data']
         )
-        self.comm_data['data'] = self.comm_data['data'].astype('object')
+        self.comm_data['data'] = self.comm_data['data'].astype(
+            'object'
+        )  # Data is a tuple (maybe [est, cov] or [in_track, cross_track])
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -125,6 +127,7 @@ class Comms:
         # Append the new row to the comm_data
         self.comm_data = pd.concat([self.comm_data, new_row], ignore_index=True)
 
+    # TODO: THIS NEEDS TO BE FIXED WITH DATA FRAMES
     def send_measurements(
         self,
         sender: satellite.Satellite,

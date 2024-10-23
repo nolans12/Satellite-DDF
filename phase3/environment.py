@@ -1033,7 +1033,7 @@ class Environment:
         ## Make a comms folder
         comms_path = os.path.join(savePath, f"comms")
         os.makedirs(comms_path, exist_ok=True)
-        if len(self.comms.comm_data) > 0:
+        if not self.comms.comm_data.empty:
             self.comms.comm_data.to_csv(os.path.join(comms_path, f"comm_data.csv"))
 
         ## Make an estimator folder

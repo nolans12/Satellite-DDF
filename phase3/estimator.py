@@ -399,6 +399,10 @@ class BaseEstimator:
 
         # Propagate the prior estimate and covariance to the new time
         dt = time_sent - time_prior
+
+        if dt == 0:
+            test = 1
+
         est_prior = self.state_transition(est_prior, dt)
         F = self.state_transition_jacobian(est_prior, dt)
         cov_prior = np.dot(F, np.dot(cov_prior, F.T))
@@ -421,6 +425,14 @@ class BaseEstimator:
             omega_opt * np.linalg.inv(cov1) @ est_prior
             + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
         )
+
+        # Remove the old estimator data associated with this targetID at this time (if it exists)
+        self.estimation_data = self.estimation_data[
+            ~(
+                (self.estimation_data['targetID'] == targetID)
+                & (self.estimation_data['time'] == time_sent)
+            )
+        ]
 
         # Save the fused estimate and covariance
         self.save_current_estimation_data(

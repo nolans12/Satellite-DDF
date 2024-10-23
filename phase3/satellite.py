@@ -155,7 +155,6 @@ class Satellite:
         """
 
         # Use the estimator.CI function to update the estimator with any data recieved, at that time step
-
         # Want to only fuse data that is newer than the latest estimate the estimator has on that target
 
         for targetID in self.targetIDs:
@@ -170,8 +169,10 @@ class Satellite:
                         self.estimator.estimation_data['targetID'] == targetID
                     ]['time'].max()
                 else:
+                    # If the targetID does not exist in the estimator, then the latest estimate time is negative infinity
                     latest_estimate_time = float('-inf')
             else:
+                # If the estimator is empty, then the latest estimate time is negative infinity
                 latest_estimate_time = float('-inf')
 
             # Get all data received for this target
