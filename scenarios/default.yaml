@@ -6,9 +6,9 @@ plot:
 
   show_env: true
 
-  plot_groundStation_results: true
-  plot_estimation: true
-  plot_communication: true
+  plot_groundStation_results: false
+  plot_estimation: false
+  plot_communication: false
   plot_et_network: false
   plot_uncertainty_ellipses: false
 

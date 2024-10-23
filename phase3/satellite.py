@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from poliastro import bodies
 from poliastro import twobody
@@ -60,6 +61,30 @@ class Satellite:
         self.orbitHist = defaultdict(dict)  # contains time and xyz of orbit history
         self.velHist = defaultdict(dict)  # contains time and xyz of velocity history
         self.time = 0
+
+        self.stateHist = pd.DataFrame(columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz'])
+
+    def propagate(self, time_step: u.Quantity[u.s], time: float):
+
+        # Update the time
+        self.time = time
+
+        # Propagate the orbit
+        self.orbit = self.orbit.propagate(time_step)
+
+        # Save into the data frame
+        new_row = pd.DataFrame(
+            {
+                'time': [self.time],
+                'x': [self.orbit.r.value[0]],
+                'y': [self.orbit.r.value[1]],
+                'z': [self.orbit.r.value[2]],
+                'vx': [self.orbit.v.value[0]],
+                'vy': [self.orbit.v.value[1]],
+                'vz': [self.orbit.v.value[2]],
+            }
+        )
+        self.stateHist = pd.concat([self.stateHist, new_row], ignore_index=True)
 
     def collect_measurements_and_filter(self, target: target.Target) -> bool:
         """

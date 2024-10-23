@@ -10,6 +10,7 @@ from typing import cast
 import imageio
 import networkx as nx
 import numpy as np
+import pandas as pd
 import pulp
 from astropy import units as u
 from matplotlib import gridspec
@@ -30,7 +31,6 @@ from phase3 import sensor
 from phase3 import sim_config
 from phase3 import target
 from phase3 import util
-from phase3.plotting import comms as comms_plot
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -207,38 +207,42 @@ class Environment:
 
         print("Simulation Complete")
 
-        if plot_config.plot_groundStation_results:
-            self.plot_gs_results(
-                time_vec, saveName=plot_config.output_prefix
-            )  # Plot the ground station results
+        # Now, save all data frames, will save to "data" folder
+        self.save_data_frames(saveName=plot_config.output_prefix)
 
-        # Plot the filter results
-        if plot_config.plot_estimation:
-            self.plot_estimator_results(
-                time_vec, saveName=plot_config.output_prefix
-            )  # marginal error, innovation, and NIS/NEES plots
+        ###### WE ARE TRANSITIONING TO MOVING ALL DATA TO BE SAVED IN A DATA FRAME, THEN PLOTTING FROM CSVS ######
+        # if plot_config.plot_groundStation_results:
+        #     self.plot_gs_results(
+        #         time_vec, saveName=plot_config.output_prefix
+        #     )  # Plot the ground station results
 
-        # Plot the commm results
-        if plot_config.plot_communication:
+        # # Plot the filter results
+        # if plot_config.plot_estimation:
+        #     self.plot_estimator_results(
+        #         time_vec, saveName=plot_config.output_prefix
+        #     )  # marginal error, innovation, and NIS/NEES plots
 
-            # Make plots for total data sent and used throughout time
-            self.plot_global_comms(saveName=plot_config.output_prefix)
-            # self.plot_used_comms(saveName=plot_config.output_prefix)
+        # # Plot the commm results
+        # if plot_config.plot_communication:
 
-            # For the CI estimators, plot time hist of comms
-            if self.estimator_config.ci:
-                self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
+        #     # Make plots for total data sent and used throughout time
+        #     self.plot_global_comms(saveName=plot_config.output_prefix)
+        #     # self.plot_used_comms(saveName=plot_config.output_prefix)
 
-        # Save the uncertainty ellipse plots
-        if plot_config.plot_uncertainty_ellipses:
-            self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
+        #     # For the CI estimators, plot time hist of comms
+        #     if self.estimator_config.ci:
+        #         self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
 
-        # Log the Data
-        if save_estimation_data:
-            self.log_data(time_vec, saveName=plot_config.output_prefix)
+        # # Save the uncertainty ellipse plots
+        # if plot_config.plot_uncertainty_ellipses:
+        #     self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
 
-        if save_communication_data:
-            self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
+        # # Log the Data
+        # if save_estimation_data:
+        #     self.log_data(time_vec, saveName=plot_config.output_prefix)
+
+        # if save_communication_data:
+        #     self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
 
         return
 
@@ -246,34 +250,24 @@ class Environment:
         """
         Propagate the satellites and targets over the given time step.
         """
-        # Update the current time
+
+        # Update the current time (u.Minutes)
         self.time += time_step
 
-        time_val = self.time.to_value(
-            self.time.unit
-        )  # extract the numerical value of time
-
-        # Update the time for all targets and satellites
-        for targ in self.targs:
-            targ.time = time_val
-        for sat in self.sats:
-            sat.time = time_val
+        # Get the float value
+        time_val = self.time.value
 
         # Propagate the targets' positions
         for targ in self.targs:
             targ.propagate(
-                time_step, self.time
-            )  # Stores the history of target time and xyz position and velocity
+                time_step, time_val
+            )  # Propagate and store the history of target time and xyz position and velocity
 
         # Propagate the satellites
         for sat in self.sats:
-            sat.orbit = sat.orbit.propagate(time_step)
-            sat.orbitHist[sat.time] = (
-                sat.orbit.r.value
-            )  # Store the history of sat time and xyz position
-            sat.velHist[sat.time] = (
-                sat.orbit.v.value
-            )  # Store the history of sat time and xyz velocity
+            sat.propagate(
+                time_step, time_val
+            )  # Propagate and store the history of satellite time and xyz position and velocity
 
         # Update the communication network for the new sat positions
         self.comms.update_edges()
@@ -1259,6 +1253,66 @@ class Environment:
             np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4)
         )[:, :, 0:4]
         self.imgs.append(img)
+
+    def save_data_frames(
+        self,
+        saveName: str,
+        savePath: str = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'data'
+        ),
+    ) -> None:
+        """
+        Save all data frames to csv files.
+
+        Input is a folder name, "saveName"
+        A folder will be made in the data folder with this name, and all data frames will be saved in there.
+        """
+
+        # Make a folder for "data" if it doesn't exist
+        os.makedirs(savePath, exist_ok=True)
+
+        # Then make a folder for the saveName in data
+        savePath = os.path.join(savePath, saveName)
+        os.makedirs(savePath, exist_ok=True)
+
+        # Now, save all data frames
+
+        ## The data we have is:
+        # - Target state data (done)
+
+        # - Satellite state data (done)
+        # - Satellite estimator data (est, cov, innovaiton, etc) (NOT DONE)
+
+        # - Ground station estimate and covariance data (NOT DONE)
+
+        # - Communications to and from satellites and ground stations (kinda done)
+
+        ## Make a target state folder
+        target_path = os.path.join(savePath, f"targets")
+        os.makedirs(target_path, exist_ok=True)
+        for targ in self.targs:
+            targ.stateHist.to_csv(os.path.join(target_path, f"{targ.name}.csv"))
+
+        ## Make a satellite state folder
+        satellite_path = os.path.join(savePath, f"satellites")
+        os.makedirs(satellite_path, exist_ok=True)
+        for sat in self.sats:
+            sat.stateHist.to_csv(os.path.join(satellite_path, f"{sat.name}.csv"))
+
+        ## Make a comms folder
+        comms_path = os.path.join(savePath, f"comms")
+        os.makedirs(comms_path, exist_ok=True)
+        if len(self.comms.total_comm_data) > 0:
+            self.comms.total_comm_data.to_csv(
+                os.path.join(comms_path, f"comm_data.csv")
+            )
+
+        # ## Make an estimator folder
+        # estimator_path = os.path.join(savePath, f"estimators")
+        # os.makedirs(estimator_path, exist_ok=True)
+        # here would need to do a save for all Sat_Targ pairings, like Targ1_Sat1.csv, etc.
+
+        # We want to save each of these as a csv file in the savePath folder
 
     ### Estimation Errors and Track Uncertainty Plots ###
     def plot_gs_results(self, time_vec: u.Quantity[u.minute], saveName: str) -> None:

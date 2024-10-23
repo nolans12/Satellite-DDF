@@ -240,7 +240,7 @@ class BaseEstimator:
         )
 
         # Define function to compute derivatives for Runge-Kutta method
-        def derivatives(spherical_state: npt.NDArray) -> jnpt.ArrayLike:
+        def derivatives(spherical_state: jnpt.ArrayLike) -> jnpt.ArrayLike:
             """
             Computes derivatives of spherical state variables.
 
