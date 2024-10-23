@@ -559,8 +559,13 @@ class CiEstimator(BaseEstimator):
                 est_sent = commNode['estimate_data'][time_sent][targetID]['est'][i]
                 cov_sent = commNode['estimate_data'][time_sent][targetID]['cov'][i]
 
-                # Check if satellite has an estimate and covariance for this target already
-                if not self.estHist[targetID] and not self.covarianceHist[targetID]:
+                # Check if satellite has an estimate and covariance for this target already, using the data frames
+                if data := sat.estimator.estimation_data:
+                    test = 1
+
+
+                data_sat = sat.estimator.estimation_data
+                if data_sat[data_sat['targetID'] == targetID].empty:
                     # If not, use the sent estimate and covariance to initialize
                     self.estHist[targetID][time_sent] = est_sent
                     self.covarianceHist[targetID][time_sent] = cov_sent
@@ -1432,33 +1437,51 @@ class GsEstimator(BaseEstimator):
         """
 
         # First, check does the estimator already have a est and cov for this target?
-        if not self.estHist[targetID] and not self.covarianceHist[targetID]:
-            # If not, use the sent estimate and covariance to initialize
-            self.estHist[targetID][time_sent] = est_sent
-            self.covarianceHist[targetID][time_sent] = cov_sent
-            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                est_sent, cov_sent
+        if self.estimation_data.empty:
+
+            # Store initial values and return for first iteration
+            self.save_current_estimation_data(
+                targetID,
+                time_sent,
+                est_sent,
+                cov_sent,
+                np.zeros(2),
+                np.eye(2),  # We will just use 0s for innovation on GS
             )
             return
 
-        # Now, if the estimator already has an estimate and covariance for this target, check if we should CI
-        time_prior = max(self.estHist[targetID].keys())
+        # If the estimation data isnt empty, check does it contain the targetID?
+        if targetID not in self.estimation_data['targetID'].values:
+            # If not, use the sent estimate and covariance to initialize
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
+            )
+            return
+
+        # Now, we do have a prior on this target, so can just do CI with new estimate
+
+        # Get all data for this target
+        target_data = self.estimation_data[self.estimation_data['targetID'] == targetID]
+
+        # Get the most recent data, (the max of the time column)
+        time_prior = target_data['time'].max()
+        # Now, get the full state data from this targetID, time combo
+        data_prior = target_data[target_data['time'] == time_prior].iloc[0]
+        est_prior = data_prior['est']
+        cov_prior = data_prior['cov']
 
         # If the send time is older than the prior estimate, discard the sent estimate
         if time_sent < time_prior:
             return
 
+        # If the time difference is greater than 5 minutes, just use the new estimate
         if time_sent - time_prior > 5:
-            self.estHist[targetID][time_sent] = est_sent
-            self.covarianceHist[targetID][time_sent] = cov_sent
-            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                est_sent, cov_sent
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
             )
             return
 
         # Else do CI
-        est_prior = self.estHist[targetID][time_prior]
-        cov_prior = self.covarianceHist[targetID][time_prior]
 
         # Propagate the prior estimate and covariance to the new time
         dt = time_sent - time_prior
@@ -1486,10 +1509,8 @@ class GsEstimator(BaseEstimator):
         )
 
         # Save the fused estimate and covariance
-        self.estHist[targetID][time_sent] = est_prior
-        self.covarianceHist[targetID][time_sent] = cov_prior
-        self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-            est_prior, cov_prior
+        self.save_current_estimation_data(
+            targetID, time_sent, est_prior, cov_prior, np.zeros(2), np.eye(2)
         )
 
     def det_of_fused_covariance(self, omega, cov1, cov2):
