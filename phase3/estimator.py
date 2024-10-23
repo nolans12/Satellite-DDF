@@ -333,6 +333,118 @@ class BaseEstimator:
 
         return posError
 
+    def CI(
+        self,
+        targetID: int,
+        est_sent: npt.NDArray,
+        cov_sent: npt.NDArray,
+        time_sent: float,
+    ) -> None:
+        """
+        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
+
+        Args:
+        - targetID (int): Target ID.
+        - est_sent (np.ndarray): Sent estimate.
+        - cov_sent (np.ndarray): Sent covariance.
+        - time_sent (float): Time the estimate was sent.
+        """
+
+        # First, check does the estimator already have a est and cov for this target?
+        if self.estimation_data.empty:
+
+            # Store initial values and return for first iteration
+            self.save_current_estimation_data(
+                targetID,
+                time_sent,
+                est_sent,
+                cov_sent,
+                np.zeros(2),
+                np.eye(2),  # We will just use 0s for innovation on GS
+            )
+            return
+
+        # If the estimation data isnt empty, check does it contain the targetID?
+        if targetID not in self.estimation_data['targetID'].values:
+            # If not, use the sent estimate and covariance to initialize
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
+            )
+            return
+
+        # Now, we do have a prior on this target, so can just do CI with new estimate
+
+        # Get all data for this target
+        target_data = self.estimation_data[self.estimation_data['targetID'] == targetID]
+
+        # Get the most recent data, (the max of the time column)
+        time_prior = target_data['time'].max()
+        # Now, get the full state data from this targetID, time combo
+        data_prior = target_data[target_data['time'] == time_prior].iloc[0]
+        est_prior = data_prior['est']
+        cov_prior = data_prior['cov']
+
+        # If the send time is older than the prior estimate, discard the sent estimate
+        if time_sent < time_prior:
+            return
+
+        # If the time difference is greater than 5 minutes, just use the new estimate
+        if time_sent - time_prior > 5:
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
+            )
+            return
+
+        # Else do CI
+
+        # Propagate the prior estimate and covariance to the new time
+        dt = time_sent - time_prior
+        est_prior = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+
+        # Minimize the covariance determinant
+        omega_opt = optimize.minimize(
+            self.det_of_fused_covariance,
+            [0.5],
+            args=(cov_prior, cov_sent),
+            bounds=[(0, 1)],
+        ).x
+
+        # Compute the fused covariance
+        cov1 = cov_prior
+        cov2 = cov_sent
+        cov_prior = np.linalg.inv(
+            omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2)
+        )
+        est_prior = cov_prior @ (
+            omega_opt * np.linalg.inv(cov1) @ est_prior
+            + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
+        )
+
+        # Save the fused estimate and covariance
+        self.save_current_estimation_data(
+            targetID, time_sent, est_prior, cov_prior, np.zeros(2), np.eye(2)
+        )
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega (float): Weight of the first covariance matrix.
+            cov1 (np.ndarray): Covariance matrix of the first estimate.
+            cov2 (np.ndarray): Covariance matrix of the second estimate.
+
+        Returns:
+            float: Determinant of the fused covariance matrix.
+        """
+        omega = omega[0]  # Ensure omega is a scalar
+        P = np.linalg.inv(
+            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        )
+        return np.linalg.det(P)
+
     def save_current_estimation_data(
         self,
         targetID: int,
@@ -428,49 +540,8 @@ class IndeptEstimator(BaseEstimator):
     def __init__(self):
         """
         Initialize Independent Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
         """
         super().__init__()
-
-    def local_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Local Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def local_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Local Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def local_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Local Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
 
 
 ### CI Estimator Class
@@ -478,193 +549,17 @@ class CiEstimator(BaseEstimator):
     def __init__(self):
         """
         Initialize DDF Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
         """
         super().__init__()
 
-    def ci_EKF_initialize(self, target: target.Target, envTime: float) -> None:
+
+### Ground Station Estimator Class
+class GsEstimator(BaseEstimator):
+    def __init__(self):
         """
-        Covariance Intersection Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
+        Initialize Ground Station Estimator object.
         """
-        super().EKF_initialize(target, envTime)
-
-    def ci_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Covariance Intersection Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def ci_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Covariance Intersection Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-    def CI(self, sat: 'satellite.Satellite', comms: comms.Comms) -> None:
-        """
-        Covariance Intersection function to conservatively combine received estimates and covariances
-        into updated target state and covariance.
-
-        Args:
-            sat: Satellite object that is receiving information.
-            commNode (dict): Communication node containing queued data from satellites.
-
-        Returns:
-            estPrior (array-like): Updated current state in Cartesian coordinates [x, vx, y, vy, z, vz].
-            covPrior (array-like): Updated current covariance matrix.
-        """
-
-        commNode = comms.G.nodes[sat]
-
-        # Check if there is any information in the queue:
-        if len(commNode['estimate_data']) == 0:
-            # If theres no information in the queue, return
-            return
-
-        # There is information in the queue, get the newest info
-        time_sent = max(commNode['estimate_data'].keys())
-
-        # Check all the targets that are being talked about in the queue
-        for targetID in commNode['estimate_data'][time_sent].keys():
-
-            # Is that target something this satellite should be tracking? Or just ferrying data?
-            if targetID not in sat.targetIDs:
-                continue
-
-            # For each target we should track, loop through all the estimates and covariances
-            for i in range(len(commNode['estimate_data'][time_sent][targetID]['est'])):
-                senderName = commNode['estimate_data'][time_sent][targetID]['sender'][i]
-                est_sent = commNode['estimate_data'][time_sent][targetID]['est'][i]
-                cov_sent = commNode['estimate_data'][time_sent][targetID]['cov'][i]
-
-                # Check if satellite has an estimate and covariance for this target already, using the data frames
-                if data := sat.estimator.estimation_data:
-                    test = 1
-
-
-                data_sat = sat.estimator.estimation_data
-                if data_sat[data_sat['targetID'] == targetID].empty:
-                    # If not, use the sent estimate and covariance to initialize
-                    self.estHist[targetID][time_sent] = est_sent
-                    self.covarianceHist[targetID][time_sent] = cov_sent
-                    self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                        est_sent, cov_sent
-                    )
-                    continue
-
-                # If satellite has an estimate and covariance for this target already, check if we should CI
-                time_prior = max(self.estHist[targetID].keys())
-
-                # If the send time is older than the prior estimate, discard the sent estimate
-                if time_sent < time_prior:
-                    continue
-
-                # Now check, does the satellite need help on this target?
-                if not not sat.ciEstimator.trackErrorHist[targetID][
-                    time_prior
-                ]:  # An estimate exists for this target
-                    if (
-                        sat.ciEstimator.trackErrorHist[targetID][time_prior]
-                        < sat.targPriority[targetID]
-                    ):  # Is the estimate good enough already?
-                        # If the track quality is good, don't do CI
-                        continue
-
-                # We will now use the estimate and covariance that were sent, so we should store this
-                comms.used_comm_data.append(
-                    collection.Transmission(
-                        target_id=targetID,
-                        sender=senderName,
-                        receiver=sat.name,
-                        time=time_sent,
-                        size=est_sent.size * 2 + cov_sent.size // 2,
-                    )
-                )
-
-                # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
-                if time_sent - time_prior > 5:
-                    self.estHist[targetID][time_sent] = est_sent
-                    self.covarianceHist[targetID][time_sent] = cov_sent
-                    continue
-
-                # Else, let's do CI
-                est_prior = self.estHist[targetID][time_prior]
-                cov_prior = self.covarianceHist[targetID][time_prior]
-
-                # Propagate the prior estimate and covariance to the new time
-                dt = time_sent - time_prior
-                est_prior = self.state_transition(est_prior, dt)
-                F = self.state_transition_jacobian(est_prior, dt)
-                cov_prior = np.dot(F, np.dot(cov_prior, F.T))
-
-                # Minimize the covariance determinant
-                omega_opt = optimize.minimize(
-                    self.det_of_fused_covariance,
-                    [0.5],
-                    args=(cov_prior, cov_sent),
-                    bounds=[(0, 1)],
-                ).x
-
-                # Compute the fused covariance
-                cov1 = cov_prior
-                cov2 = cov_sent
-                cov_prior = np.linalg.inv(
-                    omega_opt * np.linalg.inv(cov1)
-                    + (1 - omega_opt) * np.linalg.inv(cov2)
-                )
-                est_prior = cov_prior @ (
-                    omega_opt * np.linalg.inv(cov1) @ est_prior
-                    + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
-                )
-
-                # Save the fused estimate and covariance
-                self.estHist[targetID][time_sent] = est_prior
-                self.covarianceHist[targetID][time_sent] = cov_prior
-                self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                    est_prior, cov_prior
-                )
-
-    def det_of_fused_covariance(
-        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
-    ) -> float:
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega (float): Weight of the first covariance matrix.
-            cov1 (np.ndarray): Covariance matrix of the first estimate.
-            cov2 (np.ndarray): Covariance matrix of the second estimate.
-
-        Returns:
-            float: Determinant of the fused covariance matrix.
-        """
-        omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
-        )
-        return np.linalg.det(P)
+        super().__init__()
 
 
 ### Event Triggered Estimator Class
@@ -1349,168 +1244,6 @@ class EtEstimator(BaseEstimator):
         neighbor_commonEKF.covarianceHist[targetID][envTime] = cov_fused
         neighbor_commonEKF.trackErrorHist[targetID][envTime] = (
             neighbor_commonEKF.calcTrackError(est_fused, cov_fused)
-        )
-
-    def det_of_fused_covariance(self, omega, cov1, cov2):
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega (float): Weight of the first covariance matrix.
-            cov1 (np.ndarray): Covariance matrix of the first estimate.
-            cov2 (np.ndarray): Covariance matrix of the second estimate.
-
-        Returns:
-            float: Determinant of the fused covariance matrix.
-        """
-        omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
-        )
-        return np.linalg.det(P)
-
-
-### Ground Station Estimator Class
-class GsEstimator(BaseEstimator):
-    def __init__(self):
-        """
-        Initialize Ground Station Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__()
-
-    def gs_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Ground Station Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def gs_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Ground Station Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def gs_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Ground Station Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-    def gs_CI(
-        self,
-        targetID: int,
-        est_sent: npt.NDArray,
-        cov_sent: npt.NDArray,
-        time_sent: float,
-    ) -> None:
-        """
-        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
-
-        Args:
-        - targetID (int): Target ID.
-        - est_sent (np.ndarray): Sent estimate.
-        - cov_sent (np.ndarray): Sent covariance.
-        - time_sent (float): Time the estimate was sent.
-        """
-
-        # First, check does the estimator already have a est and cov for this target?
-        if self.estimation_data.empty:
-
-            # Store initial values and return for first iteration
-            self.save_current_estimation_data(
-                targetID,
-                time_sent,
-                est_sent,
-                cov_sent,
-                np.zeros(2),
-                np.eye(2),  # We will just use 0s for innovation on GS
-            )
-            return
-
-        # If the estimation data isnt empty, check does it contain the targetID?
-        if targetID not in self.estimation_data['targetID'].values:
-            # If not, use the sent estimate and covariance to initialize
-            self.save_current_estimation_data(
-                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
-            )
-            return
-
-        # Now, we do have a prior on this target, so can just do CI with new estimate
-
-        # Get all data for this target
-        target_data = self.estimation_data[self.estimation_data['targetID'] == targetID]
-
-        # Get the most recent data, (the max of the time column)
-        time_prior = target_data['time'].max()
-        # Now, get the full state data from this targetID, time combo
-        data_prior = target_data[target_data['time'] == time_prior].iloc[0]
-        est_prior = data_prior['est']
-        cov_prior = data_prior['cov']
-
-        # If the send time is older than the prior estimate, discard the sent estimate
-        if time_sent < time_prior:
-            return
-
-        # If the time difference is greater than 5 minutes, just use the new estimate
-        if time_sent - time_prior > 5:
-            self.save_current_estimation_data(
-                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
-            )
-            return
-
-        # Else do CI
-
-        # Propagate the prior estimate and covariance to the new time
-        dt = time_sent - time_prior
-        est_prior = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
-        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
-
-        # Minimize the covariance determinant
-        omega_opt = optimize.minimize(
-            self.det_of_fused_covariance,
-            [0.5],
-            args=(cov_prior, cov_sent),
-            bounds=[(0, 1)],
-        ).x
-
-        # Compute the fused covariance
-        cov1 = cov_prior
-        cov2 = cov_sent
-        cov_prior = np.linalg.inv(
-            omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2)
-        )
-        est_prior = cov_prior @ (
-            omega_opt * np.linalg.inv(cov1) @ est_prior
-            + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
-        )
-
-        # Save the fused estimate and covariance
-        self.save_current_estimation_data(
-            targetID, time_sent, est_prior, cov_prior, np.zeros(2), np.eye(2)
         )
 
     def det_of_fused_covariance(self, omega, cov1, cov2):

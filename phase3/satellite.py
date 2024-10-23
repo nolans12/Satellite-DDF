@@ -149,6 +149,41 @@ class Satellite:
                 # If no estimate exists, initialize
                 self.estimator.EKF_initialize(target, time)
 
+    def filter_CI(self, data_received: pd.DataFrame) -> None:
+        """
+        Update the satellite estimator using covariance intersection data that was sent to it.
+        """
+
+        # Use the estimator.CI function to update the estimator with any data recieved, at that time step
+
+        # Want to only fuse data that is newer than the latest estimate the estimator has on that target
+
+        for targetID in self.targetIDs:
+
+            # Get the latest estimate time for this target
+
+            # Does the estimator have any data?
+            if not self.estimator.estimation_data.empty:
+                # Does the targetID exist in the estimator?
+                if targetID in self.estimator.estimation_data['targetID'].values:
+                    latest_estimate_time = self.estimator.estimation_data[
+                        self.estimator.estimation_data['targetID'] == targetID
+                    ]['time'].max()
+                else:
+                    latest_estimate_time = float('-inf')
+            else:
+                latest_estimate_time = float('-inf')
+
+            # Get all data received for this target
+            data_for_target = data_received[data_received['targetID'] == targetID]
+
+            # Now, loop through all data for the target, and only fuse data that is newer than the latest estimate
+            for _, row in data_for_target.iterrows():
+                if row['time'] >= latest_estimate_time:
+                    self.estimator.CI(
+                        targetID, row['data'][0], row['data'][1], row['time']
+                    )
+
     # def update_et_estimator(
     #     self, measurement, target: target.Target, time: float
     # ) -> None:

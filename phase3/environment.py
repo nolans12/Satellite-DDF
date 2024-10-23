@@ -63,6 +63,7 @@ class Environment:
             sat.targetIDs = list(targPriorityInitial.keys())  # targetID to track
 
             # Create estimation algorithms for each satellite
+            # TODO: should have estimator_config be a string then == "local", "ci", this way cant have more than 1
             if self.estimator_config.local:
                 sat.estimator = estimator.IndeptEstimator()
 
@@ -277,7 +278,7 @@ class Environment:
 
         # If a central estimator is present, perform central fusion
         if self.estimator_config.central:
-            self.central_fusion()
+            self.central_fusion()  # TODO: fix central filter
 
         # Now send estimates for future CI
         if self.estimator_config.ci:
@@ -290,12 +291,15 @@ class Environment:
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
 
-        # TODO: COMPLETELY REWRITE THIS SUCH THAT CALLS A FUNCTION INSIDE OF SATELLITE, THAT LOOKS AT ITS COMM LOGS
-        # THEN, IT WILL CALL THE UPDATED CI THAT ONLY TAKES IN TIME, EST, COV
-
         for sat in self.sats:
             if self.estimator_config.ci:
-                sat.estimator.CI(sat, self.comms)
+                # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
+                data_recieved = self.comms.comm_data[
+                    (self.comms.comm_data['receiver'] == sat.name)
+                    & (self.comms.comm_data['type'] == 'estimate')
+                ]
+
+                sat.filter_CI(data_recieved)
 
             if self.estimator_config.et:
                 etEKF = sat.etEstimators[0]
@@ -305,7 +309,6 @@ class Environment:
         for sat in self.sats:
             if self.estimator_config.et:
                 etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
-
 
     def send_estimates_optimize(self):
         """
@@ -590,7 +593,9 @@ class Environment:
 
                 # Send the estimate to all neighbors
                 for neighbor in self.comms.G.neighbors(sat):
-                    self.comms.send_estimate(sat, neighbor, est, cov, targetID, self.time.value)
+                    self.comms.send_estimate(
+                        sat, neighbor, est, cov, targetID, self.time.value
+                    )
 
     def send_measurements(self):
         """
@@ -1028,10 +1033,8 @@ class Environment:
         ## Make a comms folder
         comms_path = os.path.join(savePath, f"comms")
         os.makedirs(comms_path, exist_ok=True)
-        if len(self.comms.total_comm_data) > 0:
-            self.comms.total_comm_data.to_csv(
-                os.path.join(comms_path, f"comm_data.csv")
-            )
+        if len(self.comms.comm_data) > 0:
+            self.comms.comm_data.to_csv(os.path.join(comms_path, f"comm_data.csv"))
 
         ## Make an estimator folder
         estimator_path = os.path.join(savePath, f"estimators")

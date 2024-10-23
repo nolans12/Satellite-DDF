@@ -2,6 +2,7 @@ import itertools
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from numpy import typing as npt
 
@@ -38,18 +39,23 @@ class Comms:
         """
         self.maxBandwidth = maxBandwidth
 
-        # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        self.total_comm_data = dataclassframe.DataClassFrame(
-            clz=collection.Transmission
-        )
-        self.used_comm_data = dataclassframe.DataClassFrame(clz=collection.Transmission)
+        # # Create a empty dicitonary to store the amount of data sent/recieved between satellites
+        # self.total_comm_data = dataclassframe.DataClassFrame(
+        #     clz=collection.Transmission
+        # )
+        # self.used_comm_data = dataclassframe.DataClassFrame(clz=collection.Transmission)
 
-        self.total_comm_et_data = dataclassframe.DataClassFrame(
-            clz=collection.MeasurementTransmission
+        # self.total_comm_et_data = dataclassframe.DataClassFrame(
+        #     clz=collection.MeasurementTransmission
+        # )
+        # self.used_comm_et_data = dataclassframe.DataClassFrame(
+        #     clz=collection.MeasurementTransmission
+        # )
+
+        self.comm_data = pd.DataFrame(
+            columns=['targetID', 'time', 'receiver', 'sender', 'type', 'data']
         )
-        self.used_comm_et_data = dataclassframe.DataClassFrame(
-            clz=collection.MeasurementTransmission
-        )
+        self.comm_data['data'] = self.comm_data['data'].astype('object')
 
         self.max_neighbors = maxNeighbors
         self.max_range = maxRange
@@ -69,26 +75,6 @@ class Comms:
                 sent_measurements={},
             )
         self.update_edges()
-
-    def send_estimate_path(
-        self,
-        path: list[satellite.Satellite],
-        est_meas_source: npt.NDArray,
-        cov_meas_source: npt.NDArray,
-        target_id: int,
-        time: float,
-    ) -> None:
-        """Send an estimate along a path of satellites.
-        Includes ferrying the data!!!
-        """
-
-        # Take the path, and from path[0] (source node) share the est_meas and cov_meas to all other nodes in the path, send the data
-        for i in range(1, len(path)):
-            self.send_estimate(
-                path[i - 1], path[i], est_meas_source, cov_meas_source, target_id, time
-            )
-            # Activate that edge
-            # self.G.edges[path[i-1], path[i]]['active'] = True
 
     def send_estimate(
         self,
@@ -122,50 +108,22 @@ class Comms:
         if not self.G.has_edge(sender, receiver):
             return
 
-        # Before we decide if we want to send the estimate, need to make sure it wont violate the bandwidth constraints
-        # Check if the bandwidth is available
-        if (
-            self.G.edges[sender, receiver]['usedBandwidth']
-            + est_meas.size * 2
-            + cov_meas.size / 2
-            > self.G.edges[sender, receiver]['maxBandwidth']
-        ):
-            # print(f"Bandwidth exceeded between {sender.name} and {receiver.name} with current bandwith of {self.G.edges[sender, receiver]['usedBandwidth']} and max bandwidth of {self.G.edges[sender, receiver]['maxBandwidth']}")
-            return
-        else:
-            # Update the used bandwidth
-            self.G.edges[sender, receiver]['usedBandwidth'] += (
-                est_meas.size * 2 + cov_meas.size / 2
-            )
+        # Now, send that estimate, where type = 'estimate', and data = (est_meas, cov_meas)
 
-        # Initialize the target_id key in the receiver's queued data if not present
-        if time not in self.G.nodes[receiver]['estimate_data']:
-            self.G.nodes[receiver]['estimate_data'][time] = {}
-
-        # Initialize the time key in the target_id's queued data if not present
-        if target_id not in self.G.nodes[receiver]['estimate_data'][time]:
-            self.G.nodes[receiver]['estimate_data'][time][target_id] = {
-                'est': [],
-                'cov': [],
-                'sender': [],
+        # Create a new row for the comm_data
+        new_row = pd.DataFrame(
+            {
+                'targetID': [target_id],
+                'time': [time],
+                'receiver': [receiver.name],
+                'sender': [sender.name],
+                'type': ['estimate'],
+                'data': [(est_meas, cov_meas)],
             }
-
-        # Add the estimate to the receiver's queued data at the specified target_id and time
-        self.G.nodes[receiver]['estimate_data'][time][target_id]['est'].append(est_meas)
-        self.G.nodes[receiver]['estimate_data'][time][target_id]['cov'].append(cov_meas)
-        self.G.nodes[receiver]['estimate_data'][time][target_id]['sender'].append(
-            sender.name
         )
 
-        self.total_comm_data.append(
-            collection.Transmission(
-                target_id=target_id,
-                sender=sender.name,
-                receiver=receiver.name,
-                time=time,
-                size=est_meas.size * 2 + cov_meas.size // 2,
-            )
-        )
+        # Append the new row to the comm_data
+        self.comm_data = pd.concat([self.comm_data, new_row], ignore_index=True)
 
     def send_measurements(
         self,
