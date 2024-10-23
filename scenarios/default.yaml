@@ -24,8 +24,8 @@ comms:
   display_struct: true
 
 estimators:
-  central: false
-  local: true
+  central: true
+  local: false
   ci: false
   et: false
 

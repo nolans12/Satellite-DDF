@@ -700,38 +700,26 @@ class Environment:
                                     )
                                 )
 
-    def central_fusion(self, collectedFlag, measurements):
+    def central_fusion(self):
         """
         Perform central fusion using collected measurements.
-
-        Args:
-        - collectedFlag: dictionary tracking which satellites collected measurements for each target.
-        - measurements: dictionary storing measurements collected for each target by each satellite.
         """
-        # Now do central fusion
+
+        # Get all measurements taken by the satellites on each target
         for targ in self.targs:
-            # Extract satellites that took a measurement
-            satsWithMeasurements = [
-                sat for sat in self.sats if collectedFlag[targ][sat]
-            ]
-            newMeasurements = [measurements[targ][sat] for sat in satsWithMeasurements]
 
             targetID = targ.targetID
-            # If any satellite took a measurement on this target
-            if satsWithMeasurements:
-                # Run EKF with all satellites that took a measurement on the target
-                if len(self.centralEstimator.estHist[targ.targetID]) < 1:
-                    self.centralEstimator.central_EKF_initialize(
-                        targ, self.time.to_value()
-                    )
-                    return
-                self.centralEstimator.central_EKF_pred(targetID, self.time.to_value())
-                self.centralEstimator.central_EKF_update(
-                    satsWithMeasurements,
-                    newMeasurements,
-                    targetID,
-                    self.time.to_value(),
-                )
+            measurements = []
+
+            for sat in self.sats:
+                if targetID in sat.measurementHist['targetID'].values:
+
+                    # Get the measurement at the current time
+                    meas = sat.measurementHist[(sat.measurementHist['targetID'] == targetID) & (sat.measurementHist['time'] == self.time.value)]['measurement'].values[0]
+
+                    if meas is not None:
+                        test = 1
+
 
     ## GROUND STATION PROTOCOLS, NEED TO CHOOSE JUST ONE MAYBE
     def send_to_ground_god_mode(self):
