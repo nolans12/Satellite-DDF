@@ -1,17 +1,16 @@
 import dataclasses
 
 from matplotlib import animation
-from matplotlib import artist
 from matplotlib import axes
 from matplotlib import figure
 from matplotlib import image
-from matplotlib import lines
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
 from phase3.pai.maze import engine
 from phase3.pai.maze import heuristic
 from phase3.pai.maze import model
+from phase3.pai.maze import pai
 
 
 @dataclasses.dataclass
@@ -40,7 +39,7 @@ def animate_states(
     fig: figure.Figure,
     plot: ModelPlot,
     states: list[model.State],
-    actions: list[model.Action | None],
+    action_plans: list[list[model.Action] | None],
     maze: list[list[int]],
 ) -> animation.FuncAnimation:
     # Function to update the positions of the satellites and links
@@ -61,10 +60,34 @@ def animate_states(
         maze[state.goal.pos.x][state.goal.pos.y] = 0
         maze[state.agent.pos.x][state.agent.pos.y] = 0
 
+        # Show the action plan taken
+        if num < len(action_plans) - 1:
+            action_plan = action_plans[num + 1]
+            assert action_plan is not None
+            pos = state.agent.pos
+            for action in action_plan:
+                new_pos = model.move(pos, action.direction)
+                if not model.in_bounds(maze, new_pos):
+                    break
+                movements.append(
+                    plot.ax.arrow(
+                        pos.y,
+                        pos.x,
+                        new_pos.y - pos.y,
+                        new_pos.x - pos.x,
+                        head_width=0.1,
+                        head_length=0.1,
+                        fc='b',
+                        ec='b',
+                    )
+                )
+                pos = new_pos
+
         # Show the action taken as an arrow from the previous position to the new position
         if action is not None and num > 0:
+
             old_pos = states[num - 1].agent.pos
-            color = 'r' if old_pos == state.agent.pos else 'b'
+            color = 'r'
             movements.append(
                 plot.ax.arrow(
                     old_pos.y,
@@ -94,13 +117,17 @@ def animate_states(
 
 
 if __name__ == '__main__':
-    m = model.sample_model()
+    # m = model.sample_model()
+    m = model.simple_model()
+    params = pai.model_parameters(m)
     fig, plot = plot_model(m)
 
     states, actions = engine.simulate(
         m,
-        10,
-        heuristic.generate_action,
+        params,
+        params.steps + 2,
+        # heuristic.generate_action,
+        pai.plan,
     )
 
     anim = animate_states(

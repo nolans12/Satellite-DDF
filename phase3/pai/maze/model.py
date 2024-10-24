@@ -3,11 +3,11 @@ import enum
 
 
 class Direction(enum.Enum):
-    UP = enum.auto()
-    DOWN = enum.auto()
-    LEFT = enum.auto()
-    RIGHT = enum.auto()
-    NULL = enum.auto()
+    NULL = -1
+    UP = 0
+    RIGHT = 1
+    DOWN = 2
+    LEFT = 3
 
 
 @dataclasses.dataclass
@@ -51,10 +51,14 @@ class State:
 
 @dataclasses.dataclass
 class PaiParameters:
+    # Number of steps to plan over
     steps: int
-    lambdas: list[tuple[tuple[State, State, Action], float]]
-    etas: list[tuple[tuple[Action, Action], float]]
-    prior_etas: list[tuple[Action, float]]
+    # Prior of arriving at a (nominal) state given a previous state and action
+    lambda_sp_s_a: float
+    # Prior of taking an action given a previous action
+    eta_ap_a: float
+    # Prior of taking a given action
+    eta_a: float
 
 
 @dataclasses.dataclass
@@ -69,6 +73,10 @@ def in_bounds(maze: list[list[int]], pos: Position) -> bool:
         return False
     obstacle = maze[pos.x][pos.y] == 1
     return not obstacle
+
+
+def grid_distance(pos1: Position, pos2: Position) -> int:
+    return abs(pos1.x - pos2.x) + abs(pos1.y - pos2.y)
 
 
 def distance(pos1: Position, pos2: Position) -> float:
@@ -105,5 +113,19 @@ def sample_model() -> Model:
     ]
 
     state = State(Agent(Position(4, 0)), Goal(Position(5, 7)))
+
+    return Model(state, maze)
+
+
+def simple_model() -> Model:
+    # Create a 4x4 grid with a single agent, goal, and some obstacles
+    maze = [
+        [0, 0, 1, 0],
+        [1, 0, 1, 0],
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+    ]
+
+    state = State(Agent(Position(0, 0)), Goal(Position(3, 3)))
 
     return Model(state, maze)
