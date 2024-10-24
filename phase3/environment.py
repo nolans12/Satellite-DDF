@@ -290,9 +290,8 @@ class Environment:
             self.send_measurements()
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
-
-        for sat in self.sats:
-            if self.estimator_config.ci:
+        if self.estimator_config.ci:
+            for sat in self.sats:
                 # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
                 data_recieved = self.comms.comm_data[
                     (self.comms.comm_data['receiver'] == sat.name)
@@ -306,8 +305,8 @@ class Environment:
                 etEKF.event_trigger_processing(sat, self.time.to_value(), self.comms)
 
         # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
-        for sat in self.sats:
-            if self.estimator_config.et:
+        if self.estimator_config.et:
+            for sat in self.sats:
                 etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
 
     def send_estimates_optimize(self):
