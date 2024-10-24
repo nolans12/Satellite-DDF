@@ -10,7 +10,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["common", "phase3"]
+packages = ["common", "phase3", "canonical"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

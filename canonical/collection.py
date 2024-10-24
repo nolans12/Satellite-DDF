@@ -37,6 +37,11 @@ class MeasurementTransmission(Transmission):
 
 
 @dataclasses.dataclass
+class EstimateTransmission(Transmission):
+    estimate: npt.NDArray
+    covariance: npt.NDArray
+
+@dataclasses.dataclass
 class GsTransmission:
     target_id: int
     # Sending satellite

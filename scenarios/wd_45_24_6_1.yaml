@@ -145,7 +145,6 @@ commanders_intent:
       4: 110
       5: 125
 comms:
-  display_struct: true
   max_bandwidth: 60
   max_neighbors: 3
   max_range: 10000
@@ -437,7 +436,6 @@ targets:
     heading: 0
     speed: 80
     target_id: 1
-    tq_req: 1
     uncertainty:
     - 3.0
     - 7.5
@@ -453,7 +451,6 @@ targets:
     heading: 0
     speed: 50
     target_id: 2
-    tq_req: 2
     uncertainty:
     - 3.0
     - 7.5
@@ -469,7 +466,6 @@ targets:
     heading: 0
     speed: 40
     target_id: 3
-    tq_req: 3
     uncertainty:
     - 3.0
     - 7.5
@@ -485,7 +481,6 @@ targets:
     heading: 0
     speed: 30
     target_id: 4
-    tq_req: 4
     uncertainty:
     - 3.0
     - 7.5
@@ -501,7 +496,6 @@ targets:
     heading: 0
     speed: 20
     target_id: 5
-    tq_req: 5
     uncertainty:
     - 3.0
     - 7.5

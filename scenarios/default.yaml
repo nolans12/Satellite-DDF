@@ -21,7 +21,6 @@ comms:
   max_neighbors: 3
   max_range: 10000
   min_range: 500
-  display_struct: true
 
 estimators:
   central: false
@@ -31,7 +30,6 @@ estimators:
 
 targets:
   Targ1:
-    tq_req: 1
     target_id: 1
     coords: [45, 0, 0]
     heading: 0
@@ -39,7 +37,6 @@ targets:
     uncertainty: [3, 7.5, 0, 90, 0.1]
     color: "#e71714"
   Targ2:
-    tq_req: 2
     target_id: 2
     coords: [45, 0, 0]
     heading: 0
@@ -47,7 +44,6 @@ targets:
     uncertainty: [3, 7.5, 0, 90, 0.1]
     color: "#eea62a"
   Targ3:
-    tq_req: 3
     target_id: 3
     coords: [45, 0, 0]
     heading: 0
@@ -55,7 +51,6 @@ targets:
     uncertainty: [3, 7.5, 0, 90, 0.1]
     color: "#58b428"
   Targ4:
-    tq_req: 4
     target_id: 4
     coords: [45, 0, 0]
     heading: 0
@@ -63,7 +58,6 @@ targets:
     uncertainty: [3, 7.5, 0, 90, 0.1]
     color: "#2879b4"
   Targ5:
-    tq_req: 5
     target_id: 5
     coords: [45, 0, 0]
     heading: 0
