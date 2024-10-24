@@ -149,7 +149,7 @@ class GroundStation:
             for transmission in self.queued_ci_data.to_dataclasses(self.queued_ci_data):
 
                 # Now do CI with the data
-                self.estimator.gs_CI(
+                self.estimator.CI(
                     transmission.target_id,
                     transmission.estimate,
                     transmission.covariance,

@@ -1,6 +1,8 @@
 from collections import defaultdict
 
 import numpy as np
+import pandas as pd
+from astropy import units as u
 from numpy import typing as npt
 
 
@@ -76,28 +78,24 @@ class Target:
         # Define the initial state vector X
         self.X = self.initialState
 
-        self.hist = defaultdict(
-            dict
-        )  # Contains time, xyz, and velocity history in ECI [x xdot y ydot z zdot]
+        # Initialize the stateHistory DataFrame
+        self.stateHist = pd.DataFrame(columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz'])
 
     def propagate(
-        self, time_step: float, time: float, initialState: npt.NDArray | None = None
+        self,
+        time_step: u.Quantity[u.minute],
+        time: float,
+        initialState: npt.NDArray | None = None,
     ) -> None:
         """Linearly propagate target state in spherical coordinates then transform back to ECI.
 
         Args:
-            time_step (float or np.float64): Time step for propagation.
+            time_step (u.Quantity[u.minute]): Time step for propagation.
             time (float): Current time.
-            initialState (np.array, optional): Initial guess for the state. Defaults to None.
-
-        Returns:
-            np.array: Updated state guess if initialState is provided. # TODO: update history instead
         """
+
         # Determine the time step
-        if isinstance(time_step, (float, np.float64)):
-            dt = time_step
-        else:
-            dt = time_step.value
+        dt = time_step.value
 
         # Determine the current state of target:
         # X = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
@@ -154,14 +152,19 @@ class Target:
         self.pos = np.array([x, y, z])
         self.vel = np.array([vx, vy, vz])
 
-        # Update the target's dictionary with the current state for plotting
-        self.hist[self.time] = np.array(
-            [
-                self.pos[0],
-                self.vel[0],
-                self.pos[1],
-                self.vel[1],
-                self.pos[2],
-                self.vel[2],
-            ]
+        # Update the time
+        self.time = time
+
+        # Update the target's DataFrame with the current state for plotting
+        new_row = pd.DataFrame(
+            {
+                'time': [self.time],
+                'x': [self.pos[0]],
+                'y': [self.pos[1]],
+                'z': [self.pos[2]],
+                'vx': [self.vel[0]],
+                'vy': [self.vel[1]],
+                'vz': [self.vel[2]],
+            }
         )
+        self.stateHist = pd.concat([self.stateHist, new_row], ignore_index=True)

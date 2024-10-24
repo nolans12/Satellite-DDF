@@ -10,6 +10,7 @@ from typing import cast
 import imageio
 import networkx as nx
 import numpy as np
+import pandas as pd
 import pulp
 from astropy import units as u
 from matplotlib import gridspec
@@ -30,7 +31,6 @@ from phase3 import sensor
 from phase3 import sim_config
 from phase3 import target
 from phase3 import util
-from phase3.plotting import comms as comms_plot
 
 ## Creates the environment class, which contains a vector of satellites all other parameters
 
@@ -61,26 +61,20 @@ class Environment:
                 targPriorityInitial  # dictionary of [targetID: priority] pairs
             )
             sat.targetIDs = list(targPriorityInitial.keys())  # targetID to track
-            sat.measurementHist = {
-                targetID: defaultdict(dict) for targetID in targPriorityInitial.keys()
-            }  # dictionary of [targetID: {time: measurement}] pairs
 
             # Create estimation algorithms for each satellite
+            # TODO: should have estimator_config be a string then == "local", "ci", this way cant have more than 1
             if self.estimator_config.local:
-                sat.indeptEstimator = estimator.IndeptEstimator(
-                    commandersIntent[0][sat.name]
-                )  # initialize the independent estimator for these targets
+                sat.estimator = estimator.IndeptEstimator()
 
             if self.estimator_config.central:
-                self.centralEstimator = estimator.CentralEstimator(
-                    commandersIntent[0][sat.name]
-                )  # initialize the central estimator for these targets
+                self.estimator = estimator.CentralEstimator()
 
             if self.estimator_config.ci:
-                sat.ciEstimator = estimator.CiEstimator(commandersIntent[0][sat.name])
+                sat.estimator = estimator.CiEstimator()
 
             if self.estimator_config.et:
-                sat.etEstimators = [
+                sat.etEstimators = [  # THIS STILL NEEDS TO BE CHANGED!
                     estimator.EtEstimator(commandersIntent[0][sat.name], shareWith=None)
                 ]
 
@@ -183,17 +177,14 @@ class Environment:
                     ][sat.name]
                     sat.targetIDs = list(sat.targPriority.keys())
 
-            # Collect individual data measurements for satellites and then do data fusion
+            # Get the measurements from the satellites
+            self.collect_measurements()
+
+            # Do data fusion with the measurements
             self.data_fusion()
 
             # Have the network send information to the ground station
-            # self.send_to_ground_god_mode()
-            # self.send_to_ground_centralized()
-            # self.send_to_ground_avaliable_sats()
-            ## MUST CHOOSE THIS TO MATCH THE ACTUAL DDF YOUR DOING
-            # self.send_to_ground_best_sat_local()
-            self.send_to_ground_best_sat_ci()
-            # self.send_to_ground_best_sat_et()
+            self.send_to_ground_best_sat()
 
             if plot_config.show_env:
                 # Update the plot environment
@@ -207,38 +198,43 @@ class Environment:
 
         print("Simulation Complete")
 
-        if plot_config.plot_groundStation_results:
-            self.plot_gs_results(
-                time_vec, saveName=plot_config.output_prefix
-            )  # Plot the ground station results
+        # Now, save all data frames, will save to "data" folder
+        self.save_data_frames(saveName=plot_config.output_prefix)
 
-        # Plot the filter results
-        if plot_config.plot_estimation:
-            self.plot_estimator_results(
-                time_vec, saveName=plot_config.output_prefix
-            )  # marginal error, innovation, and NIS/NEES plots
+        ###### WE ARE TRANSITIONING TO MOVING ALL DATA TO BE SAVED IN A DATA FRAME, THEN PLOTTING FROM CSVS ######
 
-        # Plot the commm results
-        if plot_config.plot_communication:
+        # if plot_config.plot_groundStation_results:
+        #     self.plot_gs_results(
+        #         time_vec, saveName=plot_config.output_prefix
+        #     )  # Plot the ground station results
 
-            # Make plots for total data sent and used throughout time
-            self.plot_global_comms(saveName=plot_config.output_prefix)
-            # self.plot_used_comms(saveName=plot_config.output_prefix)
+        # # Plot the filter results
+        # if plot_config.plot_estimation:
+        #     self.plot_estimator_results(
+        #         time_vec, saveName=plot_config.output_prefix
+        #     )  # marginal error, innovation, and NIS/NEES plots
 
-            # For the CI estimators, plot time hist of comms
-            if self.estimator_config.ci:
-                self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
+        # # Plot the commm results
+        # if plot_config.plot_communication:
 
-        # Save the uncertainty ellipse plots
-        if plot_config.plot_uncertainty_ellipses:
-            self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
+        #     # Make plots for total data sent and used throughout time
+        #     self.plot_global_comms(saveName=plot_config.output_prefix)
+        #     # self.plot_used_comms(saveName=plot_config.output_prefix)
 
-        # Log the Data
-        if save_estimation_data:
-            self.log_data(time_vec, saveName=plot_config.output_prefix)
+        #     # For the CI estimators, plot time hist of comms
+        #     if self.estimator_config.ci:
+        #         self.plot_timeHist_comms_ci(saveName=plot_config.output_prefix)
 
-        if save_communication_data:
-            self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
+        # # Save the uncertainty ellipse plots
+        # if plot_config.plot_uncertainty_ellipses:
+        #     self.plot_all_uncertainty_ellipses(time_vec)  # Uncertainty Ellipse Plots
+
+        # # Log the Data
+        # if save_estimation_data:
+        #     self.log_data(time_vec, saveName=plot_config.output_prefix)
+
+        # if save_communication_data:
+        #     self.log_comms_data(time_vec, saveName=plot_config.output_prefix)
 
         return
 
@@ -246,99 +242,72 @@ class Environment:
         """
         Propagate the satellites and targets over the given time step.
         """
-        # Update the current time
+
+        # Update the current time (u.Minutes)
         self.time += time_step
 
-        time_val = self.time.to_value(
-            self.time.unit
-        )  # extract the numerical value of time
-
-        # Update the time for all targets and satellites
-        for targ in self.targs:
-            targ.time = time_val
-        for sat in self.sats:
-            sat.time = time_val
+        # Get the float value
+        time_val = self.time.value
 
         # Propagate the targets' positions
         for targ in self.targs:
             targ.propagate(
-                time_step, self.time
-            )  # Stores the history of target time and xyz position and velocity
+                time_step, time_val
+            )  # Propagate and store the history of target time and xyz position and velocity
 
         # Propagate the satellites
         for sat in self.sats:
-            sat.orbit = sat.orbit.propagate(time_step)
-            sat.orbitHist[sat.time] = (
-                sat.orbit.r.value
-            )  # Store the history of sat time and xyz position
-            sat.velHist[sat.time] = (
-                sat.orbit.v.value
-            )  # Store the history of sat time and xyz velocity
+            sat.propagate(
+                time_step, time_val
+            )  # Propagate and store the history of satellite time and xyz position and velocity
 
         # Update the communication network for the new sat positions
         self.comms.update_edges()
+
+    def collect_measurements(self) -> None:
+        """
+        Collect measurements from the satellites.
+        """
+        for sat in self.sats:
+            sat.collect_measurements_and_filter(self.targs)
 
     def data_fusion(self) -> None:
         """
         Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
         """
-        # Collect all measurements for every satellite in the environement
-        collectedFlag, measurements = self.collect_all_measurements()
 
         # If a central estimator is present, perform central fusion
         if self.estimator_config.central:
-            self.central_fusion(collectedFlag, measurements)
+            self.central_fusion()
 
         # Now send estimates for future CI
         if self.estimator_config.ci:
-            self.send_estimates_optimize()
-            # self.send_estimates()
+            # self.send_estimates_optimize()
+            self.send_estimates()
 
         # Now send measurements for future ET
         if self.estimator_config.et:
             self.send_measurements()
 
         # Now, each satellite will perform covariance intersection on the measurements sent to it
-        for sat in self.sats:
-            if self.estimator_config.ci:
-                sat.ciEstimator.CI(sat, self.comms)
+        if self.estimator_config.ci:
+            for sat in self.sats:
+                # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
+                data_recieved = self.comms.comm_data[
+                    (self.comms.comm_data['receiver'] == sat.name)
+                    & (self.comms.comm_data['type'] == 'estimate')
+                ]
+
+                sat.filter_CI(data_recieved)
 
             if self.estimator_config.et:
                 etEKF = sat.etEstimators[0]
                 etEKF.event_trigger_processing(sat, self.time.to_value(), self.comms)
 
         # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
-        for sat in self.sats:
-            if self.estimator_config.et:
-                etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
-
-    def collect_all_measurements(self) -> tuple[defaultdict, defaultdict]:
-        """
-        Collect measurements from satellites for all available targets.
-
-        Returns:
-        - collectedFlag: dictionary tracking which satellites collected measurements for each target.
-        - measurements: dictionary storing measurements collected for each target by each satellite.
-        """
-        collectedFlag = defaultdict(lambda: defaultdict(dict))
-        measurements = defaultdict(lambda: defaultdict(dict))
-
-        # Collect measurements on any available targets
-        for targ in self.targs:
+        if self.estimator_config.et:
             for sat in self.sats:
-                if targ.targetID in sat.targetIDs:
-                    # Collect the bearing measurement, if available, and run an EKF to update the estimate on the target
-                    collectedFlag[targ][sat] = sat.collect_measurements_and_filter(targ)
-
-                    if collectedFlag[targ][sat]:  # If a measurement was collected
-                        measurements[targ][sat] = sat.measurementHist[targ.targetID][
-                            self.time.to_value()
-                        ]  # Store the measurement in the dictionary
-
-        return (
-            collectedFlag,
-            measurements,
-        )  # Return the collected flags and measurements
+                etEKF.event_trigger_updating(sat, self.time.to_value(), self.comms)
 
     def send_estimates_optimize(self):
         """
@@ -593,6 +562,8 @@ class Environment:
     def send_estimates(self):
         """
         Send the most recent estimates from each satellite to its neighbors.
+
+        Worst case CI, everybody sents to everybody
         """
         # Loop through all satellites
         random_sats = self.sats[:]
@@ -600,35 +571,30 @@ class Environment:
         for sat in random_sats:
             # For each targetID in the satellite estimate history
 
-            # also shuffle the targetIDs
-            shuffle_targetIDs = list(sat.ciEstimator.estHist.keys())
-            random.shuffle(shuffle_targetIDs)
-            for targetID in shuffle_targetIDs:
+            # also shuffle the targetIDs (using new data frames)
+            data_sat = sat.estimator.estimation_data
 
-                # Skip if there are no estimates for this targetID
-                if isinstance(
-                    sat.measurementHist[targetID][self.time.to_value()], np.ndarray
-                ):  # len(sat.ciEstimator.estHist[targetID].keys()) == 0:
+            # If no data, skip
+            if data_sat.empty:
+                continue
 
-                    # This means satellite has an estimate for this target, now send it to neighbors
-                    neighbors = list(self.comms.G.neighbors(sat))
-                    random.shuffle(neighbors)
-                    for neighbor in neighbors:
+            # Else, get the targetIDs
+            targetIDs = data_sat['targetID'].unique()
 
-                        # Check, does that neighbor care about that target?
-                        if targetID not in neighbor.targetIDs:
-                            continue
+            # Shuffle the targetIDs
+            random.shuffle(targetIDs)
+            for targetID in targetIDs:
 
-                        # Get the most recent estimate time
-                        satTime = max(sat.ciEstimator.estHist[targetID].keys())
+                # Now, get the most recent estimate for this targetID
+                data_curr = data_sat[data_sat['targetID'] == targetID].iloc[-1]
+                est = data_curr['est']
+                cov = data_curr['cov']
 
-                        est = sat.ciEstimator.estHist[targetID][satTime]
-                        cov = sat.ciEstimator.covarianceHist[targetID][satTime]
-
-                        # Send most recent estimate to neighbor
-                        self.comms.send_estimate(
-                            sat, neighbor, est, cov, targetID, satTime
-                        )
+                # Send the estimate to all neighbors
+                for neighbor in self.comms.G.neighbors(sat):
+                    self.comms.send_estimate(
+                        sat, neighbor, est, cov, targetID, self.time.value
+                    )
 
     def send_measurements(self):
         """
@@ -733,189 +699,53 @@ class Environment:
                                     )
                                 )
 
-    def central_fusion(self, collectedFlag, measurements):
+    def central_fusion(self):
         """
         Perform central fusion using collected measurements.
-
-        Args:
-        - collectedFlag: dictionary tracking which satellites collected measurements for each target.
-        - measurements: dictionary storing measurements collected for each target by each satellite.
         """
-        # Now do central fusion
+
+        # Get all measurements taken by the satellites on each target
         for targ in self.targs:
-            # Extract satellites that took a measurement
-            satsWithMeasurements = [
-                sat for sat in self.sats if collectedFlag[targ][sat]
-            ]
-            newMeasurements = [measurements[targ][sat] for sat in satsWithMeasurements]
 
             targetID = targ.targetID
-            # If any satellite took a measurement on this target
-            if satsWithMeasurements:
-                # Run EKF with all satellites that took a measurement on the target
-                if len(self.centralEstimator.estHist[targ.targetID]) < 1:
-                    self.centralEstimator.central_EKF_initialize(
-                        targ, self.time.to_value()
-                    )
-                    return
-                self.centralEstimator.central_EKF_pred(targetID, self.time.to_value())
-                self.centralEstimator.central_EKF_update(
-                    satsWithMeasurements,
-                    newMeasurements,
-                    targetID,
-                    self.time.to_value(),
-                )
+            measurements = (
+                []
+            )  # needs to look like [array([44.21412194,  2.32977878]), array([41.48069992, 29.14226864])] for [alpha, beta] for each satellite
 
-    ## GROUND STATION PROTOCOLS, NEED TO CHOOSE JUST ONE MAYBE
-    def send_to_ground_god_mode(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
+            sats_w_measurements = []
 
-        GOD MODE:
-            Every satellite that took a measurement on a target, send the measurement to the ground station.
-            Regardless of if the sat can communicate with the ground station.
-        """
+            for sat in self.sats:
+                if targetID in sat.measurementHist['targetID'].values:
 
-        # TODO: this function is kinda hard because the EKF estimator needs the true position of the targets to initalize.
-        # But most other things just use targetID, thus, have to get target in the data queue even though only need targetID for everything besides the initalization.
+                    # Get the measurement at the current time
+                    meas = sat.measurementHist[
+                        (sat.measurementHist['targetID'] == targetID)
+                        & (sat.measurementHist['time'] == self.time.value)
+                    ]['measurement'].values[0]
 
-        # For each satellite, check, did it get a new measurement?
-        # Compare the environment time with most recent measurement history time
+                    if meas is not None:
+                        measurements.append(meas)
+                        sats_w_measurements.append(sat)
+            # Now, perform the central fusion, using the estimator, decide to do initization or pred then update
+            if len(measurements) > 0:
 
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-                # Check to see if a satellite has a measurement for that targetID at the given time
-                for sat in self.sats:
-                    if isinstance(
-                        sat.measurementHist[targ.targetID][self.time.to_value()],
-                        np.ndarray,
-                    ):
-
-                        # Get the measurement
-                        meas = sat.measurementHist[targ.targetID][self.time.to_value()]
-
-                        data = collection.GsMeasurementTransmission(
-                            target_id=targ.targetID,
-                            sender=sat.name,
-                            receiver=gs.name,
-                            time=self.time.value,
-                            measurement=meas,
+                if self.estimator.estimation_data.empty:
+                    # Initialize
+                    self.estimator.EKF_initialize(targ, self.time.value)
+                else:
+                    # Check, do we have an estimate for this targetID?
+                    if targetID in self.estimator.estimation_data['targetID'].values:
+                        # Predict
+                        self.estimator.EKF_pred(targetID, self.time.value)
+                        # Update
+                        self.estimator.EKF_update(
+                            sats_w_measurements, measurements, targetID, self.time.value
                         )
+                    else:
+                        # Initialize
+                        self.estimator.EKF_initialize(targ, self.time.value)
 
-                        # Add the data to the queued data onboard the ground station
-                        gs.queue_data(data, dtype=collection.GsDataType.MEAS)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
-
-    def send_to_ground_centralized(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
-
-        CENTRALIZED:
-            For every satellite that can communicate with the ground station and took a measurement on a target,
-            send the measurement for that target to the ground station.
-        """
-
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-                # Check to see if a satellite has a measurement for that targetID at the given time
-                for sat in self.sats:
-
-                    if isinstance(
-                        sat.measurementHist[targ.targetID][self.time.to_value()],
-                        np.ndarray,
-                    ):
-
-                        # Check, can the satellite communicate with the ground station?
-                        x_sat, y_sat, z_sat = sat.orbit.r.value
-
-                        if gs.can_communicate(x_sat, y_sat, z_sat):
-
-                            # print(f"Satellite {sat.name} can communicate with ground station {gs.name}")
-
-                            # Get the measurement
-                            meas = sat.measurementHist[targ.targetID][
-                                self.time.to_value()
-                            ]
-
-                            data = collection.GsMeasurementTransmission(
-                                target_id=targ.targetID,
-                                sender=sat.name,
-                                receiver=gs.name,
-                                time=self.time.value,
-                                measurement=meas,
-                            )
-
-                            # Add the data to the queued data onboard the ground station
-                            gs.queue_data(data, dtype=collection.GsDataType.MEAS)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
-
-    def send_to_ground_avaliable_sats(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
-
-        DDF, ALL SATS:
-            All satellites in the network that can communicate with ground station send a CI fusion estimate to the ground station.
-        """
-
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-                # Check to see if a satellite has a estimate for that targetID at the given time
-                for sat in self.sats:
-
-                    # Is time in the estimate history? # CANT DO IS INSTANCE OTHERWISE CREATES AN EMPTY DICT
-                    if len(sat.ciEstimator.estHist[targ.targetID].keys()) > 0:
-
-                        # Check, can the satellite communicate with the ground station?
-                        x_sat, y_sat, z_sat = sat.orbit.r.value
-
-                        if gs.can_communicate(x_sat, y_sat, z_sat):
-
-                            # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                            timePrior = max(
-                                sat.ciEstimator.estHist[targ.targetID].keys()
-                            )
-
-                            # Get the estimate and covariance
-                            est = sat.ciEstimator.estHist[targ.targetID][timePrior]
-                            cov = sat.ciEstimator.covarianceHist[targ.targetID][
-                                timePrior
-                            ]
-
-                            data = collection.GsEstimateTransmission(
-                                target_id=targ.targetID,
-                                sender=sat.name,
-                                receiver=gs.name,
-                                time=self.time.value,
-                                estimate=est,
-                                covariance=cov,
-                            )
-
-                            # Add the data to the queued data onboard the ground station
-                            gs.queue_data(data, dtype=collection.GsDataType.CI)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
-
-    def send_to_ground_best_sat_local(self):
+    def send_to_ground_best_sat(self):
         """
         Planner for sending data from the satellite network to the ground station.
 
@@ -926,185 +756,42 @@ class Environment:
 
         # For each ground station
         for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
 
-                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
+            # Loop through all targets (assume the GS cares about all for now))
+            for targ in self.targs:
+
+                # Figure out which satellite has the lowest track uncertainty matrix for this targetID
                 bestSat = None
-                bestTrackUncertainty = 999
+                bestTrackUncertainty = float('inf')
+                bestData = None
                 for sat in self.sats:
-                    if targ.targetID in sat.targetIDs:
-                        if (
-                            len(
-                                sat.indeptEstimator.trackErrorHist[targ.targetID].keys()
-                            )
-                            > 0
-                        ):
-                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
-                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(
-                                    sat.indeptEstimator.trackErrorHist[
-                                        targ.targetID
-                                    ].keys()
-                                )
-                                trackUncertainty = sat.indeptEstimator.trackErrorHist[
-                                    targ.targetID
-                                ][timePrior]
-                                if trackUncertainty < bestTrackUncertainty:
-                                    bestTrackUncertainty = trackUncertainty
-                                    bestSat = sat
+
+                    # Get the estimator data for this satellite
+                    estimator_data = sat.estimator.estimation_data
+
+                    # Check, does this satellite have data for this targetID?
+                    if estimator_data.empty:
+                        continue
+                    if targ.targetID in estimator_data['targetID'].values:
+
+                        # Get the data and track uncertainty
+                        data = estimator_data[
+                            estimator_data['targetID'] == targ.targetID
+                        ].iloc[-1]
+                        trackUncertainty = data['trackError']
+
+                        # Update the best satellite if this one has lower track uncertainty
+                        if trackUncertainty < bestTrackUncertainty:
+                            bestTrackUncertainty = trackUncertainty
+                            bestSat = sat
+                            bestData = data
 
                 # If a satellite was found
                 if bestSat is not None:
 
-                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                    timePrior = max(
-                        bestSat.indeptEstimator.estHist[targ.targetID].keys()
-                    )
-
-                    # Get the estimate and covariance
-                    est = bestSat.indeptEstimator.estHist[targ.targetID][timePrior]
-                    cov = bestSat.indeptEstimator.covarianceHist[targ.targetID][
-                        timePrior
-                    ]
-
-                    data = collection.GsEstimateTransmission(
-                        target_id=targ.targetID,
-                        sender=bestSat.name,
-                        receiver=gs.name,
-                        time=self.time.value,
-                        estimate=est,
-                        covariance=cov,
-                    )
-
-                    # Add the data to the queued data onboard the ground station
-                    gs.queue_data(data, dtype=collection.GsDataType.CI)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
-
-    def send_to_ground_best_sat_ci(self):
-        """
-        Planner for sending data from the satellite network to the ground station.
-
-        DDF, BEST SAT:
-            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
-            For that sat, send a CI fusion estimate to the ground station.
-        """
-
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-
-                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
-                bestSat = None
-                bestTrackUncertainty = 999
-                for sat in self.sats:
-                    if targ.targetID in sat.targetIDs:
-                        if (
-                            len(sat.ciEstimator.trackErrorHist[targ.targetID].keys())
-                            > 0
-                        ):
-                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
-                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(
-                                    sat.ciEstimator.trackErrorHist[targ.targetID].keys()
-                                )
-                                trackUncertainty = sat.ciEstimator.trackErrorHist[
-                                    targ.targetID
-                                ][timePrior]
-                                if trackUncertainty < bestTrackUncertainty:
-                                    bestTrackUncertainty = trackUncertainty
-                                    bestSat = sat
-
-                # If a satellite was found
-                if bestSat is not None:
-
-                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                    timePrior = max(bestSat.ciEstimator.estHist[targ.targetID].keys())
-
-                    # Get the estimate and covariance
-                    est = bestSat.ciEstimator.estHist[targ.targetID][timePrior]
-                    cov = bestSat.ciEstimator.covarianceHist[targ.targetID][timePrior]
-
-                    data = collection.GsEstimateTransmission(
-                        target_id=targ.targetID,
-                        sender=bestSat.name,
-                        receiver=gs.name,
-                        time=self.time.value,
-                        estimate=est,
-                        covariance=cov,
-                    )
-
-                    # Add the data to the queued data onboard the ground station
-                    gs.queue_data(data, dtype=collection.GsDataType.CI)
-
-        # Now that the data is queued, process the data in the filter
-        for gs in self.groundStations:
-            gs.process_queued_data(self.sats, self.targs)
-
-    def send_to_ground_best_sat_et(self):
-        # TODO: MERGE SUCH THAT DONT NEED SEPERATE ET CALL?
-
-        """
-        Planner for sending data from the satellite network to the ground station.
-
-        DDF, BEST SAT:
-            Choose the satellite from the network with the lowest track uncertainty, that can communicate with ground station.
-            For that sat, send a CI fusion estimate to the ground station.
-        """
-
-        # For each ground station
-        for gs in self.groundStations:
-            # For each targetID the ground station cares about
-            for targ in self.targs:
-                if targ.targetID not in gs.estimator.targs:
-                    continue
-
-                # Figre out which satellite has the lowest track uncertainty matrix for this targetID
-                bestSat = None
-                bestTrackUncertainty = 999
-                for sat in self.sats:
-                    if targ.targetID in sat.targetIDs:
-                        if (
-                            len(
-                                sat.etEstimators[0].trackErrorHist[targ.targetID].keys()
-                            )
-                            > 0
-                        ):
-                            x_sat_cur, y_sat_cur, z_sat_cur = sat.orbit.r.value
-                            if gs.can_communicate(x_sat_cur, y_sat_cur, z_sat_cur):
-                                timePrior = max(
-                                    sat.etEstimators[0]
-                                    .trackErrorHist[targ.targetID]
-                                    .keys()
-                                )
-                                trackUncertainty = sat.etEstimators[0].trackErrorHist[
-                                    targ.targetID
-                                ][timePrior]
-                                if trackUncertainty < bestTrackUncertainty:
-                                    bestTrackUncertainty = trackUncertainty
-                                    bestSat = sat
-
-                # If a satellite was found
-                if bestSat is not None:
-
-                    # Get the most recent estimate and covariance, and just send that. even if the estimator doesnt fuse with it cause its stale
-                    timePrior = max(
-                        bestSat.etEstimators[0].trackErrorHist[targ.targetID].keys()
-                    )
-
-                    # Get the estimate and covariance
-                    est = bestSat.etEstimators[0].estHist[targ.targetID][timePrior]
-                    cov = bestSat.etEstimators[0].covarianceHist[targ.targetID][
-                        timePrior
-                    ]
+                    # Get the data
+                    est = bestData['est']
+                    cov = bestData['cov']
 
                     data = collection.GsEstimateTransmission(
                         target_id=targ.targetID,
@@ -1259,6 +946,81 @@ class Environment:
             np.frombuffer(ios.getvalue(), dtype=np.uint8), (int(h), int(w), 4)
         )[:, :, 0:4]
         self.imgs.append(img)
+
+    def save_data_frames(
+        self,
+        saveName: str,
+        savePath: str = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'data'
+        ),
+    ) -> None:
+        """
+        Save all data frames to csv files.
+
+        Input is a folder name, "saveName"
+        A folder will be made in the data folder with this name, and all data frames will be saved in there.
+        """
+
+        # Make a folder for "data" if it doesn't exist
+        os.makedirs(savePath, exist_ok=True)
+
+        # Then make a folder for the saveName in data
+        savePath = os.path.join(savePath, saveName)
+        os.makedirs(savePath, exist_ok=True)
+
+        # Now, save all data frames
+
+        ## The data we have is:
+        # - Target state data (done)
+
+        # - Satellite state data (done)
+        # - Satellite estimator data (est, cov, innovaiton, etc) (NOT DONE)
+
+        # - Ground station estimate and covariance data (NOT DONE)
+
+        # - Communications to and from satellites and ground stations (kinda done)
+
+        ## Make a target state folder
+        target_path = os.path.join(savePath, f"targets")
+        os.makedirs(target_path, exist_ok=True)
+        for targ in self.targs:
+            targ.stateHist.to_csv(os.path.join(target_path, f"{targ.name}.csv"))
+
+        ## Make a satellite state folder
+        satellite_path = os.path.join(savePath, f"satellites")
+        os.makedirs(satellite_path, exist_ok=True)
+        for sat in self.sats:
+            sat.stateHist.to_csv(os.path.join(satellite_path, f"{sat.name}_state.csv"))
+            sat.measurementHist.to_csv(
+                os.path.join(satellite_path, f"{sat.name}_measurements.csv")
+            )
+
+        ## Make a comms folder
+        comms_path = os.path.join(savePath, f"comms")
+        os.makedirs(comms_path, exist_ok=True)
+        if not self.comms.comm_data.empty:
+            self.comms.comm_data.to_csv(os.path.join(comms_path, f"comm_data.csv"))
+
+        ## Make an estimator folder
+        estimator_path = os.path.join(savePath, f"estimators")
+        os.makedirs(estimator_path, exist_ok=True)
+        # Now, save all estimator data
+        for sat in self.sats:
+            if sat.estimator is not None:
+                sat.estimator.estimation_data.to_csv(  # TODO: this should just be sat.estimator.estimation_data, need to change naming syntax
+                    os.path.join(estimator_path, f"{sat.name}_estimator.csv")
+                )
+        for gs in self.groundStations:
+            if gs.estimator is not None:
+                gs.estimator.estimation_data.to_csv(
+                    os.path.join(estimator_path, f"{gs.name}_estimator.csv")
+                )
+
+        if self.estimator_config.central:
+            if self.estimator is not None:
+                self.estimator.estimation_data.to_csv(
+                os.path.join(estimator_path, f"central_estimator.csv")
+            )
 
     ### Estimation Errors and Track Uncertainty Plots ###
     def plot_gs_results(self, time_vec: u.Quantity[u.minute], saveName: str) -> None:
@@ -3717,8 +3479,6 @@ class Environment:
             for time, sat_intents in cfg.commanders_intent.items()
         }
 
-        first_intent = next(iter(next(iter(commandersIntent.values())).values()))
-
         # commandersIntent[4] = {
         #     sat1a: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
         #     sat1b: {1: 175, 2: 225, 3: 350, 4: 110, 5: 125},
@@ -3729,7 +3489,7 @@ class Environment:
         # Define the ground stations:
         groundStations = [
             groundStation.GroundStation(
-                estimator=estimator.GsEstimator(first_intent),
+                estimator=estimator.GsEstimator(),
                 lat=gs.lat,
                 lon=gs.lon,
                 fov=gs.fov,
