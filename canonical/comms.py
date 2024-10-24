@@ -1,6 +1,6 @@
 import itertools
 import logging
-from typing import Generic, Protocol, TypeVar, overload
+from typing import Generic, Protocol, Sequence, TypeVar, overload
 
 import networkx as nx
 import numpy as np
@@ -16,8 +16,10 @@ class Agent(Protocol):
     """Satellite, ground station, or w/e."""
 
     name: str
+
     # [x, y, z]
-    pos: npt.NDArray
+    @property
+    def pos(self) -> npt.NDArray: ...
 
 
 S = TypeVar('S', bound=Agent)
@@ -37,9 +39,9 @@ class Comms(Generic[S, F, G]):
 
     def __init__(
         self,
-        sensing_sats: list[S],
-        fusion_sats: list[F],
-        ground_stations: list[G],
+        sensing_sats: Sequence[S],
+        fusion_sats: Sequence[F],
+        ground_stations: Sequence[G],
         config: sim_config.CommsConfig,
     ):
         """Initialize the communications network.
@@ -55,16 +57,8 @@ class Comms(Generic[S, F, G]):
         self.estimates = dataclassframe.DataClassFrame(
             clz=collection.EstimateTransmission
         )
-        # Separate dataframe for estimated used by ET DDF
-        self.used_estimates = dataclassframe.DataClassFrame(
-            clz=collection.EstimateTransmission
-        )
 
         self.measurements = dataclassframe.DataClassFrame(
-            clz=collection.MeasurementTransmission
-        )
-        # Separate dataframe for measurements used by ET DDF
-        self.used_measurements = dataclassframe.DataClassFrame(
             clz=collection.MeasurementTransmission
         )
 
@@ -261,6 +255,8 @@ class Comms(Generic[S, F, G]):
         if np.isnan(beta):
             measurement_size -= 1
 
+        # TODO: check bandwidth before sending measurements
+
         self.measurements.append(
             collection.MeasurementTransmission(
                 target_id=target_id,
@@ -284,6 +280,7 @@ class Comms(Generic[S, F, G]):
         Returns:
             List of measurements for the node.
         """
+        # TODO: Change to time >= time since last time step for each target ID
         measurements = self.measurements.loc[
             (self.measurements['receiver'] == receiver)
             & (self.measurements['time'] == time)

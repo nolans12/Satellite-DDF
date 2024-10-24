@@ -1,8 +1,8 @@
 from astropy import units as u
 from numpy import typing as npt
 
+# from canonical import estimator  # TODO: Doesn't exist
 from canonical import comms
-from canonical import estimator
 from canonical import orbit
 from canonical import sensor
 
@@ -12,20 +12,19 @@ class Satellite:
         self,
         name: str,
         orbit: orbit.Orbit,
-        network: comms.Comms,
-        local_estimator: estimator.BaseEstimator,
+        local_estimator: 'estimator.BaseEstimator',
         color: str,
     ) -> None:
         self.name = name
         self.color = color
 
-        self._network = network
+        self.__network = None
 
         self._orbit_params = orbit
         self.orbit = self._orbit_params.to_poliastro()
 
         self._estimator = local_estimator
-        self._et_estimators: list[estimator.EtEstimator] = []
+        self._et_estimators: list['estimator.EtEstimator'] = []
 
         self._target_intents: dict[int, int] = {}
 
@@ -35,6 +34,14 @@ class Satellite:
     @property
     def pos(self) -> npt.NDArray:
         return self.orbit.r.to_value(u.km)
+
+    @property
+    def _network(self) -> comms.Comms:
+        assert self.__network is not None
+        return self.__network
+
+    def initialize(self, network: comms.Comms) -> None:
+        self.__network = network
 
     def _get_neighbors(self) -> list[str]:
         return self._network.get_neighbors(self.name)

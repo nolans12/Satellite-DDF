@@ -127,7 +127,8 @@ class SimConfig:
     sensors: dict[str, Sensor]
 
     # Satellites
-    satellites: dict[str, Satellite]
+    sensing_satellites: dict[str, Satellite]
+    fusion_satellites: dict[str, Satellite]
 
     # Commanders' Intents
     commanders_intent: util.CommandersIndent
@@ -156,7 +157,8 @@ class SimConfig:
             estimators=self.estimators,
             targets=self.targets,
             sensors=self.sensors,
-            satellites=self.satellites,
+            sensing_satellites=self.sensing_satellites,
+            fusion_satellites=self.fusion_satellites,
             commanders_intent=self.commanders_intent,
             ground_stations=self.ground_stations,
         )

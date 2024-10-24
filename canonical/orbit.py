@@ -4,7 +4,7 @@ from astropy import units as u
 from poliastro import bodies
 from poliastro import twobody
 
-from phase3 import sim_config
+from canonical import sim_config
 
 
 @dataclasses.dataclass

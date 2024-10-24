@@ -45,8 +45,8 @@ def plot_comms(
 
     # Plot the orbit lines
     for sat in comm.G.nodes:
-        sat: satellite.Satellite
-        r_s = sat.orbit.sample()
+        sat: str
+        r_s = comm._nodes[sat].orbit.sample()
         ax.plot(
             r_s.xyz[0].to(u.km).value,
             r_s.xyz[1].to(u.km).value,
@@ -59,7 +59,7 @@ def plot_comms(
     # Initialize lines for each possible link
     lines = [
         ax.plot([], [], [], 'c--')[0]
-        for _ in range(len(comm.G.nodes) * comm.max_neighbors)
+        for _ in range(len(comm.G.nodes) * comm._config.max_neighbors)
     ]
 
     # Function to update the positions of the satellites and links
@@ -124,7 +124,8 @@ def plot_comms(
 
 
 def plot_orbits(
-    orbits: list[orbit.Orbit],
+    sensing_orbits: list[orbit.Orbit],
+    fusion_orbits: list[orbit.Orbit],
     frames: int = 360,
 ) -> tuple[figure.Figure, animation.FuncAnimation]:
     """Create an interactive 3D plot of the satellite orbits.
@@ -135,7 +136,7 @@ def plot_orbits(
     fig, ax = _create_earth_plot()
 
     # Plot the orbit lines
-    for orb in orbits:
+    for orb in sensing_orbits:
         r_s = orb.to_poliastro().sample()
         ax.plot(
             r_s.xyz[0].to(u.km).value,
@@ -143,27 +144,53 @@ def plot_orbits(
             r_s.xyz[2].to(u.km).value,
             color='red',
         )
+    for orb in fusion_orbits:
+        r_s = orb.to_poliastro().sample()
+        ax.plot(
+            r_s.xyz[0].to(u.km).value,
+            r_s.xyz[1].to(u.km).value,
+            r_s.xyz[2].to(u.km).value,
+            color='yellow',
+        )
 
     # Initialize points for each orbit
-    (points,) = ax.plot([], [], [], 'go', markersize=5)
+    (sensing_points,) = ax.plot([], [], [], 'go', markersize=5)
+    (fusion_points,) = ax.plot([], [], [], 'co', markersize=5)
 
     # Function to update the positions of the satellites
-    def update(num: int, points_: art3d.Line3D) -> tuple[art3d.Line3D]:
+    def update(
+        num: int, sensing: art3d.Line3D, fusion: art3d.Line3D
+    ) -> tuple[art3d.Line3D, ...]:
         x_s = []
         y_s = []
         z_s = []
-        for orb in orbits:
+        for orb in sensing_orbits:
             orb = dataclasses.replace(orb, nu=orb.nu + u.Quantity(num * 1, u.deg))
             x, y, z = orb.to_poliastro().r.value
             x_s.append(x)
             y_s.append(y)
             z_s.append(z)
-        points_.set_data_3d(x_s, y_s, z_s)
-        return (points_,)
+        sensing.set_data_3d(x_s, y_s, z_s)
+        x_s = []
+        y_s = []
+        z_s = []
+        for orb in fusion_orbits:
+            orb = dataclasses.replace(orb, nu=orb.nu + u.Quantity(num * 1, u.deg))
+            x, y, z = orb.to_poliastro().r.value
+            x_s.append(x)
+            y_s.append(y)
+            z_s.append(z)
+        fusion.set_data_3d(x_s, y_s, z_s)
+        return (sensing, fusion)
 
     # Create the animation
     ani = animation.FuncAnimation(
-        fig, update, frames=frames, fargs=(points,), interval=50, blit=False
+        fig,
+        update,
+        frames=frames,
+        fargs=(sensing_points, fusion_points),
+        interval=50,
+        blit=False,
     )
 
     # Set the title
