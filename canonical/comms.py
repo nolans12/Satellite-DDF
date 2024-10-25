@@ -62,6 +62,10 @@ class Comms(Generic[S, F, G]):
             clz=collection.MeasurementTransmission
         )
 
+        self._sensing_sats = {sat.name for sat in sensing_sats}
+        self._fusion_sats = {sat.name for sat in fusion_sats}
+        self._ground_stations = {gs.name for gs in ground_stations}
+
         # Create a graph instance with the names as nodes
         self._nodes = {
             node.name: node for node in sensing_sats + fusion_sats + ground_stations
