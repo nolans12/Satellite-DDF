@@ -118,14 +118,23 @@ def sample_model() -> Model:
 
 
 def simple_model() -> Model:
-    # Create a 4x4 grid with a single agent, goal, and some obstacles
+    # # Create a 4x4 grid with a single agent, goal, and some obstacles
+    # maze = [
+    #     [0, 0, 1, 0],
+    #     [1, 0, 1, 0],
+    #     [1, 0, 0, 0],
+    #     [0, 1, 0, 0],
+    # ]
+
+    # state = State(Agent(Position(0, 0)), Goal(Position(3, 3)))
+
+    # Create a 3x3 grid with a single agent, goal, and some obstacles
     maze = [
-        [0, 0, 1, 0],
-        [1, 0, 1, 0],
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
+        [0, 0, 0],
+        [1, 1, 0],
+        [0, 0, 0],
     ]
 
-    state = State(Agent(Position(0, 0)), Goal(Position(3, 3)))
+    state = State(Agent(Position(0, 0)), Goal(Position(2, 2)))
 
     return Model(state, maze)

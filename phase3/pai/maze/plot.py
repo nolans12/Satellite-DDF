@@ -7,6 +7,7 @@ from matplotlib import image
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
+from common import path_utils
 from phase3.pai.maze import engine
 from phase3.pai.maze import heuristic
 from phase3.pai.maze import model
@@ -119,13 +120,13 @@ def animate_states(
 if __name__ == '__main__':
     # m = model.sample_model()
     m = model.simple_model()
-    params = pai.model_parameters(m)
+    params = pai.model_parameters(m, extra_steps=0)
     fig, plot = plot_model(m)
 
     states, actions = engine.simulate(
         m,
         params,
-        params.steps + 2,
+        params.steps,
         # heuristic.generate_action,
         pai.plan,
     )
@@ -139,3 +140,10 @@ if __name__ == '__main__':
     )
 
     plt.show()
+
+    if False:
+        # Save a gif of the animation
+        anim.save(
+            str(path_utils.REPO_ROOT / 'phase3/pai/maze/maze.gif'),
+            writer='imagemagick',
+        )

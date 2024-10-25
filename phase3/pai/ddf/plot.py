@@ -8,6 +8,7 @@ from matplotlib import lines
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
+from common import path_utils
 from phase3.pai.ddf import engine
 from phase3.pai.ddf import heuristic
 from phase3.pai.ddf import model
@@ -30,9 +31,9 @@ def plot_model(m: model.Model) -> tuple[figure.Figure, ModelPlot]:
 
     # Plot agents as blue dots and targets as red dots
     for agent in m.agents:
-        plot.agents.extend(ax.plot(agent.pos.x, agent.pos.y, 'bo'))
+        plot.agents.extend(ax.plot(agent.pos.x, agent.pos.y, 'bo', markersize=10))
     for target in m.targets:
-        plot.targets.extend(ax.plot(target.pos.x, target.pos.y, 'ro'))
+        plot.targets.extend(ax.plot(target.pos.x, target.pos.y, 'ro', markersize=10))
 
     # Plot lines between agents and their neighbors
     for agent in m.agents:
@@ -40,14 +41,21 @@ def plot_model(m: model.Model) -> tuple[figure.Figure, ModelPlot]:
             neighbor = m.agents[neighbor_id]
             plot.network_edges.extend(
                 ax.plot(
-                    [agent.pos.x, neighbor.pos.x], [agent.pos.y, neighbor.pos.y], 'g-'
+                    [agent.pos.x, neighbor.pos.x],
+                    [agent.pos.y, neighbor.pos.y],
+                    'g-',
+                    lw=2,
                 )
             )
 
     # Plot the sensor range as a circle around each agent
     for agent in m.agents:
         circle = patches.Circle(
-            (agent.pos.x, agent.pos.y), agent.sensor_range, color='black', fill=False
+            (agent.pos.x, agent.pos.y),
+            agent.sensor_range,
+            color='black',
+            fill=False,
+            lw=2,
         )
         plot.sensor_ranges.append(ax.add_artist(circle))
 
@@ -69,6 +77,7 @@ def animate_states(
         # Clear previous observations
         for obs in observations:
             obs.remove()
+        observations.clear()
 
         state = states[num]
         action = actions[num]
@@ -77,7 +86,6 @@ def animate_states(
         if action is None:
             return targets
 
-        observations.clear()
         for obs in action.observations:
             if obs.target_id is not None:
                 agent_pos = plot.agents[obs.agent_id].get_data()
@@ -98,7 +106,7 @@ def animate_states(
         update,
         frames=len(states),
         fargs=(plot.targets, []),
-        interval=1000,
+        interval=2000,
         blit=False,
     )
 
@@ -116,11 +124,18 @@ if __name__ == '__main__':
 
     fig, plot = plot_model(m)
 
-    anim = animate_states(
-        fig,
-        plot,
-        states,
-        actions,
-    )
+    # anim = animate_states(
+    #     fig,
+    #     plot,
+    #     states,
+    #     actions,
+    # )
 
     plt.show()
+
+    if False:
+        # Save a gif of the animation
+        anim.save(
+            str(path_utils.REPO_ROOT / 'phase3/pai/ddf/ddf.gif'),
+            writer='imagemagick',
+        )

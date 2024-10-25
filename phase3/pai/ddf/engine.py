@@ -6,23 +6,15 @@ from phase3.pai.ddf import model
 
 def propagate(state: model.State, action: model.Action) -> model.State:
     """Propagate the state forward one step given the action."""
-    new_target_states = []
-    for target_id, target_state in enumerate(state.target_states):
-        for obs in action.observations:
-            if obs.target_id == target_id:
-                observation = obs
-                break
-        else:
-            observation = None
+    target_states = state.target_states[:]
+    for obs in action.observations:
+        if obs.target_id is None:
+            continue
+        # Large chance of observing the target successfully
+        if random.random() < 0.85:
+            target_states[obs.target_id] = model.TargetState(True)
 
-        # 0.9 chance of observing the target successfully
-        new_target_state = target_state
-        if observation is not None and random.random() < 0.9:
-            new_target_state = model.TargetState(True)
-
-        new_target_states.append(new_target_state)
-
-    return model.State(new_target_states)
+    return model.State(target_states)
 
 
 def simulate(

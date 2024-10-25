@@ -11,8 +11,10 @@ def generate_action(m: model.Model, state: model.State) -> model.Action:
             if not target_state.well_observed
         ]
     )
+    unassigned_targets = unobserved_targets.copy()
     nearby_targets: dict[int, set[int]] = {agent.id: set() for agent in m.agents}
 
+    # Find all targets within sensor range of each agent
     for agent in m.agents:
         for target in m.targets:
             if model.distance(agent.pos, target.pos) <= agent.sensor_range:
@@ -28,8 +30,8 @@ def generate_action(m: model.Model, state: model.State) -> model.Action:
                 continue
             nearby_targs -= targs
 
-        for target_id in nearby_targs.intersection(unobserved_targets):
-            unobserved_targets.remove(target_id)
+        for target_id in nearby_targs.intersection(unassigned_targets):
+            unassigned_targets.remove(target_id)
             available_agents.remove(agent.id)
             observations.append(model.ObservationAction(agent.id, target_id))
             # 1 observation per agent
@@ -38,9 +40,17 @@ def generate_action(m: model.Model, state: model.State) -> model.Action:
     # Next, assign observations to targets multiple agents can observe
     for agent_id in available_agents.copy():
         nearby_targs = nearby_targets[agent_id]
-        for target_id in nearby_targs.intersection(unobserved_targets):
-            unobserved_targets.remove(target_id)
+        for target_id in nearby_targs.intersection(unassigned_targets):
+            unassigned_targets.remove(target_id)
             available_agents.remove(agent_id)
+            observations.append(model.ObservationAction(agent_id, target_id))
+            # 1 observation per agent
+            break
+
+    # Lastly, allow double observations for remaining agents
+    for agent_id in available_agents:
+        nearby_targs = nearby_targets[agent_id]
+        for target_id in nearby_targs.intersection(unobserved_targets):
             observations.append(model.ObservationAction(agent_id, target_id))
             # 1 observation per agent
             break

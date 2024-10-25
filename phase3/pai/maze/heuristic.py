@@ -1,7 +1,7 @@
 from phase3.pai.maze import model
 
 
-def generate_action(m: model.Model, params: model.PaiParameters) -> model.Action:
+def generate_action(m: model.Model, params: model.PaiParameters) -> list[model.Action]:
     """Generate an action given the current state.
 
     The alorithm just runs A* search to find the shortest path to the target.
@@ -43,6 +43,7 @@ def generate_action(m: model.Model, params: model.PaiParameters) -> model.Action
         path.append(direction)
         current, direction = came_from[current]
     path.append(direction)
+    path.reverse()
 
     # Move the agent towards the target
-    return model.Action(path[-1])
+    return [model.Action(p) for p in path]

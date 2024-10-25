@@ -6,9 +6,9 @@ from numpy import typing as npt
 from phase3.pai.maze import model
 
 
-def model_parameters(m: model.Model) -> model.PaiParameters:
+def model_parameters(m: model.Model, extra_steps: int) -> model.PaiParameters:
     return model.PaiParameters(
-        steps=int(len(m.maze) + len(m.maze[0]) - 2 + 2),
+        steps=int(len(m.maze) + len(m.maze[0]) - 2 + extra_steps),
         lambda_sp_s_a=0.7,
         eta_ap_a=0.2,
         eta_a=0.2,
@@ -235,7 +235,7 @@ def plan(m: model.Model, params: model.PaiParameters) -> list[model.Action]:
                     t, _direction_hash(direction_p), _direction_hash(direction)
                 ] = ((numerator / denominator) if denominator != 0 else 0)
 
-    # print(f'alpha_action_hash=\n{alpha_action_hash}')
+    print(f'alpha_action_hash=\n{alpha_action_hash}')
 
     # TODO: Use the Viterbi algorithm to find the best action
     best_direction_sequence = None

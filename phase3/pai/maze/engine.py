@@ -13,7 +13,7 @@ def propagate(m: model.Model, action: model.Action) -> model.State:
 
     direction = action.direction
     # There's a 0.3 chance of the agent moving to another state
-    if (rand := random.random()) < 0.3:
+    if (rand := random.random()) < 0.0:
         direction = model.Direction((direction.value + 1 + int(rand * 10)) % 4)
 
     maybe_new_pos = model.move(agent_pos, direction)
