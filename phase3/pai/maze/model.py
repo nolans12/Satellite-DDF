@@ -118,7 +118,7 @@ def sample_model() -> Model:
 
 
 def simple_model() -> Model:
-    # # Create a 4x4 grid with a single agent, goal, and some obstacles
+    # Create a 4x4 grid with a single agent, goal, and some obstacles
     # maze = [
     #     [0, 0, 1, 0],
     #     [1, 0, 1, 0],

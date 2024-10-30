@@ -68,8 +68,6 @@ def animate_states(
             pos = state.agent.pos
             for action in action_plan:
                 new_pos = model.move(pos, action.direction)
-                if not model.in_bounds(maze, new_pos):
-                    break
                 movements.append(
                     plot.ax.arrow(
                         pos.y,
@@ -120,7 +118,7 @@ def animate_states(
 if __name__ == '__main__':
     # m = model.sample_model()
     m = model.simple_model()
-    params = pai.model_parameters(m, extra_steps=0)
+    params = pai.model_parameters(m, extra_steps=2)
     fig, plot = plot_model(m)
 
     states, actions = engine.simulate(

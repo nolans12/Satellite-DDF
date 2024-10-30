@@ -210,7 +210,7 @@ def plan(m: model.Model, params: model.PaiParameters) -> list[model.Action]:
                     pos = model.Position(x, y)
 
                     denominator += alpha_hash[
-                        t, _state_action_hash(pos, direction, shape)
+                        t - 1, _state_action_hash(pos, direction, shape)
                     ]
 
                     for x_p, y_p in itertools.product(
