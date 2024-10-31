@@ -6,14 +6,29 @@ from typing import cast
 import marshmallow_dataclass
 import yaml
 
+from canonical import util
 from common import path_utils
-from phase3 import util
 
 
 class GifType(enum.Enum):
-    SATELLITE_SIMULATION = 'satellite_simulation'
-    UNCERTAINTY_ELLIPSE = 'uncertainty_ellipse'
-    DYNAMIC_COMMS = 'dynamic_comms'
+    SATELLITE_SIMULATION = enum.auto()
+    UNCERTAINTY_ELLIPSE = enum.auto()
+    DYNAMIC_COMMS = enum.auto()
+
+
+class PlotType(enum.Enum):
+    ESTIMATION = enum.auto()
+    COMMUNICATION = enum.auto()
+    ET_NETWORK = enum.auto()
+    UNCERTAINTY_ELLIPSES = enum.auto()
+    GROUND_STATION_RESULTS = enum.auto()
+
+
+class Estimators(enum.Enum):
+    CENTRAL = enum.auto()
+    LOCAL = enum.auto()
+    COVARIANCE_INTERSECTION = enum.auto()
+    EVENT_TRIGGERED = enum.auto()
 
 
 @dataclasses.dataclass
@@ -22,14 +37,10 @@ class PlotConfig:
     output_prefix: str
 
     # Show live plots
-    show_env: bool
+    show_live: bool
 
-    # Enable plot types
-    plot_estimation: bool
-    plot_communication: bool
-    plot_et_network: bool
-    plot_uncertainty_ellipses: bool
-    plot_groundStation_results: bool
+    # Plots to generate
+    plots: list[PlotType]
 
     # GIFs to generate
     gifs: list[GifType]
@@ -107,7 +118,7 @@ class SimConfig:
     comms: CommsConfig
 
     # Estimators
-    estimators: EstimatorConfig
+    estimators: list[Estimators]
 
     # Targets
     targets: dict[str, Target]
@@ -116,7 +127,8 @@ class SimConfig:
     sensors: dict[str, Sensor]
 
     # Satellites
-    satellites: dict[str, Satellite]
+    sensing_satellites: dict[str, Satellite]
+    fusion_satellites: dict[str, Satellite]
 
     # Commanders' Intents
     commanders_intent: util.CommandersIndent
@@ -128,12 +140,8 @@ class SimConfig:
         self,
         sim_duration_m: int | None = None,
         output_prefix: str | None = None,
-        show_env: bool | None = None,
-        plot_estimation: bool | None = None,
-        plot_communication: bool | None = None,
-        plot_et_network: bool | None = None,
-        plot_uncertainty_ellipses: bool | None = None,
-        plot_groundStation_results: bool | None = None,
+        show_live: bool | None = None,
+        plots: list[PlotType] | None = None,
         gifs: list[GifType] | None = None,
     ) -> 'SimConfig':
         return SimConfig(
@@ -141,21 +149,16 @@ class SimConfig:
             sim_time_step_m=self.sim_time_step_m,
             plot=PlotConfig(
                 output_prefix=output_prefix or self.plot.output_prefix,
-                show_env=show_env or self.plot.show_env,
-                plot_estimation=plot_estimation or self.plot.plot_estimation,
-                plot_communication=plot_communication or self.plot.plot_communication,
-                plot_et_network=plot_et_network or self.plot.plot_et_network,
-                plot_uncertainty_ellipses=plot_uncertainty_ellipses
-                or self.plot.plot_uncertainty_ellipses,
-                plot_groundStation_results=plot_groundStation_results
-                or self.plot.plot_groundStation_results,
+                show_live=show_live or self.plot.show_live,
+                plots=plots or self.plot.plots,
                 gifs=gifs or self.plot.gifs,
             ),
             comms=self.comms,
             estimators=self.estimators,
             targets=self.targets,
             sensors=self.sensors,
-            satellites=self.satellites,
+            sensing_satellites=self.sensing_satellites,
+            fusion_satellites=self.fusion_satellites,
             commanders_intent=self.commanders_intent,
             ground_stations=self.ground_stations,
         )

@@ -78,20 +78,23 @@ class GroundStation:
     def queue_data(
         self,
         data: collection.GsMeasurementTransmission,
-        dtype: Literal[collection.GsDataType.MEAS],
+        dtype: Literal[collection.GsDataType.MEASUREMENT],
     ) -> None: ...
 
     @overload
     def queue_data(
         self,
         data: collection.GsEstimateTransmission,
-        dtype: Literal[collection.GsDataType.CI],
+        dtype: Literal[collection.GsDataType.COVARIANCE_INTERSECTION],
     ) -> None: ...
 
     def queue_data(
         self,
         data: collection.GsMeasurementTransmission | collection.GsEstimateTransmission,
-        dtype: Literal[collection.GsDataType.MEAS] | Literal[collection.GsDataType.CI],
+        dtype: (
+            Literal[collection.GsDataType.MEASUREMENT]
+            | Literal[collection.GsDataType.COVARIANCE_INTERSECTION]
+        ),
     ) -> None:
         """
         Adds the data to the queued data struct to be used later in processing, the mailbox system.
@@ -99,9 +102,9 @@ class GroundStation:
         Args:
             data, in order of [type][time][targetID][sat] = measurement
         """
-        if dtype is collection.GsDataType.CI:
+        if dtype is collection.GsDataType.COVARIANCE_INTERSECTION:
             self.queued_ci_data.append(data)
-        elif dtype is collection.GsDataType.MEAS:
+        elif dtype is collection.GsDataType.MEASUREMENT:
             self.queued_meas_data.append(data)
         else:
             raise ValueError(f'Unexpected data type: {dtype}')
