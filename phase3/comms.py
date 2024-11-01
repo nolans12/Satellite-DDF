@@ -1,151 +1,232 @@
 import itertools
+import logging
+from typing import Generic, Protocol, Sequence, TypeVar, overload
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-from astropy import units as u
 from numpy import typing as npt
 
 from common import dataclassframe
+from common import linalg
 from phase3 import collection
-from phase3 import satellite
+from phase3 import sim_config
 
 
-class Comms:
-    """
-    Communication network class.
+class Agent(Protocol):
+    """Satellite, ground station, or w/e."""
+
+    name: str
+
+    # [x, y, z]
+    @property
+    def pos(self) -> npt.NDArray: ...
+
+
+S = TypeVar('S', bound=Agent)
+F = TypeVar('F', bound=Agent)
+G = TypeVar('G', bound=Agent)
+
+
+class Comms(Generic[S, F, G]):
+    """Communication network between satellites.
+
+    The comms network is abstracted as a centrally-managed graph of satellites
+    for simulation purposes. The graph is used to determine which satellites
+    can communicate with each other, simulate the transmission of data between
+    satellites, enforce bandwidth constraints, and track the amount of data
+    sent and received between satellites.
     """
 
     def __init__(
         self,
-        sats: list[satellite.Satellite],
-        maxNeighbors: int,
-        maxRange: u.Quantity[u.km],
-        minRange: u.Quantity[u.km],
-        maxBandwidth: int = 100000000,
-        dataRate: int = 0,
-        displayStruct: bool = False,
+        sensing_sats: Sequence[S],
+        fusion_sats: Sequence[F],
+        ground_stations: Sequence[G],
+        config: sim_config.CommsConfig,
     ):
         """Initialize the communications network.
-                Using networkx, a python library, to create a graph of the satellites and their connections.
+
+        Using networkx, a python library, to create a graph of the satellites and their connections.
 
         Args:
-            sats: List of satellites.
-            max_neighbors: Maximum number of neighbors.
-            max_range: Maximum range for communication.
-            min_range: Minimum range for communication.
-            data_rate: Data rate. Defaults to 0.
-            display_struct: Flag to display structure. Defaults to False.
+            nodes: List of satellites.
+            config: Configuration for the communication network.
         """
-        self.maxBandwidth = maxBandwidth
+        self._config = config
 
-        # # Create a empty dicitonary to store the amount of data sent/recieved between satellites
-        # self.total_comm_data = dataclassframe.DataClassFrame(
-        #     clz=collection.Transmission
-        # )
-        # self.used_comm_data = dataclassframe.DataClassFrame(clz=collection.Transmission)
-
-        # self.total_comm_et_data = dataclassframe.DataClassFrame(
-        #     clz=collection.MeasurementTransmission
-        # )
-        # self.used_comm_et_data = dataclassframe.DataClassFrame(
-        #     clz=collection.MeasurementTransmission
-        # )
-
-        self.comm_data = pd.DataFrame(
-            columns=['targetID', 'time', 'receiver', 'sender', 'type', 'data']
+        self.estimates = dataclassframe.DataClassFrame(
+            clz=collection.EstimateTransmission
         )
-        self.comm_data['data'] = self.comm_data['data'].astype(
-            'object'
-        )  # Data is a tuple (maybe [est, cov] or [in_track, cross_track])
 
-        self.max_neighbors = maxNeighbors
-        self.max_range = maxRange
-        self.min_range = minRange
-        self.data_rate = dataRate
-        self.displayStruct = displayStruct
+        self.measurements = dataclassframe.DataClassFrame(
+            clz=collection.MeasurementTransmission
+        )
 
-        # Create a graph instance with the satellites as nodes
-        self._sats = sats
+        # Create a graph instance with the names as nodes
+        self._nodes = {
+            node.name: node for node in sensing_sats + fusion_sats + ground_stations
+        }
         self.G = nx.DiGraph()
         # Add nodes with a dict for queued data (list of arrays)
-        for sat in sats:
-            self.G.add_node(
-                sat,
-                estimate_data={},
-                received_measurements={},
-                sent_measurements={},
-            )
+        for node in self._nodes:
+            self.G.add_node(node)
         self.update_edges()
 
-    def send_estimate(
+    @overload
+    def send_estimate(  # Link to link send
         self,
-        sender: satellite.Satellite,
-        receiver: satellite.Satellite,
         est_meas: npt.NDArray,
         cov_meas: npt.NDArray,
         target_id: int,
         time: float,
+        *,
+        sender: str,
+        receiver: str,
+    ) -> None: ...
+
+    @overload
+    def send_estimate(  # Path send
+        self,
+        est_meas: npt.NDArray,
+        cov_meas: npt.NDArray,
+        target_id: int,
+        time: float,
+        *,
+        path: list[str],
+    ) -> None: ...
+
+    def send_estimate(
+        self,
+        est_meas: npt.NDArray,
+        cov_meas: npt.NDArray,
+        target_id: int,
+        time: float,
+        *,
+        sender: str | None = None,
+        receiver: str | None = None,
+        path: list[str] | None = None,
     ) -> None:
         """Send an estimate from one satellite to another
-                First checks if two satellits are neighbors,
-                then, if they are neighbors, we want to share the most recent estimate
-                from sender to the receiver. We will simulate "sending a measurement"
-                by adding the estimate to the receiver's queued data on the commnication node.
-                This way, at the end of the time step, the reciever satellite can just loop through
-                the queued data and update its estimate using DDF algorithms on it.
 
-                The queued data is a dictionary of dictionaries of lists. The first key is the time,
-                the second key is the target ID, and the list contains the estimates, covariances, and who sent them.
+        Simulate "sending a measurement" by adding the estimate to the receiver's queued
+        data on the commnication node. This way, at the end of the time step, the reciever
+        satellite can just loop through the queued data and update its estimate using DDF
+        algorithms on it.
 
         Args:
             sender: Satellite sending the estimate.
-            receiver): Satellite receiving the estimate.
+            receiver: Satellite receiving the estimate.
             est_meas: Estimate to send.
             cov_meas: Covariance estimate to send.
             target_id: ID of the target the estimate is from.
             time: Time the estimate was taken.
         """
+        if path is not None and self._valid_path(path):
+            for i in range(1, len(path)):
+                self.send_estimate(  # Very nice!
+                    est_meas,
+                    cov_meas,
+                    target_id,
+                    time,
+                    sender=path[i - 1],
+                    receiver=path[i],
+                )
+            return
+
+        assert sender is not None and receiver is not None
+
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
             return
 
-        # Now, send that estimate, where type = 'estimate', and data = (est_meas, cov_meas)
+        # Before we decide if we want to send the estimate, make sure it wont
+        # violate the bandwidth constraints
+        if (
+            self.G.edges[sender, receiver]['used_bandwidth']
+            + est_meas.size * 2
+            + cov_meas.size / 2
+            > self.G.edges[sender, receiver]['max_bandwidth']
+        ):
+            logging.warning(
+                f'Bandwidth exceeded between {sender} and {receiver} with current '
+                f'bandwith of {self.G.edges[sender, receiver]["used_bandwidth"]} and '
+                f'max bandwidth of {self.G.edges[sender, receiver]["max_bandwidth"]}'
+            )
+            return
+        else:
+            # Update the used bandwidth
+            self.G.edges[sender, receiver]['used_bandwidth'] += (
+                est_meas.size * 2 + cov_meas.size / 2
+            )
 
-        # Create a new row for the comm_data
-        new_row = pd.DataFrame(
-            {
-                'targetID': [target_id],
-                'time': [time],
-                'receiver': [receiver.name],
-                'sender': [sender.name],
-                'type': ['estimate'],
-                'data': [(est_meas, cov_meas)],
-            }
+        self.estimates.append(
+            collection.EstimateTransmission(
+                target_id=target_id,
+                sender=sender,
+                receiver=receiver,
+                time=time,
+                size=est_meas.size * 2 + cov_meas.size // 2,
+                estimate=est_meas,
+                covariance=cov_meas,
+            )
         )
 
-        # Append the new row to the comm_data
-        self.comm_data = pd.concat([self.comm_data, new_row], ignore_index=True)
+    def receive_estimates(
+        self, receiver: str, time: float
+    ) -> list[collection.EstimateTransmission]:
+        """Receive all estimates for a node.
 
-    # TODO: THIS NEEDS TO BE FIXED WITH DATA FRAMES
-    def send_measurements(
+        Args:
+            receiver: Node to receive estimates for.
+
+        Returns:
+            List of estimates for the node.
+        """
+        estimates = self.estimates.loc[
+            (self.estimates['receiver'] == receiver) & (self.estimates['time'] == time)
+        ]
+
+        return self.estimates.to_dataclasses(estimates)
+
+    @overload
+    def send_measurements(  # Link to link send
         self,
-        sender: satellite.Satellite,
-        receiver: satellite.Satellite,
         alpha: float,
         beta: float,
         target_id: int,
         time: float,
+        *,
+        sender: str,
+        receiver: str,
+    ) -> None: ...
+
+    @overload
+    def send_measurements(  # Path send
+        self,
+        alpha: float,
+        beta: float,
+        target_id: int,
+        time: float,
+        *,
+        path: list[str],
+    ) -> None: ...
+
+    def send_measurements(
+        self,
+        alpha: float,
+        beta: float,
+        target_id: int,
+        time: float,
+        *,
+        sender: str | None = None,
+        receiver: str | None = None,
+        path: list[str] | None = None,
     ) -> None:
         """Send a vector of measurements from one satellite to another.
-                First checks if two satellites are neighbors,
-                then, if they are neighbors, we share the measurement vector
-                from the sender to the receiver by adding it to the receiver's
-                measurement data on the communication node.
 
-                The measurement data is a dictionary of dictionaries of lists.
-                The first key is the time, the second key is the target ID,
-                and the list contains the measurement vectors and who sent them.
+        Share the measurement vector from the sender to the receiver by
+        adding it to the receiver's measurement data on the communication node.
 
         Args:
             sender: Satellite sending the measurements.
@@ -155,203 +236,492 @@ class Comms:
             target_id: ID of the target the measurements are from.
             time: Time the measurements were taken.
         """
+        if path is not None and self._valid_path(path):
+            for i in range(1, len(path)):
+                self.send_measurements(
+                    alpha, beta, target_id, time, sender=path[i - 1], receiver=path[i]
+                )
+            return
+
+        assert sender is not None and receiver is not None
+
         # Check if the receiver is in the sender's neighbors
         if not self.G.has_edge(sender, receiver):
             return
 
-        # Initialize the time key in the receiver's measurement data if not present
-        if time not in self.G.nodes[receiver]['received_measurements']:
-            self.G.nodes[receiver]['received_measurements'][time] = {}
-
-        # Initialize the target_id key in the measurement data if not present
-        if target_id not in self.G.nodes[receiver]['received_measurements'][time]:
-            self.G.nodes[receiver]['received_measurements'][time][target_id] = {
-                'meas': [],
-                'sender': [],
-            }
-
-        # Add the measurement vector to the receiver's measurement data at the specified target_id and time
-        self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(
-            (alpha, beta)
-        )
-        self.G.nodes[receiver]['received_measurements'][time][target_id][
-            'sender'
-        ].append(sender)
-
-        # Add the measurement vector to the senders sent measurements at the specified target_id and time
-        if time not in self.G.nodes[sender]['sent_measurements']:
-            self.G.nodes[sender]['sent_measurements'][time] = {}
-
-        if target_id not in self.G.nodes[sender]['sent_measurements'][time]:
-            self.G.nodes[sender]['sent_measurements'][time][target_id] = {
-                'meas': [],
-                'receiver': [],
-            }
-
-        self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(
-            (alpha, beta)
-        )
-        self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(
-            receiver
-        )
-
-        measVector_size = 2 + 2  # 2 for the meas vector, 2 for the sensor noise
+        measurement_size = 2 + 2  # 2 for the meas vector, 2 for the sensor noise
         if np.isnan(alpha):
-            measVector_size -= 1
+            measurement_size -= 1
 
         if np.isnan(beta):
-            measVector_size -= 1
+            measurement_size -= 1
 
-        self.total_comm_et_data.append(
+        self.measurements.append(
             collection.MeasurementTransmission(
                 target_id=target_id,
-                sender=sender.name,
-                receiver=receiver.name,
+                sender=sender,
+                receiver=receiver,
                 time=time,
-                size=measVector_size,
+                size=measurement_size,
                 alpha=alpha,
                 beta=beta,
             )
         )
 
-        # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
+    def receive_measurements(
+        self, receiver: str, time: float
+    ) -> list[collection.MeasurementTransmission]:
+        """Receive all measurements for a node.
+
+        Args:
+            receiver: Node to receive measurements for.
+
+        Returns:
+            List of measurements for the node.
+        """
+        # TODO: Change to time >= time since last time step for each target ID
+        measurements = self.measurements.loc[
+            (self.measurements['receiver'] == receiver)
+            & (self.measurements['time'] == time)
+        ]
+
+        return self.measurements.to_dataclasses(measurements)
+
+    def get_neighbors(self, node: str) -> list[str]:
+        """Get the neighbors of a node.
+
+        Args:
+            node: Satellite to get the neighbors of.
+
+        Returns:
+            List of names of neighbors of the satellite.
+        """
+        return list(self.G.neighbors(node))
+
+    def get_path(self, node1: str, node2: str) -> list[str] | None:
+        """Get the shortest path between two nodes.
+
+        Args:
+            node1: Starting node.
+            node2: Ending node.
+
+        Returns:
+            Shortest path between the two nodes.
+        """
+        try:
+            path: list[str] = nx.shortest_path(self.G, node1, node2)  # type: ignore
+            return [self._nodes[node].name for node in path]
+        except nx.NetworkXNoPath:
+            logging.warning(
+                f'No path between {node1} and {node2} in the communication network.'
+            )
+            return None
+
+    def _valid_path(self, path: list[str]) -> bool:
+        """Check if a path is valid."""
+        for i in range(1, len(path)):
+            if not self.G.has_edge(path[i - 1], path[i]):
+                return False
+        return True
 
     def update_edges(self) -> None:
-        """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
-        Iterates through combinations of satellites to check known pairs.
-        An edge represnts a theorical communication link between two satellites.
+        """Re-compute the edges in the graph
+
+        This assumes that the position of the underlying nodes has changed.
+
+        TODO: Different logic for ground stations and satellites.
         """
         # Clear all edges in the graph
         self.G.clear_edges()
 
-        # Loop through each satellite pair and remake the edges
-        for sat1, sat2 in itertools.combinations(self._sats, 2):
+        # Loop through each agent pair and remake the edges
+        for agent1, agent2 in itertools.combinations(self._nodes.values(), 2):
             # Check if the distance is within range
-            dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
-            if self.min_range < dist < self.max_range:
-                # Check if the Earth is blocking the two satellites
-                if not self.intersect_earth(sat1, sat2):
-                    # Add the edge
+            dist = np.linalg.norm(agent1.pos - agent2.pos)
+            if self._config.min_range < dist < self._config.max_range:
+                # Check if the Earth is blocking the two agents
+                if not linalg.intersects_earth(agent1.pos, agent2.pos):
+                    # Add the edge width bandwidth metadata
                     self.G.add_edge(
-                        sat1,
-                        sat2,
-                        maxBandwidth=self.maxBandwidth,
-                        usedBandwidth=0,
-                        active=False,
+                        agent1.name,
+                        agent2.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
                     )
                     # also add the edge in the opposite direction
                     self.G.add_edge(
-                        sat2,
-                        sat1,
-                        maxBandwidth=self.maxBandwidth,
-                        usedBandwidth=0,
-                        active=False,
+                        agent2.name,
+                        agent1.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
                     )
 
         # Restrict to just the maximum number of neighbors
-        for sat in self._sats:
+        for agent in self._nodes.values():
             # If the number of neighbors is greater than the max, remove the extra neighbors
-            if len(list(self.G.neighbors(sat))) > self.max_neighbors:
-                # Get the list of neighbors
-                neighbors = list(self.G.neighbors(sat))
+            if (
+                len(neighbors := list(self.G.neighbors(agent.name)))
+                <= self._config.max_neighbors
+            ):
+                continue
 
-                # Get the distances to each neighbor
-                dists = [
-                    np.linalg.norm(neighbor.orbit.r - sat.orbit.r)
-                    for neighbor in neighbors
-                ]
+            # Get the list of neighbors
+            neighbors = list(self._nodes[neighbor] for neighbor in neighbors)
 
-                # Sort the neighbors by distance
-                sorted_neighbors = [
-                    x
-                    for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
-                ]
+            # Get the distances to each neighbor
+            dists = [np.linalg.norm(neighbor.pos - agent.pos) for neighbor in neighbors]
 
-                # Remove the extra neighbors
-                for i in range(self.max_neighbors, len(sorted_neighbors)):
-                    self.G.remove_edge(sat, sorted_neighbors[i])
+            # Sort the neighbors by distance
+            sorted_neighbors = [
+                x for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
+            ]
 
-    def intersect_earth(
-        self, sat1: satellite.Satellite, sat2: satellite.Satellite
-    ) -> bool:
-        """Check if the Earth is blocking the two satellites using line-sphere intersection.
-                Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
+            # Remove the extra neighbors
+            for i in range(self._config.max_neighbors, len(sorted_neighbors)):
+                self.G.remove_edge(agent.name, sorted_neighbors[i].name)
 
-        Args:
-            sat1: The first satellite.
-            sat2: The second satellite.
 
-        Returns:
-            bool: True if the Earth is blocking the line of sight, False otherwise.
-        """
-        # Make a line between the two satellites
-        line = (sat2.orbit.r - sat1.orbit.r).value  # This is from sat1 to sat2
+# class Comms:
+#     """
+#     Communication network class.
+#     """
 
-        # Check if there is an intersection with the Earth
-        if (
-            self.sphere_line_intersection((0, 0, 0), 6378, sat1.orbit.r.value, line)
-            is not None
-        ):
-            return True
+#     def __init__(
+#         self,
+#         sats: list[satellite.Satellite],
+#         maxNeighbors: int,
+#         maxRange: u.Quantity[u.km],
+#         minRange: u.Quantity[u.km],
+#         maxBandwidth: int = 100000000,
+#         dataRate: int = 0,
+#         displayStruct: bool = False,
+#     ):
+#         """Initialize the communications network.
+#                 Using networkx, a python library, to create a graph of the satellites and their connections.
 
-        # If there is no intersection, return False
-        return False
+#         Args:
+#             sats: List of satellites.
+#             max_neighbors: Maximum number of neighbors.
+#             max_range: Maximum range for communication.
+#             min_range: Minimum range for communication.
+#             data_rate: Data rate. Defaults to 0.
+#             display_struct: Flag to display structure. Defaults to False.
+#         """
+#         self.maxBandwidth = maxBandwidth
 
-    def sphere_line_intersection(
-        self,
-        sphere_center: tuple[float, float, float],
-        sphere_radius: float,
-        line_point: tuple[float, float, float],
-        line_direction: tuple[float, float, float],
-    ):
-        """Check if a line intersects with a sphere.
-                Uses known fomrula for line-sphere intersection in 3D space.
+#         # # Create a empty dicitonary to store the amount of data sent/recieved between satellites
+#         # self.total_comm_data = dataclassframe.DataClassFrame(
+#         #     clz=collection.Transmission
+#         # )
+#         # self.used_comm_data = dataclassframe.DataClassFrame(clz=collection.Transmission)
 
-        Args:
-            sphere_center (list): Coordinates of the sphere center.
-            sphere_radius (float): Radius of the sphere.
-            line_point (list): Point on the line.
-            line_direction (list): Direction of the line.
+#         # self.total_comm_et_data = dataclassframe.DataClassFrame(
+#         #     clz=collection.MeasurementTransmission
+#         # )
+#         # self.used_comm_et_data = dataclassframe.DataClassFrame(
+#         #     clz=collection.MeasurementTransmission
+#         # )
 
-        Returns:
-            array or None: Intersection point(s) or None if no intersection.
-        """
-        # Unpack sphere parameters
-        x0, y0, z0 = sphere_center
-        r = sphere_radius
+#         self.comm_data = pd.DataFrame(
+#             columns=['targetID', 'time', 'receiver', 'sender', 'type', 'data']
+#         )
+#         self.comm_data['data'] = self.comm_data['data'].astype(
+#             'object'
+#         )  # Data is a tuple (maybe [est, cov] or [in_track, cross_track])
 
-        # Unpack line parameters
-        x1, y1, z1 = line_point
-        dx, dy, dz = line_direction
+#         self.max_neighbors = maxNeighbors
+#         self.max_range = maxRange
+#         self.min_range = minRange
+#         self.data_rate = dataRate
+#         self.displayStruct = displayStruct
 
-        # Compute coefficients for the quadratic equation
-        a = dx**2 + dy**2 + dz**2
-        b = 2 * (dx * (x1 - x0) + dy * (y1 - y0) + dz * (z1 - z0))
-        c = (x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2 - r**2
+#         # Create a graph instance with the satellites as nodes
+#         self._sats = sats
+#         self.G = nx.DiGraph()
+#         # Add nodes with a dict for queued data (list of arrays)
+#         for sat in sats:
+#             self.G.add_node(
+#                 sat,
+#                 estimate_data={},
+#                 received_measurements={},
+#                 sent_measurements={},
+#             )
+#         self.update_edges()
 
-        # Compute discriminant
-        discriminant = b**2 - 4 * a * c
+#     def send_estimate(
+#         self,
+#         sender: satellite.Satellite,
+#         receiver: satellite.Satellite,
+#         est_meas: npt.NDArray,
+#         cov_meas: npt.NDArray,
+#         target_id: int,
+#         time: float,
+#     ) -> None:
+#         """Send an estimate from one satellite to another
+#                 First checks if two satellits are neighbors,
+#                 then, if they are neighbors, we want to share the most recent estimate
+#                 from sender to the receiver. We will simulate "sending a measurement"
+#                 by adding the estimate to the receiver's queued data on the commnication node.
+#                 This way, at the end of the time step, the reciever satellite can just loop through
+#                 the queued data and update its estimate using DDF algorithms on it.
 
-        if discriminant < 0:
-            # No intersection
-            return None
-        elif discriminant == 0:
-            # One intersection
-            t = -b / (2 * a)
-            intersection_point = np.array([x1 + t * dx, y1 + t * dy, z1 + t * dz])
-            return intersection_point
-        else:
-            # Two intersections
-            t1 = (-b + np.sqrt(discriminant)) / (2 * a)
-            t2 = (-b - np.sqrt(discriminant)) / (2 * a)
-            intersection_point1 = np.array([x1 + t1 * dx, y1 + t1 * dy, z1 + t1 * dz])
-            intersection_point2 = np.array([x1 + t2 * dx, y1 + t2 * dy, z1 + t2 * dz])
+#                 The queued data is a dictionary of dictionaries of lists. The first key is the time,
+#                 the second key is the target ID, and the list contains the estimates, covariances, and who sent them.
 
-            # Calculate distances
-            dist1 = np.linalg.norm(intersection_point1 - line_point)
-            dist2 = np.linalg.norm(intersection_point2 - line_point)
+#         Args:
+#             sender: Satellite sending the estimate.
+#             receiver): Satellite receiving the estimate.
+#             est_meas: Estimate to send.
+#             cov_meas: Covariance estimate to send.
+#             target_id: ID of the target the estimate is from.
+#             time: Time the estimate was taken.
+#         """
+#         # Check if the receiver is in the sender's neighbors
+#         if not self.G.has_edge(sender, receiver):
+#             return
 
-            if dist1 < dist2:
-                return intersection_point1
-            else:
-                return intersection_point2
+#         # Now, send that estimate, where type = 'estimate', and data = (est_meas, cov_meas)
+
+#         # Create a new row for the comm_data
+#         new_row = pd.DataFrame(
+#             {
+#                 'targetID': [target_id],
+#                 'time': [time],
+#                 'receiver': [receiver.name],
+#                 'sender': [sender.name],
+#                 'type': ['estimate'],
+#                 'data': [(est_meas, cov_meas)],
+#             }
+#         )
+
+#         # Append the new row to the comm_data
+#         self.comm_data = pd.concat([self.comm_data, new_row], ignore_index=True)
+
+#     # TODO: THIS NEEDS TO BE FIXED WITH DATA FRAMES
+#     def send_measurements(
+#         self,
+#         sender: satellite.Satellite,
+#         receiver: satellite.Satellite,
+#         alpha: float,
+#         beta: float,
+#         target_id: int,
+#         time: float,
+#     ) -> None:
+#         """Send a vector of measurements from one satellite to another.
+#                 First checks if two satellites are neighbors,
+#                 then, if they are neighbors, we share the measurement vector
+#                 from the sender to the receiver by adding it to the receiver's
+#                 measurement data on the communication node.
+
+#                 The measurement data is a dictionary of dictionaries of lists.
+#                 The first key is the time, the second key is the target ID,
+#                 and the list contains the measurement vectors and who sent them.
+
+#         Args:
+#             sender: Satellite sending the measurements.
+#             receiver: Satellite receiving the measurements.
+#             alpha: Alpha measurement to send.
+#             beta: Beta measurement to send.
+#             target_id: ID of the target the measurements are from.
+#             time: Time the measurements were taken.
+#         """
+#         # Check if the receiver is in the sender's neighbors
+#         if not self.G.has_edge(sender, receiver):
+#             return
+
+#         # Initialize the time key in the receiver's measurement data if not present
+#         if time not in self.G.nodes[receiver]['received_measurements']:
+#             self.G.nodes[receiver]['received_measurements'][time] = {}
+
+#         # Initialize the target_id key in the measurement data if not present
+#         if target_id not in self.G.nodes[receiver]['received_measurements'][time]:
+#             self.G.nodes[receiver]['received_measurements'][time][target_id] = {
+#                 'meas': [],
+#                 'sender': [],
+#             }
+
+#         # Add the measurement vector to the receiver's measurement data at the specified target_id and time
+#         self.G.nodes[receiver]['received_measurements'][time][target_id]['meas'].append(
+#             (alpha, beta)
+#         )
+#         self.G.nodes[receiver]['received_measurements'][time][target_id][
+#             'sender'
+#         ].append(sender)
+
+#         # Add the measurement vector to the senders sent measurements at the specified target_id and time
+#         if time not in self.G.nodes[sender]['sent_measurements']:
+#             self.G.nodes[sender]['sent_measurements'][time] = {}
+
+#         if target_id not in self.G.nodes[sender]['sent_measurements'][time]:
+#             self.G.nodes[sender]['sent_measurements'][time][target_id] = {
+#                 'meas': [],
+#                 'receiver': [],
+#             }
+
+#         self.G.nodes[sender]['sent_measurements'][time][target_id]['meas'].append(
+#             (alpha, beta)
+#         )
+#         self.G.nodes[sender]['sent_measurements'][time][target_id]['receiver'].append(
+#             receiver
+#         )
+
+#         measVector_size = 2 + 2  # 2 for the meas vector, 2 for the sensor noise
+#         if np.isnan(alpha):
+#             measVector_size -= 1
+
+#         if np.isnan(beta):
+#             measVector_size -= 1
+
+#         self.total_comm_et_data.append(
+#             collection.MeasurementTransmission(
+#                 target_id=target_id,
+#                 sender=sender.name,
+#                 receiver=receiver.name,
+#                 time=time,
+#                 size=measVector_size,
+#                 alpha=alpha,
+#                 beta=beta,
+#             )
+#         )
+
+#         # self.total_comm_data[target_id][receiver.name][sender.name][time] = meas_vector.size # TODO: need a new dicitonary to store this and sent data
+
+#     def update_edges(self) -> None:
+#         """Reset the edges in the graph and redefine them based on range and if the Earth is blocking them.
+#         Iterates through combinations of satellites to check known pairs.
+#         An edge represnts a theorical communication link between two satellites.
+#         """
+#         # Clear all edges in the graph
+#         self.G.clear_edges()
+
+#         # Loop through each satellite pair and remake the edges
+#         for sat1, sat2 in itertools.combinations(self._sats, 2):
+#             # Check if the distance is within range
+#             dist = np.linalg.norm(sat1.orbit.r - sat2.orbit.r)
+#             if self.min_range < dist < self.max_range:
+#                 # Check if the Earth is blocking the two satellites
+#                 if not self.intersect_earth(sat1, sat2):
+#                     # Add the edge
+#                     self.G.add_edge(
+#                         sat1,
+#                         sat2,
+#                         maxBandwidth=self.maxBandwidth,
+#                         usedBandwidth=0,
+#                         active=False,
+#                     )
+#                     # also add the edge in the opposite direction
+#                     self.G.add_edge(
+#                         sat2,
+#                         sat1,
+#                         maxBandwidth=self.maxBandwidth,
+#                         usedBandwidth=0,
+#                         active=False,
+#                     )
+
+#         # Restrict to just the maximum number of neighbors
+#         for sat in self._sats:
+#             # If the number of neighbors is greater than the max, remove the extra neighbors
+#             if len(list(self.G.neighbors(sat))) > self.max_neighbors:
+#                 # Get the list of neighbors
+#                 neighbors = list(self.G.neighbors(sat))
+
+#                 # Get the distances to each neighbor
+#                 dists = [
+#                     np.linalg.norm(neighbor.orbit.r - sat.orbit.r)
+#                     for neighbor in neighbors
+#                 ]
+
+#                 # Sort the neighbors by distance
+#                 sorted_neighbors = [
+#                     x
+#                     for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
+#                 ]
+
+#                 # Remove the extra neighbors
+#                 for i in range(self.max_neighbors, len(sorted_neighbors)):
+#                     self.G.remove_edge(sat, sorted_neighbors[i])
+
+#     def intersect_earth(
+#         self, sat1: satellite.Satellite, sat2: satellite.Satellite
+#     ) -> bool:
+#         """Check if the Earth is blocking the two satellites using line-sphere intersection.
+#                 Performs a line-sphere intersection check b/w the line connecting the two satellites to see if they intersect Earth.
+
+#         Args:
+#             sat1: The first satellite.
+#             sat2: The second satellite.
+
+#         Returns:
+#             bool: True if the Earth is blocking the line of sight, False otherwise.
+#         """
+#         # Make a line between the two satellites
+#         line = (sat2.orbit.r - sat1.orbit.r).value  # This is from sat1 to sat2
+
+#         # Check if there is an intersection with the Earth
+#         if (
+#             self.sphere_line_intersection((0, 0, 0), 6378, sat1.orbit.r.value, line)
+#             is not None
+#         ):
+#             return True
+
+#         # If there is no intersection, return False
+#         return False
+
+#     def sphere_line_intersection(
+#         self,
+#         sphere_center: tuple[float, float, float],
+#         sphere_radius: float,
+#         line_point: tuple[float, float, float],
+#         line_direction: tuple[float, float, float],
+#     ):
+#         """Check if a line intersects with a sphere.
+#                 Uses known fomrula for line-sphere intersection in 3D space.
+
+#         Args:
+#             sphere_center (list): Coordinates of the sphere center.
+#             sphere_radius (float): Radius of the sphere.
+#             line_point (list): Point on the line.
+#             line_direction (list): Direction of the line.
+
+#         Returns:
+#             array or None: Intersection point(s) or None if no intersection.
+#         """
+#         # Unpack sphere parameters
+#         x0, y0, z0 = sphere_center
+#         r = sphere_radius
+
+#         # Unpack line parameters
+#         x1, y1, z1 = line_point
+#         dx, dy, dz = line_direction
+
+#         # Compute coefficients for the quadratic equation
+#         a = dx**2 + dy**2 + dz**2
+#         b = 2 * (dx * (x1 - x0) + dy * (y1 - y0) + dz * (z1 - z0))
+#         c = (x1 - x0) ** 2 + (y1 - y0) ** 2 + (z1 - z0) ** 2 - r**2
+
+#         # Compute discriminant
+#         discriminant = b**2 - 4 * a * c
+
+#         if discriminant < 0:
+#             # No intersection
+#             return None
+#         elif discriminant == 0:
+#             # One intersection
+#             t = -b / (2 * a)
+#             intersection_point = np.array([x1 + t * dx, y1 + t * dy, z1 + t * dz])
+#             return intersection_point
+#         else:
+#             # Two intersections
+#             t1 = (-b + np.sqrt(discriminant)) / (2 * a)
+#             t2 = (-b - np.sqrt(discriminant)) / (2 * a)
+#             intersection_point1 = np.array([x1 + t1 * dx, y1 + t1 * dy, z1 + t1 * dz])
+#             intersection_point2 = np.array([x1 + t2 * dx, y1 + t2 * dy, z1 + t2 * dz])
+
+#             # Calculate distances
+#             dist1 = np.linalg.norm(intersection_point1 - line_point)
+#             dist2 = np.linalg.norm(intersection_point2 - line_point)
+
+#             if dist1 < dist2:
+#                 return intersection_point1
+#             else:
+#                 return intersection_point2

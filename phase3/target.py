@@ -77,7 +77,9 @@ class Target:
         self.X = self.initialState
 
         # Initialize the stateHistory DataFrame
-        self.stateHist = pd.DataFrame(columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz'])
+        self._state_hist = pd.DataFrame(
+            columns=['time', 'x', 'y', 'z', 'vx', 'vy', 'vz']
+        )
 
     def propagate(
         self,
@@ -165,4 +167,4 @@ class Target:
                 'vz': [self.vel[2]],
             }
         )
-        self.stateHist = pd.concat([self.stateHist, new_row], ignore_index=True)
+        self._state_hist = pd.concat([self._state_hist, new_row], ignore_index=True)

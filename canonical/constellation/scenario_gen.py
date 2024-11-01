@@ -8,10 +8,10 @@ from InquirerPy.prompts import filepath
 from InquirerPy.prompts import list as list_prompt
 from InquirerPy.prompts import number
 
-from common import path_utils
-from common import prompt_utils
 from canonical import sim_config
 from canonical.constellation import walker_delta
+from common import path_utils
+from common import prompt_utils
 
 
 class Constellelation(enum.Enum):
