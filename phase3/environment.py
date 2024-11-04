@@ -22,7 +22,7 @@ from phase3 import orbit
 from phase3 import satellite
 from phase3 import sensor
 from phase3 import sim_config
-from phase3.sim_config import Target
+from phase3 import target
 
 
 class Environment:
@@ -69,7 +69,7 @@ class Environment:
     @classmethod
     def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
         targs = [
-            Target(
+            target.Target(
                 name=name,
                 target_id=t.target_id,
                 coords=np.array(t.coords),
@@ -85,9 +85,9 @@ class Environment:
             name: satellite.SensingSatellite(
                 name=name,
                 sensor=sensor.Sensor(
-                    name=s.sensor,
-                    fov=cfg.sensors[s.sensor].fov,
-                    bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
+                    name=s.sensor or '',
+                    fov=cfg.sensors[s.sensor or ''].fov,
+                    bearingsError=np.array(cfg.sensors[s.sensor or ''].bearings_error),
                 ),
                 orbit=orbit.Orbit.from_sim_config(s.orbit),
                 color=s.color,
@@ -99,8 +99,8 @@ class Environment:
             name: satellite.FusionSatellite(
                 name=name,
                 orbit=orbit.Orbit.from_sim_config(s.orbit),
-                local_estimator=None,
                 color=s.color,
+                local_estimator=None,
             )
             for name, s in cfg.sensing_satellites.items()
         }
@@ -118,7 +118,7 @@ class Environment:
             list(sensing_sats.values()),
             list(fusion_sats.values()),
             targs,
-            cfg.estimators,
+            cfg.estimator,
             network=comms_network,
         )
 

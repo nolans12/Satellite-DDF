@@ -6,8 +6,8 @@ from typing import cast
 import marshmallow_dataclass
 import yaml
 
-from canonical import util
 from common import path_utils
+from phase3 import util
 
 
 class GifType(enum.Enum):
@@ -55,14 +55,6 @@ class CommsConfig:
 
 
 @dataclasses.dataclass
-class EstimatorConfig:
-    central: bool
-    local: bool
-    ci: bool
-    et: bool
-
-
-@dataclasses.dataclass
 class Target:
     target_id: int
     coords: tuple[float, float, float]
@@ -90,7 +82,7 @@ class Orbit:
 
 @dataclasses.dataclass
 class Satellite:
-    sensor: str
+    sensor: str | None
     orbit: Orbit
     color: str
 
@@ -118,7 +110,7 @@ class SimConfig:
     comms: CommsConfig
 
     # Estimators
-    estimators: list[Estimators]
+    estimator: Estimators
 
     # Targets
     targets: dict[str, Target]
@@ -154,7 +146,7 @@ class SimConfig:
                 gifs=gifs or self.plot.gifs,
             ),
             comms=self.comms,
-            estimators=self.estimators,
+            estimator=self.estimator,
             targets=self.targets,
             sensors=self.sensors,
             sensing_satellites=self.sensing_satellites,

@@ -65,7 +65,7 @@ class BaseEstimator:
 
         # Store initial values and return for first iteration
         self.save_current_estimation_data(
-            target.targetID, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
+            target.target_id, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
         )
 
     def EKF_pred(self, targetID: int, envTime: float) -> None:

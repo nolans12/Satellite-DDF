@@ -136,7 +136,7 @@ class GroundStation:
 
                 # Now, with the lists of measurements and sats, send to the estimator
                 targ = next(
-                    filter(lambda t: t.targetID == transmission.target_id, targs)
+                    filter(lambda t: t.target_id == transmission.target_id, targs)
                 )
                 if len(self.estimator.estHist[transmission.target_id]) < 1:
                     self.estimator.gs_EKF_initialize(targ, transmission.time)

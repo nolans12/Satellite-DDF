@@ -10,9 +10,9 @@ from mpl_toolkits.mplot3d import art3d
 from mpl_toolkits.mplot3d import axes3d
 from poliastro import bodies
 
-from canonical import comms
-from canonical import orbit
-from canonical import satellite
+from phase3 import comms
+from phase3 import orbit
+from phase3 import satellite
 
 
 def _create_earth_plot() -> tuple[figure.Figure, axes3d.Axes3D]:

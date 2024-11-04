@@ -18,6 +18,25 @@ class GsDataType(enum.Enum):
 
 
 @dataclasses.dataclass
+class State:
+    time: float
+    x: float
+    y: float
+    z: float
+    vx: float
+    vy: float
+    vz: float
+
+
+@dataclasses.dataclass
+class Measurement:
+    target_id: int
+    time: float
+    alpha: float
+    beta: float
+
+
+@dataclasses.dataclass
 class Transmission:
     target_id: int
     sender: str

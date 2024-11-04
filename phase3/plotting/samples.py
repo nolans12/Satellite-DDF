@@ -1,10 +1,10 @@
 from matplotlib import pyplot as plt
 
-from canonical import environment
-from canonical import sim_config
-from canonical.constellation import walker_delta
-from canonical.plotting import orbit
 from common import path_utils
+from phase3 import environment
+from phase3 import sim_config
+from phase3.constellation import walker_delta
+from phase3.plotting import orbit
 
 
 def _sample_walker_delta(save_animation: bool) -> None:

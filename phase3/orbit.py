@@ -30,10 +30,10 @@ class Orbit:
     @classmethod
     def from_sim_config(cls, config: sim_config.Orbit) -> 'Orbit':
         return cls(
-            altitude=config.altitude * u.km,
-            ecc=config.ecc * u.dimensionless_unscaled,
-            inc=config.inc * u.deg,
-            raan=config.raan * u.deg,
-            argp=config.argp * u.deg,
-            nu=config.nu * u.deg,
+            altitude=u.Quantity(config.altitude, u.km),
+            ecc=u.Quantity(config.ecc, u.dimensionless_unscaled),
+            inc=u.Quantity(config.inc, u.deg),
+            raan=u.Quantity(config.raan, u.deg),
+            argp=u.Quantity(config.argp, u.deg),
+            nu=u.Quantity(config.nu, u.deg),
         )
