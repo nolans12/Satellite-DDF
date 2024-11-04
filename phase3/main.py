@@ -33,29 +33,10 @@ from phase3 import sim_config
     type=bool,
 )
 @click.option(
-    '--plot-estimation',
-    help='Plot the estimation results',
-    type=bool,
-)
-@click.option(
-    '--plot-communication',
-    help='Plot the communication results',
-    type=bool,
-)
-@click.option(
-    '--plot-et-network',
-    help='Plot the ET network',
-    type=bool,
-)
-@click.option(
-    '--plot-uncertainty-ellipses',
-    help='Plot the uncertainty ellipses',
-    type=bool,
-)
-@click.option(
-    '--plot-groundStation-results',
-    help='Plot the ground station results',
-    type=bool,
+    '--plots',
+    help='Plots to generate',
+    multiple=True,
+    type=click_utils.EnumChoice(sim_config.PlotType),
 )
 @click.option(
     '--gifs',
@@ -68,11 +49,7 @@ def main(
     config: pathlib.Path,
     time: int,
     show: bool,
-    plot_estimation: bool,
-    plot_communication: bool,
-    plot_et_network: bool,
-    plot_uncertainty_ellipses: bool,
-    plot_groundstation_results: bool,
+    plots: list[sim_config.PlotType],
     gifs: list[sim_config.GifType],
 ) -> None:
     """Run the DDF simulation."""
@@ -80,34 +57,16 @@ def main(
     cfg.merge_overrides(
         sim_duration_m=time,
         output_prefix=output_prefix,
-        show_env=show,
-        plot_estimation=plot_estimation,
-        plot_communication=plot_communication,
-        plot_et_network=plot_et_network,
-        plot_uncertainty_ellipses=plot_uncertainty_ellipses,
-        plot_groundStation_results=plot_groundstation_results,
+        show_live=show,
+        plots=plots,
         gifs=gifs,
     )
-
-    time_steps = cfg.sim_duration_m / cfg.sim_time_step_m
-
-    # round to the nearest int
-    time_steps = round(time_steps)
-
-    # Vector of time for simulation:
-    time_vec = u.Quantity(np.linspace(0, cfg.sim_duration_m, time_steps + 1), u.minute)
-
     # Create the environment
     env = environment.Environment.from_config(cfg)
 
-    # Simulate the satellites through the vector of time:
-    env.simulate(
-        time_vec,
-        plot_config=cfg.plot,
-    )
+    env.simulate()
 
-    # Save gifs:
-    # env.render_gifs(plot_config=cfg.plot, save_name=cfg.plot.output_prefix)
+    env.post_process()
 
 
 if __name__ == '__main__':

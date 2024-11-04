@@ -12,6 +12,7 @@ from scipy import stats
 
 from phase3 import collection
 from phase3 import comms
+from phase3 import util
 
 if TYPE_CHECKING:
     # Circular import resolution
@@ -21,19 +22,18 @@ from phase3 import target
 
 
 class BaseEstimator:
+    """Base EFK Estimator"""
+
     def __init__(self):
         """
         Initialize the BaseEstimator object.
 
         Initalizes the data frame for storing the data
         """
-
-        ## DATA FRAMES ##
         self.estimation_data = pd.DataFrame()
 
-    def EKF_initialize(self, target: target.Target, envTime: float) -> None:
+    def _EKF_initialize(self, target: target.Target, envTime: float) -> None:
         # Initialize the state with some noise (this is why the target is passed in)
-
         prior_pos = np.array(
             [target.pos[0], target.pos[1], target.pos[2]]
         ) + np.random.normal(0, 15, 3)
@@ -68,14 +68,17 @@ class BaseEstimator:
             target.target_id, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
         )
 
-    def EKF_pred(self, targetID: int, envTime: float) -> None:
+    def EKF_pred(self, targ: target.Target, envTime: float) -> None:
         """
         Predict the next state of the target using the state transition function.
         """
+        if self.estimation_data.empty:
+            self._EKF_initialize(targ, envTime)
+            return
 
         # Get most recent estimate and covariance
         latest_estimate = self.estimation_data[
-            self.estimation_data['targetID'] == targetID
+            self.estimation_data['targetID'] == targ.target_id
         ].iloc[-1]
         time_prior = latest_estimate['time']
         est_prior = latest_estimate['est']
@@ -97,7 +100,7 @@ class BaseEstimator:
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
         self.save_current_estimation_data(
-            targetID, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
+            targ.target_id, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
         )
 
     def EKF_update(
@@ -497,144 +500,46 @@ class BaseEstimator:
         )
 
 
-### Central Estimator Class
 class CentralEstimator(BaseEstimator):
-    def __init__(self):
-        """
-        Initialize Central Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__()
-
-    def central_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Centralized Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def central_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Centralized Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def central_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Centralized Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
+    """Centralized EKF Filter"""
 
 
-### Independent Estimator Class
-class IndeptEstimator(BaseEstimator):
-    def __init__(self):
-        """
-        Initialize Independent Estimator object.
-        """
-        super().__init__()
+class IndependentEstimator(BaseEstimator):
+    """Initialize Independent Estimator"""
 
 
-### CI Estimator Class
 class CiEstimator(BaseEstimator):
-    def __init__(self):
-        """
-        Initialize DDF Estimator object.
-        """
-        super().__init__()
+    """CI Estimator"""
 
 
-### Ground Station Estimator Class
 class GsEstimator(BaseEstimator):
-    def __init__(self):
-        """
-        Initialize Ground Station Estimator object.
-        """
-        super().__init__()
+    """Ground station estimator"""
 
 
-### Event Triggered Estimator Class
 class EtEstimator(BaseEstimator):
-    def __init__(self, targPriorities, shareWith=None):
+    """Event Triggered Estimator"""
+
+    def __init__(self, intent: util.CommandersIndent, share_with: str):
         """
         Initialize Event Triggered Estimator object.
 
         Args:
-        - targetIDs (list): List of target IDs to track.
-        - shareWith (list): List of satellite objects to share information with.
+        - targetIDs: List of target IDs to track.
+        - shareWith: List of satellite objects to share information with.
         """
         super().__init__()
 
-        self.shareWith = (
-            shareWith  # use this attribute to match common EKF with neighbor
+        self.share_with = (
+            share_with  # use this attribute to match common EKF with neighbor
         )
-        self.synchronizeFlag = {
-            targetID: defaultdict(dict) for targetID in targPriorities.keys()
+        self.synchronize_flag = {
+            targetID: defaultdict(dict) for targetID in intent.keys()
         }  # Flag to synchronize filters
 
         # ET Parameters
         self.delta_alpha = 1
         self.delta_beta = 1
         self.delta = 10
-
-    def et_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Event Triggered Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def et_EKF_pred(self, targetID, envTime):
-        """
-        Event Triggered Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def et_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Event Triggered Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
 
     def event_trigger_processing(
         self, sat: 'satellite.Satellite', envTime: float, comms: comms.Comms
@@ -729,7 +634,7 @@ class EtEstimator(BaseEstimator):
                 cov_pred = localEKF.covariancePredHist[targetID][envTime]
 
                 # Run Prediction Step on this target for common fitler
-                commonEKF.et_EKF_pred(targetID, envTime)
+                commonEKF.EKF_pred(targetID, envTime)
 
                 # Proccess the new measurement from sender with the local and common filter
                 measVec_size = 50
@@ -833,7 +738,7 @@ class EtEstimator(BaseEstimator):
                 cov_pred = localEKF.covarianceHist[targetID][envTime]
 
                 # Run Prediction Step on this target for common fitler
-                commonEKF.et_EKF_pred(targetID, envTime)
+                commonEKF.EKF_pred(targetID, envTime)
 
                 # Proccess the new measurement from sender with the local and common filter
                 alpha, beta = commNode['sent_measurements'][time_sent][targetID][
@@ -1147,7 +1052,7 @@ class EtEstimator(BaseEstimator):
         if len(commonEKF.estHist[targetID]) == 1:
             return alpha, beta
 
-        commonEKF.et_EKF_pred(targetID, time)
+        commonEKF.EKF_pred(targetID, time)
 
         # Get the most recent estimate and covariance
         pred_est = commonEKF.estHist[targetID][time]

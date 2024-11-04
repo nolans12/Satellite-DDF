@@ -6,6 +6,8 @@ plot:
 
   show_live: true
 
+  show_comms: false
+
   plots:
     - "ESTIMATION"
     - "COMMUNICATION"

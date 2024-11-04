@@ -31,6 +31,8 @@ class Satellite:
 
         self._state_hist = dataclassframe.DataClassFrame(clz=collection.State)
 
+        self._sensor: sensor.Sensor | None = None
+
     @property
     def pos(self) -> npt.NDArray:
         return self.orbit.r.to_value(u.km)
@@ -71,6 +73,16 @@ class Satellite:
             )
         )
 
+    def get_projection_box(self) -> npt.NDArray | None:
+        """
+        Get the projection box of the sensor.
+
+        Returns:
+            The projection box of the sensor if it exists, otherwise None.
+        """
+        if self._sensor is not None:
+            return self._sensor.get_projection_box(self.orbit)
+
 
 class SensingSatellite(Satellite):
     def __init__(self, *args, sensor: sensor.Sensor, **kwargs):
@@ -97,6 +109,7 @@ class SensingSatellite(Satellite):
         Returns:
             Flag indicating whether measurements were successfully collected or not.
         """
+        assert self._sensor is not None
 
         # Check if this satellite can see the target, if so: get the measurement, if not: return False
         measurement = self._sensor.get_measurement(self.orbit, target_ground_truth_pos)
@@ -112,9 +125,35 @@ class SensingSatellite(Satellite):
                 )
             )
 
+    def get_measurements(
+        self, target_id: int, time: float | None = None
+    ) -> list[collection.Measurement]:
+        """
+        Get all measurements for a specified target.
+
+        Args:
+            target_id: The target ID to get measurements for.
+            time: The time at which to get measurements. If None, all measurements are returned.
+
+        Returns:
+            A list of measurements for the target.
+        """
+        if time is not None:
+            df = self._measurement_hist.loc[
+                (self._measurement_hist['target_id'] == target_id)
+                & (self._measurement_hist['time'] == time)
+            ]
+        else:
+            df = self._measurement_hist.loc[
+                self._measurement_hist['target_id'] == target_id
+            ]
+        return self._measurement_hist.to_dataclasses(df)
+
 
 class FusionSatellite(Satellite):
-    def __init__(self, *args, local_estimator: 'estimator.BaseEstimator', **kwargs):
+    def __init__(
+        self, *args, local_estimator: estimator.BaseEstimator | None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self._estimator = local_estimator
         self._et_estimators: list['estimator.EtEstimator'] = []
@@ -134,7 +173,7 @@ class FusionSatellite(Satellite):
         """
         # This assertion checks that the independent estimator exists
         # It raises an AssertionError if self.indeptEstimator is None
-        assert self._estimator is not None, "Independent estimator is not initialized"
+        assert self._estimator is not None, 'Independent estimator is not initialized'
         target_id = target.target_id
 
         if self._estimator.estimation_data.empty:

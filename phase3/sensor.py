@@ -51,7 +51,7 @@ class Sensor:
         """
 
         # Get the current projection box of the sensor
-        projection_box = self._visible_projection(sat_orbit)
+        projection_box = self.get_projection_box(sat_orbit)
         if self._in_FOV(
             projection_box, targ_pos
         ):  # check if target is in the field of view
@@ -248,7 +248,7 @@ class Sensor:
         # The find_simplex method returns -1 if the point is outside the triangulation
         return delaunay.find_simplex(l0) >= 0  # type: ignore
 
-    def _visible_projection(self, sat_orbit: twobody.Orbit) -> npt.NDArray:
+    def get_projection_box(self, sat_orbit: twobody.Orbit) -> npt.NDArray:
         """
         Compute the projection box of the sensor based on satellite position and FOV.
 

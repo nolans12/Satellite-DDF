@@ -39,6 +39,8 @@ class PlotConfig:
     # Show live plots
     show_live: bool
 
+    show_comms: bool
+
     # Plots to generate
     plots: list[PlotType]
 
@@ -142,6 +144,7 @@ class SimConfig:
             plot=PlotConfig(
                 output_prefix=output_prefix or self.plot.output_prefix,
                 show_live=show_live or self.plot.show_live,
+                show_comms=self.plot.show_comms,
                 plots=plots or self.plot.plots,
                 gifs=gifs or self.plot.gifs,
             ),

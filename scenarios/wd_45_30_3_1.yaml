@@ -1029,6 +1029,7 @@ plot:
   - COMMUNICATION
   - GROUND_STATION_RESULTS
   show_live: true
+  show_comms: false
 sensing_satellites:
   SensingSat0:
     color: blue
