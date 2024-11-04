@@ -113,7 +113,7 @@ def main(
 if __name__ == '__main__':
     # main()
 
-    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'wd_45_24_6_1.yaml')
+    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'wd_45_30_6_1.yaml')
 
     # # Create the environment
     env = environment.Environment.from_config(scenario)

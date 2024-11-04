@@ -4,13 +4,12 @@ sim_time_step_m: .166666
 plot:
   output_prefix: "test"
 
-  show_env: true
+  show_live: true
 
-  plot_groundStation_results: true
-  plot_estimation: true
-  plot_communication: true
-  plot_et_network: false
-  plot_uncertainty_ellipses: false
+  plots:
+    - "ESTIMATION"
+    - "COMMUNICATION"
+    - "GROUND_STATION_RESULTS"
 
   gifs:
     - "SATELLITE_SIMULATION"
@@ -22,11 +21,7 @@ comms:
   max_range: 10000
   min_range: 500
 
-estimators:
-  central: false
-  local: true
-  ci: true
-  et: false
+estimator: "COVARIANCE_INTERSECTION"
 
 targets:
   Targ1:
@@ -75,7 +70,19 @@ sensors:
     # 10%
     bearings_error: [11.5, 11.5]
 
-satellites:
+fusion_satellites:
+  Sat0:
+    sensor: null
+    orbit:
+      altitude: 1000
+      ecc: 0
+      inc: 60
+      raan: -45
+      argp: 45
+      nu: 1
+    color: "#669900"
+
+sensing_satellites:
   Sat1a:
     sensor: SensorGood
     orbit:
@@ -119,30 +126,11 @@ satellites:
 
 commanders_intent:
   0:
-    Sat1a:
-      1: 175
-      2: 225
-      3: 350
-      4: 110
-      5: 125
-    Sat1b:
-      1: 175
-      2: 225
-      3: 350
-      4: 110
-      5: 125
-    Sat2a:
-      1: 175
-      2: 225
-      3: 350
-      4: 110
-      5: 125
-    Sat2b:
-      1: 175
-      2: 225
-      3: 350
-      4: 110
-      5: 125
+    1: 175
+    2: 225
+    3: 350
+    4: 110
+    5: 125
 
 ground_stations:
   GS1:
