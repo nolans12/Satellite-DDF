@@ -90,7 +90,7 @@ class Orbit:
 
 @dataclasses.dataclass
 class Satellite:
-    sensor: str
+    sensor: str | None
     orbit: Orbit
     color: str
 
@@ -118,7 +118,7 @@ class SimConfig:
     comms: CommsConfig
 
     # Estimators
-    estimators: list[Estimators]
+    estimator: Estimators
 
     # Targets
     targets: dict[str, Target]
@@ -154,7 +154,7 @@ class SimConfig:
                 gifs=gifs or self.plot.gifs,
             ),
             comms=self.comms,
-            estimators=self.estimators,
+            estimator=self.estimator,
             targets=self.targets,
             sensors=self.sensors,
             sensing_satellites=self.sensing_satellites,

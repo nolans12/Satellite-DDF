@@ -31,7 +31,7 @@ def _sample_walker_delta(save_animation: bool) -> None:
 
 
 def _sample_comm(save_animation: bool) -> None:
-    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'wd_45_30_6_1.yaml')
+    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'wd_45_30_3_1.yaml')
 
     # Create the environment
     env = environment.Environment.from_config(scenario)

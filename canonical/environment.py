@@ -31,12 +31,13 @@ class Environment:
             name: satellite.SensingSatellite(
                 name=name,
                 sensor=sensor.Sensor(
-                    name=s.sensor,
-                    fov=cfg.sensors[s.sensor].fov,
-                    bearingsError=np.array(cfg.sensors[s.sensor].bearings_error),
+                    name=s.sensor or '',
+                    fov=cfg.sensors[s.sensor or ''].fov,
+                    bearingsError=np.array(cfg.sensors[s.sensor or ''].bearings_error),
                 ),
                 orbit=orbit.Orbit.from_sim_config(s.orbit),
                 color=s.color,
+                local_estimator=None,
             )
             for name, s in cfg.sensing_satellites.items()
         }
@@ -48,7 +49,7 @@ class Environment:
                 local_estimator=None,
                 color=s.color,
             )
-            for name, s in cfg.sensing_satellites.items()
+            for name, s in cfg.fusion_satellites.items()
         }
 
         # Define the communication network:
@@ -64,6 +65,6 @@ class Environment:
             list(sensing_sats.values()),
             list(fusion_sats.values()),
             targs,
-            cfg.estimators,
+            cfg.estimator,
             network=comms_network,
         )

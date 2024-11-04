@@ -44,52 +44,75 @@ def plot_comms(
     fig, ax = _create_earth_plot()
 
     # Plot the orbit lines
-    for sat in comm.G.nodes:
-        sat: str
-        r_s = comm._nodes[sat].orbit.sample()
+    for sat_name in comm.G.nodes:
+        sat_name: str
+        sat = comm._nodes[sat_name]
+        if sat_name in comm._sensing_sats:
+            color = 'red'
+        else:
+            color = 'yellow'
+        r_s = sat.orbit.sample()
         ax.plot(
             r_s.xyz[0].to(u.km).value,
             r_s.xyz[1].to(u.km).value,
             r_s.xyz[2].to(u.km).value,
-            color='red',
+            color=color,
         )
 
     # Initialize points for each link
-    (points,) = ax.plot([], [], [], 'go', markersize=5)
+    (sensing_points,) = ax.plot([], [], [], 'go', markersize=5)
+    (fusion_points,) = ax.plot([], [], [], 'co', markersize=5)
     # Initialize lines for each possible link
     lines = [
-        ax.plot([], [], [], 'c--')[0]
+        ax.plot([], [], [], 'k--')[0]
         for _ in range(len(comm.G.nodes) * comm._config.max_neighbors)
     ]
 
     # Function to update the positions of the satellites and links
     def update(
-        num: int, points_: art3d.Line3D, lines_: list[art3d.Line3D]
+        num: int,
+        sensing: art3d.Line3D,
+        fusion: art3d.Line3D,
+        lines_: list[art3d.Line3D],
     ) -> list[art3d.Line3D]:
-        x_s = []
-        y_s = []
-        z_s = []
-        for sat in comm.G.nodes:
-            sat: satellite.Satellite
+        s_x_s = []
+        s_y_s = []
+        s_z_s = []
+        f_x_s = []
+        f_y_s = []
+        f_z_s = []
+        for sat_name in comm.G.nodes:
+            sat_name: str
+            sat: satellite.Satellite = comm._nodes[sat_name]
             updated_orbit = dataclasses.replace(
                 sat._orbit_params,
                 nu=sat.orbit.nu + u.Quantity(1, u.deg),
             ).to_poliastro()
             sat.orbit = updated_orbit
             x, y, z = updated_orbit.r.value
-            x_s.append(x)
-            y_s.append(y)
-            z_s.append(z)
-        points_.set_data_3d(x_s, y_s, z_s)
+            if sat_name in comm._sensing_sats:
+                s_x_s.append(x)
+                s_y_s.append(y)
+                s_z_s.append(z)
+            elif sat_name in comm._fusion_sats:
+                f_x_s.append(x)
+                f_y_s.append(y)
+                f_z_s.append(z)
+        sensing.set_data_3d(s_x_s, s_y_s, s_z_s)
+        fusion.set_data_3d(f_x_s, f_y_s, f_z_s)
 
         # Update the network graph
         comm.update_edges()
 
         for i, (u_, v) in enumerate(comm.G.edges):
-            u_: satellite.Satellite
-            v: satellite.Satellite
-            x_u, y_u, z_u = u_.orbit.r.value
-            x_v, y_v, z_v = v.orbit.r.value
+            u_: str
+            v: str
+            sat_u: satellite.Satellite = comm._nodes[u_]
+            sat_v: satellite.Satellite = comm._nodes[v]
+            if not u_ in comm._sensing_sats and not v in comm._sensing_sats:
+                continue
+            x_u, y_u, z_u = sat_u.orbit.r.value
+            x_v, y_v, z_v = sat_v.orbit.r.value
             lines_[i].set_data_3d(
                 [x_u, x_v],
                 [y_u, y_v],
@@ -100,25 +123,25 @@ def plot_comms(
         for i in range(len(comm.G.edges), len(lines_)):
             lines_[i].set_data_3d([], [], [])
 
-        return [points_] + lines_
+        return [sensing, fusion] + lines_
 
     # Create the animation
     ani = animation.FuncAnimation(
         fig,
         update,
         frames=frames,
-        fargs=(points, lines),
+        fargs=(sensing_points, fusion_points, lines),
         interval=50,
         blit=False,
     )
 
     # Set the title
-    ax.set_title("Satellite Communication Links")
+    ax.set_title('Satellite Communication Links')
 
     # Set the labels
-    ax.set_xlabel("x (km)")
-    ax.set_ylabel("y (km)")
-    ax.set_zlabel("z (km)")
+    ax.set_xlabel('x (km)')
+    ax.set_ylabel('y (km)')
+    ax.set_zlabel('z (km)')
 
     return fig, ani
 
@@ -194,11 +217,11 @@ def plot_orbits(
     )
 
     # Set the title
-    ax.set_title("Satellite Orbits")
+    ax.set_title('Satellite Orbits')
 
     # Set the labels
-    ax.set_xlabel("x (km)")
-    ax.set_ylabel("y (km)")
-    ax.set_zlabel("z (km)")
+    ax.set_xlabel('x (km)')
+    ax.set_ylabel('y (km)')
+    ax.set_zlabel('z (km)')
 
     return fig, ani
