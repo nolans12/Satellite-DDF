@@ -1,13 +1,13 @@
 from phase3.pai.maze import model
 
 
-def generate_action(m: model.Model, params: model.PaiParameters) -> list[model.Action]:
+def generate_action(m: model.Model) -> list[model.Action]:
     """Generate an action given the current state.
 
     The alorithm just runs A* search to find the shortest path to the target.
     """
-    agent_pos = m.state.agent.pos
-    target_pos = m.state.goal.pos
+    agent_pos = m.state.agent_pos
+    target_pos = m.goal_state.agent_pos
 
     # A* search
     open_set = {agent_pos}
@@ -23,7 +23,7 @@ def generate_action(m: model.Model, params: model.PaiParameters) -> list[model.A
         open_set.remove(current)
         for direction in model.Direction:
             new_pos = model.move(current, direction)
-            if not model.in_bounds(m.maze, new_pos):
+            if not m.valid_state(model.State(new_pos)):
                 continue
 
             tentative_g_score = g_score[current] + 1

@@ -9,7 +9,7 @@ def propagate(m: model.Model, action: model.Action) -> model.State:
     if action.direction is model.Direction.NULL:
         return m.state
 
-    agent_pos = m.state.agent.pos
+    agent_pos = m.state.agent_pos
 
     direction = action.direction
     # There's a 0.3 chance of the agent moving to another state
@@ -19,25 +19,24 @@ def propagate(m: model.Model, action: model.Action) -> model.State:
     maybe_new_pos = model.move(agent_pos, direction)
 
     # Check if the new position is invalid
-    if not model.in_bounds(m.maze, maybe_new_pos):
+    if not m.valid_state(model.State(maybe_new_pos)):
         return m.state
 
-    return model.State(model.Agent(maybe_new_pos), m.state.goal)
+    return model.State(maybe_new_pos)
 
 
 def simulate(
     m: model.Model,
-    params: model.PaiParameters,
     num_steps: int,
-    heuristic: Callable[[model.Model, model.PaiParameters], list[model.Action]],
+    planner: Callable[[model.Model], list[model.Action]],
 ) -> tuple[list[model.State], list[list[model.Action] | None]]:
     """Simulate the model for a number of steps."""
     states = [m.state]
     actions: list[list[model.Action] | None] = [None]
     for _ in range(num_steps):
-        action_plan = heuristic(m, params)
+        action_plan = planner(m)
         m.state = propagate(m, action_plan[0])
-        params.steps -= 1
+        m.params.steps -= 1
         states.append(m.state)
         actions.append(action_plan)
 
