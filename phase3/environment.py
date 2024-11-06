@@ -88,7 +88,7 @@ class Environment:
                 color=s.color,
                 local_estimator=estimator_clz() if estimator_clz else None,
             )
-            for name, s in cfg.sensing_satellites.items()
+            for name, s in cfg.fusion_satellites.items()
         ]
 
         ground_stations = [
@@ -145,6 +145,9 @@ class Environment:
 
             # Get the measurements from the satellites
             self.collect_all_measurements()
+
+            if self._config.estimator is sim_config.Estimators.CENTRAL:
+                self.central_fusion()
 
             # Update the plot environment
             self._plotter.plot(
@@ -529,8 +532,10 @@ class Environment:
         #             os.path.join(estimator_path, f"{gs.name}_estimator.csv")
         #         )
 
-        # if self._config.estimator is sim_config.Estimators.CENTRAL:
-        #     if self.estimator is not None:
-        #         self.estimator.estimation_data.to_csv(
-        #             os.path.join(estimator_path, f"central_estimator.csv")
-        #         )
+        ## Save centralized estimator
+        estimator_path = save_path / 'estimators'
+        estimator_path.mkdir(exist_ok=True)
+        if self._central_estimator is not None:
+            self._central_estimator.estimation_data.to_csv(
+                estimator_path / 'central_estimator.csv'
+            )

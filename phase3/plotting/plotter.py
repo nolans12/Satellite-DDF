@@ -107,7 +107,7 @@ class Plotter:
             # Plot the visible projection of the satellite sensor
             points = sat.get_projection_box()
             if points is None:
-                return
+                continue
             self._ax.scatter(
                 points[:, 0],
                 points[:, 1],
@@ -116,7 +116,7 @@ class Plotter:
                 marker='x',
             )
 
-            box = np.array([points[0], points[3], points[1], points[2], points[0]])
+            box = np.array([points[1], points[4], points[2], points[3], points[1]])
             self._ax.add_collection3d(
                 art3d.Poly3DCollection(
                     [box],
@@ -199,9 +199,9 @@ class Plotter:
         """
         Plot the legend and the current simulation time.
         """
-        handles, labels = self._ax.get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        self._ax.legend(by_label.values(), by_label.keys())
+        # handles, labels = self._ax.get_legend_handles_labels()
+        # by_label = dict(zip(labels, handles))
+        # self._ax.legend(by_label.values(), by_label.keys())
         self._ax.text2D(0.05, 0.95, f'Time: {time:.2f}', transform=self._ax.transAxes)
 
     def _export_image(self) -> None:

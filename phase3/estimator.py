@@ -72,7 +72,7 @@ class BaseEstimator:
         """
         Predict the next state of the target using the state transition function.
         """
-        if self.estimation_data.empty:
+        if self.estimation_data.empty or targ.target_id not in self.estimation_data['targetID'].values:
             self._EKF_initialize(targ, envTime)
             return
 
