@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'new.yaml')
 
-    # # Create the environment
+    # Create the environment
     env = environment.Environment.from_config(scenario)
 
     env.simulate()
