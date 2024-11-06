@@ -1,12 +1,15 @@
 from collections import defaultdict
-from typing import Literal, overload
+from typing import Literal, Sequence, overload
 
 import numpy as np
+from astropy import units as u
+from poliastro import bodies
 
 from common import dataclassframe
 from phase3 import collection
 from phase3 import estimator
 from phase3 import satellite
+from phase3 import sim_config
 from phase3 import target
 
 
@@ -17,13 +20,9 @@ class GroundStation:
 
     def __init__(
         self,
-        estimator: 'estimator.GsEstimator',
-        lat: float,
-        lon: float,
-        fov: float,
-        commRange: float,
         name: str,
-        color: str,
+        estimator: estimator.GsEstimator,
+        config: sim_config.GroundStation,
     ):
         """Initialize a GroundStation object.
 
@@ -41,13 +40,13 @@ class GroundStation:
         self.estimator = estimator
 
         # Location of the ground station in ECEF
-        lat = np.deg2rad(lat)
-        lon = np.deg2rad(lon)
-        self.loc = np.array(
+        lat = np.deg2rad(config.lat)
+        lon = np.deg2rad(config.lon)
+        self.pos = np.array(
             [
-                6371 * np.cos(lat) * np.cos(lon),
-                6371 * np.cos(lat) * np.sin(lon),
-                6371 * np.sin(lat),
+                bodies.Earth.R.to(u.km).value * np.cos(lat) * np.cos(lon),
+                bodies.Earth.R.to(u.km).value * np.cos(lat) * np.sin(lon),
+                bodies.Earth.R.to(u.km).value * np.sin(lat),
             ]
         )
 
@@ -66,32 +65,35 @@ class GroundStation:
         )
 
         # Communication range of a satellite to the ground station
-        self.fov = fov
-        self.commRange = commRange
+        self.fov = config.fov
+        self.comms_range = config.comms_range
 
         # Other parameters
         self.name = name
-        self.color = color
+        self.color = config.color
         self.time = 0
 
     @overload
     def queue_data(
         self,
         data: collection.GsMeasurementTransmission,
-        dtype: Literal[collection.GsDataType.MEAS],
+        dtype: Literal[collection.GsDataType.MEASUREMENT],
     ) -> None: ...
 
     @overload
     def queue_data(
         self,
         data: collection.GsEstimateTransmission,
-        dtype: Literal[collection.GsDataType.CI],
+        dtype: Literal[collection.GsDataType.COVARIANCE_INTERSECTION],
     ) -> None: ...
 
     def queue_data(
         self,
         data: collection.GsMeasurementTransmission | collection.GsEstimateTransmission,
-        dtype: Literal[collection.GsDataType.MEAS] | Literal[collection.GsDataType.CI],
+        dtype: (
+            Literal[collection.GsDataType.MEASUREMENT]
+            | Literal[collection.GsDataType.COVARIANCE_INTERSECTION]
+        ),
     ) -> None:
         """
         Adds the data to the queued data struct to be used later in processing, the mailbox system.
@@ -99,15 +101,15 @@ class GroundStation:
         Args:
             data, in order of [type][time][targetID][sat] = measurement
         """
-        if dtype is collection.GsDataType.CI:
-            self.queued_ci_data.append(data)
-        elif dtype is collection.GsDataType.MEAS:
-            self.queued_meas_data.append(data)
+        if dtype is collection.GsDataType.COVARIANCE_INTERSECTION:
+            self.queued_ci_data.append(data)  # type: ignore
+        elif dtype is collection.GsDataType.MEASUREMENT:
+            self.queued_meas_data.append(data)  # type: ignore
         else:
             raise ValueError(f'Unexpected data type: {dtype}')
 
     def process_queued_data(
-        self, sats: list[satellite.Satellite], targs: list[target.Target]
+        self, sats: Sequence[satellite.Satellite], targs: list[target.Target]
     ) -> None:
         """
         Processes the data queued to be sent to the ground station.
@@ -133,23 +135,23 @@ class GroundStation:
 
                 # Now, with the lists of measurements and sats, send to the estimator
                 targ = next(
-                    filter(lambda t: t.targetID == transmission.target_id, targs)
+                    filter(lambda t: t.target_id == transmission.target_id, targs)
                 )
                 if len(self.estimator.estHist[transmission.target_id]) < 1:
-                    self.estimator.gs_EKF_initialize(targ, transmission.time)
+                    self.estimator.EKF_initialize(targ, transmission.time)
                     return
 
             for (target_id, meas_time), transmission in measurements.items():
                 # Else, update the estimator
-                self.estimator.gs_EKF_pred(target_id, meas_time)
-                self.estimator.gs_EKF_update(sats, measurements, target_id, meas_time)
+                self.estimator.EKF_pred(target_id, meas_time)
+                self.estimator.EKF_update(sats, measurements, target_id, meas_time)
 
         if len(self.queued_ci_data):
             # Perform covariance intersection here
             for transmission in self.queued_ci_data.to_dataclasses(self.queued_ci_data):
 
                 # Now do CI with the data
-                self.estimator.gs_CI(
+                self.estimator.CI(
                     transmission.target_id,
                     transmission.estimate,
                     transmission.covariance,
@@ -176,7 +178,7 @@ class GroundStation:
         # Create two lines, one from the center of earth to GS and one from GS to satellite
 
         # Get the ground station position
-        x_gs, y_gs, z_gs = self.loc
+        x_gs, y_gs, z_gs = self.pos
 
         # Earth to GS vec
         e_to_gs_vec = [x_gs - 0, y_gs - 0, z_gs - 0]
@@ -192,7 +194,7 @@ class GroundStation:
 
         # Now check, can the satellite talk with the ground station
         if angle < np.deg2rad(self.fov):
-            if np.linalg.norm(gs_to_sat_vec) < self.commRange:
+            if np.linalg.norm(gs_to_sat_vec) < self.comms_range:
                 return True
 
         return False

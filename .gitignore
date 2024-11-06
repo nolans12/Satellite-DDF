@@ -5,3 +5,6 @@
 __pycache__/
 venv/
 *.egg-info/
+
+# Ignore CSV files
+*.csv

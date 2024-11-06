@@ -46,7 +46,7 @@ def create_comms_plot(
 
     count = 0
     for target in targets:
-        target_id = target.targetID
+        target_id = target.target_id
         sent_data = target_sent_data[target_id]
         rec_data = target_rec_data[target_id]
 

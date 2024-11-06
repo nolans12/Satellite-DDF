@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pandas as pd
 from jax import typing as jnpt
 from numpy import typing as npt
 from scipy import optimize
@@ -11,6 +12,7 @@ from scipy import stats
 
 from phase3 import collection
 from phase3 import comms
+from phase3 import util
 
 if TYPE_CHECKING:
     # Circular import resolution
@@ -20,50 +22,18 @@ from phase3 import target
 
 
 class BaseEstimator:
-    def __init__(self, targetPriorities: dict[int, int]):
+    """Base EFK Estimator"""
+
+    def __init__(self):
         """
         Initialize the BaseEstimator object.
 
-        Args:
-        - targetIDs (list): List of target IDs to track.
+        Initalizes the data frame for storing the data
         """
+        self.estimation_data = pd.DataFrame()
 
-        # Define the targetPriorities dictioanry
-        self.targetPriorities = targetPriorities
-
-        # Define the targets to track
-        self.targs = targetPriorities.keys()
-
-        # Define history vectors for each extended Kalman filter
-        self.estHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of Kalman estimates in ECI coordinates
-        self.estPredHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of Kalman estimates in ECI coordinates
-        self.covarianceHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of covariance matrices
-        self.covariancePredHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of predicted covariance matrices
-        self.innovationHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of innovations
-        self.innovationCovHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of innovation covariances
-        self.neesHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of NEES (Normalized Estimation Error Squared)
-        self.nisHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of NIS (Normalized Innovation Squared)
-        self.trackErrorHist = {
-            targetID: defaultdict(dict) for targetID in targetPriorities.keys()
-        }  # History of track quality metric
-
-    def EKF_initialize(self, target: target.Target, envTime: float) -> None:
+    def _EKF_initialize(self, target: target.Target, envTime: float) -> None:
+        # Initialize the state with some noise (this is why the target is passed in)
         prior_pos = np.array(
             [target.pos[0], target.pos[1], target.pos[2]]
         ) + np.random.normal(0, 15, 3)
@@ -95,32 +65,27 @@ class BaseEstimator:
 
         # Store initial values and return for first iteration
         self.save_current_estimation_data(
-            target.targetID, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
+            target.target_id, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
         )
 
-    def EKF_pred(self, targetID: int, envTime: float) -> None:
+    def EKF_pred(self, targ: target.Target, envTime: float) -> None:
+        """
+        Predict the next state of the target using the state transition function.
+        """
+        if self.estimation_data.empty or targ.target_id not in self.estimation_data['targetID'].values:
+            self._EKF_initialize(targ, envTime)
+            return
+
         # Get most recent estimate and covariance
-        time_prior = max(self.estHist[targetID].keys())
-        est_prior = self.estHist[targetID][time_prior]
-        P_prior = self.covarianceHist[targetID][time_prior]
+        latest_estimate = self.estimation_data[
+            self.estimation_data['targetID'] == targ.target_id
+        ].iloc[-1]
+        time_prior = latest_estimate['time']
+        est_prior = latest_estimate['est']
+        P_prior = latest_estimate['cov']
 
         # Calculate time difference since last estimate
         dt = envTime - time_prior
-
-        # ### Also reset the filter if its been a certain amount of time since the last estimate
-        # if dt > 30:
-        #     prior_pos = np.array([target.pos[0], target.pos[1], target.pos[2]]) + np.random.normal(0, 15, 3)
-        #     prior_vel = np.array([target.vel[0], target.vel[1], target.vel[2]]) + np.random.normal(0, 1.5, 3)
-        #     est_prior = np.array([prior_pos[0], prior_vel[0], prior_pos[1], prior_vel[1], prior_pos[2], prior_vel[2]])
-        #     # Initial covariance matrix
-        #     P_prior = np.array([[2500, 0, 0, 0, 0, 0],
-        #                         [0, 100, 0, 0, 0, 0],
-        #                         [0, 0, 2500, 0, 0, 0],
-        #                         [0, 0, 0, 100, 0, 0],
-        #                         [0, 0, 0, 0, 2500, 0],
-        #                         [0, 0, 0, 0, 0, 100]])
-
-        #     dt = 0 # Reset the time difference since were just reinitializing at this time
 
         # Predict next state using state transition function
         est_pred = self.state_transition(est_prior, dt)
@@ -135,10 +100,8 @@ class BaseEstimator:
         P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
 
         self.save_current_estimation_data(
-            targetID, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
+            targ.target_id, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
         )
-        self.estPredHist[targetID][envTime] = est_pred
-        self.covariancePredHist[targetID][envTime] = P_pred
 
     def EKF_update(
         self,
@@ -147,14 +110,25 @@ class BaseEstimator:
         targetID: int,
         envTime: float,
     ) -> None:
+        """
+        Update the estimate of the target using the measurement.
+        """
 
         if not isinstance(measurements[0], np.ndarray):
             return
 
         # Get the prior estimate and covariance
-        time_prior = max(self.estHist[targetID].keys())
-        est_pred = self.estHist[targetID][time_prior]
-        P_pred = self.covarianceHist[targetID][time_prior]
+        latest_estimate = self.estimation_data[
+            self.estimation_data['targetID'] == targetID
+        ].iloc[-1]
+
+        # Does the current time equal the time of the latest estimate?
+        # If so, then latest was just a prediction, so we can remove it and replace it with the update
+        if envTime == latest_estimate['time']:
+            self.estimation_data = self.estimation_data.iloc[:-1]
+
+        est_pred = latest_estimate['est']
+        P_pred = latest_estimate['cov']
 
         # Assume that the measurements are in the form of [alpha, beta] for each satellite
         numMeasurements = 2 * len(measurements)
@@ -240,7 +214,7 @@ class BaseEstimator:
         )
 
         # Define function to compute derivatives for Runge-Kutta method
-        def derivatives(spherical_state: npt.NDArray) -> jnpt.ArrayLike:
+        def derivatives(spherical_state: jnpt.ArrayLike) -> jnpt.ArrayLike:
             """
             Computes derivatives of spherical state variables.
 
@@ -360,9 +334,131 @@ class BaseEstimator:
         # Multiple this value by 2 to get the total error the state could be in
         posError = 2 * posError_1side
 
-        # print(f"Position Error: {posError}")
-
         return posError
+
+    def CI(
+        self,
+        targetID: int,
+        est_sent: npt.NDArray,
+        cov_sent: npt.NDArray,
+        time_sent: float,
+    ) -> None:
+        """
+        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
+
+        Args:
+        - targetID (int): Target ID.
+        - est_sent (np.ndarray): Sent estimate.
+        - cov_sent (np.ndarray): Sent covariance.
+        - time_sent (float): Time the estimate was sent.
+        """
+
+        # First, check does the estimator already have a est and cov for this target?
+        if self.estimation_data.empty:
+
+            # Store initial values and return for first iteration
+            self.save_current_estimation_data(
+                targetID,
+                time_sent,
+                est_sent,
+                cov_sent,
+                np.zeros(2),
+                np.eye(2),  # We will just use 0s for innovation on GS
+            )
+            return
+
+        # If the estimation data isnt empty, check does it contain the targetID?
+        if targetID not in self.estimation_data['targetID'].values:
+            # If not, use the sent estimate and covariance to initialize
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
+            )
+            return
+
+        # Now, we do have a prior on this target, so can just do CI with new estimate
+
+        # Get all data for this target
+        target_data = self.estimation_data[self.estimation_data['targetID'] == targetID]
+
+        # Get the most recent data, (the max of the time column)
+        time_prior = target_data['time'].max()
+        # Now, get the full state data from this targetID, time combo
+        data_prior = target_data[target_data['time'] == time_prior].iloc[0]
+        est_prior = data_prior['est']
+        cov_prior = data_prior['cov']
+
+        # If the send time is older than the prior estimate, discard the sent estimate
+        if time_sent < time_prior:
+            return
+
+        # If the time difference is greater than 5 minutes, just use the new estimate
+        if time_sent - time_prior > 5:
+            self.save_current_estimation_data(
+                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
+            )
+            return
+
+        # Else do CI
+
+        # Propagate the prior estimate and covariance to the new time
+        dt = time_sent - time_prior
+
+        if dt == 0:
+            test = 1
+
+        est_prior = self.state_transition(est_prior, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
+
+        # Minimize the covariance determinant
+        omega_opt = optimize.minimize(
+            self.det_of_fused_covariance,
+            [0.5],
+            args=(cov_prior, cov_sent),
+            bounds=[(0, 1)],
+        ).x
+
+        # Compute the fused covariance
+        cov1 = cov_prior
+        cov2 = cov_sent
+        cov_prior = np.linalg.inv(
+            omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2)
+        )
+        est_prior = cov_prior @ (
+            omega_opt * np.linalg.inv(cov1) @ est_prior
+            + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
+        )
+
+        # Remove the old estimator data associated with this targetID at this time (if it exists)
+        self.estimation_data = self.estimation_data[
+            ~(
+                (self.estimation_data['targetID'] == targetID)
+                & (self.estimation_data['time'] == time_sent)
+            )
+        ]
+
+        # Save the fused estimate and covariance
+        self.save_current_estimation_data(
+            targetID, time_sent, est_prior, cov_prior, np.zeros(2), np.eye(2)
+        )
+
+    def det_of_fused_covariance(self, omega, cov1, cov2):
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega (float): Weight of the first covariance matrix.
+            cov1 (np.ndarray): Covariance matrix of the first estimate.
+            cov2 (np.ndarray): Covariance matrix of the second estimate.
+
+        Returns:
+            float: Determinant of the fused covariance matrix.
+        """
+        omega = omega[0]  # Ensure omega is a scalar
+        P = np.linalg.inv(
+            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        )
+        return np.linalg.det(P)
 
     def save_current_estimation_data(
         self,
@@ -385,373 +481,65 @@ class BaseEstimator:
         - innovationCov: Innovation covariance matrix.
         """
 
-        self.estHist[targetID][time] = est
-        self.covarianceHist[targetID][time] = cov
-        self.innovationHist[targetID][time] = innovation
-        self.innovationCovHist[targetID][time] = innovationCov
-
-        # Calculate Track Quaility Metric
-        trackError = self.calcTrackError(est, cov)
-        self.trackErrorHist[targetID][time] = trackError
-
-
-### Central Estimator Class
-class CentralEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
-        """
-        Initialize Central Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
-
-    def central_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Centralized Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def central_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Centralized Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def central_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Centralized Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-
-### Independent Estimator Class
-class IndeptEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
-        """
-        Initialize Independent Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1
-
-    def local_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Local Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def local_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Local Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def local_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Local Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-
-### CI Estimator Class
-class CiEstimator(BaseEstimator):
-    def __init__(self, targPriorities: dict[int, int]):
-        """
-        Initialize DDF Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__(targPriorities)
-
-        self.R_factor = 1  # Factor to scale the sensor noise matrix
-
-    def ci_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Covariance Intersection Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def ci_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Covariance Intersection Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def ci_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Covariance Intersection Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-    def CI(self, sat: 'satellite.Satellite', comms: comms.Comms) -> None:
-        """
-        Covariance Intersection function to conservatively combine received estimates and covariances
-        into updated target state and covariance.
-
-        Args:
-            sat: Satellite object that is receiving information.
-            commNode (dict): Communication node containing queued data from satellites.
-
-        Returns:
-            estPrior (array-like): Updated current state in Cartesian coordinates [x, vx, y, vy, z, vz].
-            covPrior (array-like): Updated current covariance matrix.
-        """
-
-        commNode = comms.G.nodes[sat]
-
-        # Check if there is any information in the queue:
-        if len(commNode['estimate_data']) == 0:
-            # If theres no information in the queue, return
-            return
-
-        # There is information in the queue, get the newest info
-        time_sent = max(commNode['estimate_data'].keys())
-
-        # Check all the targets that are being talked about in the queue
-        for targetID in commNode['estimate_data'][time_sent].keys():
-
-            # Is that target something this satellite should be tracking? Or just ferrying data?
-            if targetID not in sat.targetIDs:
-                continue
-
-            # For each target we should track, loop through all the estimates and covariances
-            for i in range(len(commNode['estimate_data'][time_sent][targetID]['est'])):
-                senderName = commNode['estimate_data'][time_sent][targetID]['sender'][i]
-                est_sent = commNode['estimate_data'][time_sent][targetID]['est'][i]
-                cov_sent = commNode['estimate_data'][time_sent][targetID]['cov'][i]
-
-                # Check if satellite has an estimate and covariance for this target already
-                if not self.estHist[targetID] and not self.covarianceHist[targetID]:
-                    # If not, use the sent estimate and covariance to initialize
-                    self.estHist[targetID][time_sent] = est_sent
-                    self.covarianceHist[targetID][time_sent] = cov_sent
-                    self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                        est_sent, cov_sent
-                    )
-                    continue
-
-                # If satellite has an estimate and covariance for this target already, check if we should CI
-                time_prior = max(self.estHist[targetID].keys())
-
-                # If the send time is older than the prior estimate, discard the sent estimate
-                if time_sent < time_prior:
-                    continue
-
-                # Now check, does the satellite need help on this target?
-                if not not sat.ciEstimator.trackErrorHist[targetID][
-                    time_prior
-                ]:  # An estimate exists for this target
-                    if (
-                        sat.ciEstimator.trackErrorHist[targetID][time_prior]
-                        < sat.targPriority[targetID]
-                    ):  # Is the estimate good enough already?
-                        # If the track quality is good, don't do CI
-                        continue
-
-                # We will now use the estimate and covariance that were sent, so we should store this
-                comms.used_comm_data.append(
-                    collection.Transmission(
-                        target_id=targetID,
-                        sender=senderName,
-                        receiver=sat.name,
-                        time=time_sent,
-                        size=est_sent.size * 2 + cov_sent.size // 2,
-                    )
-                )
-
-                # If the time between the sent estimate and the prior estimate is greater than 5 minutes, discard the prior
-                if time_sent - time_prior > 5:
-                    self.estHist[targetID][time_sent] = est_sent
-                    self.covarianceHist[targetID][time_sent] = cov_sent
-                    continue
-
-                # Else, let's do CI
-                est_prior = self.estHist[targetID][time_prior]
-                cov_prior = self.covarianceHist[targetID][time_prior]
-
-                # Propagate the prior estimate and covariance to the new time
-                dt = time_sent - time_prior
-                est_prior = self.state_transition(est_prior, dt)
-                F = self.state_transition_jacobian(est_prior, dt)
-                cov_prior = np.dot(F, np.dot(cov_prior, F.T))
-
-                # Minimize the covariance determinant
-                omega_opt = optimize.minimize(
-                    self.det_of_fused_covariance,
-                    [0.5],
-                    args=(cov_prior, cov_sent),
-                    bounds=[(0, 1)],
-                ).x
-
-                # Compute the fused covariance
-                cov1 = cov_prior
-                cov2 = cov_sent
-                cov_prior = np.linalg.inv(
-                    omega_opt * np.linalg.inv(cov1)
-                    + (1 - omega_opt) * np.linalg.inv(cov2)
-                )
-                est_prior = cov_prior @ (
-                    omega_opt * np.linalg.inv(cov1) @ est_prior
-                    + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
-                )
-
-                # Save the fused estimate and covariance
-                self.estHist[targetID][time_sent] = est_prior
-                self.covarianceHist[targetID][time_sent] = cov_prior
-                self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                    est_prior, cov_prior
-                )
-
-    def det_of_fused_covariance(
-        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
-    ) -> float:
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega (float): Weight of the first covariance matrix.
-            cov1 (np.ndarray): Covariance matrix of the first estimate.
-            cov2 (np.ndarray): Covariance matrix of the second estimate.
-
-        Returns:
-            float: Determinant of the fused covariance matrix.
-        """
-        omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        # Create a new row for the data frame
+        new_row = pd.DataFrame(
+            {
+                'targetID': [targetID],
+                'time': [time],
+                'est': [est],
+                'cov': [cov],
+                'innovation': [innovation],
+                'innovationCov': [innovationCov],
+                'trackError': [self.calcTrackError(est, cov)],
+            }
         )
-        return np.linalg.det(P)
+
+        # Concatenate the new row to the existing data frame
+        self.estimation_data = pd.concat(
+            [self.estimation_data, new_row], ignore_index=True
+        )
 
 
-### Event Triggered Estimator Class
+class CentralEstimator(BaseEstimator):
+    """Centralized EKF Filter"""
+
+
+class IndependentEstimator(BaseEstimator):
+    """Initialize Independent Estimator"""
+
+
+class CiEstimator(BaseEstimator):
+    """CI Estimator"""
+
+
+class GsEstimator(BaseEstimator):
+    """Ground station estimator"""
+
+
 class EtEstimator(BaseEstimator):
-    def __init__(self, targPriorities, shareWith=None):
+    """Event Triggered Estimator"""
+
+    def __init__(self, intent: util.CommandersIndent, share_with: str):
         """
         Initialize Event Triggered Estimator object.
 
         Args:
-        - targetIDs (list): List of target IDs to track.
-        - shareWith (list): List of satellite objects to share information with.
+        - targetIDs: List of target IDs to track.
+        - shareWith: List of satellite objects to share information with.
         """
-        super().__init__(targPriorities)
+        super().__init__()
 
-        self.shareWith = (
-            shareWith  # use this attribute to match common EKF with neighbor
+        self.share_with = (
+            share_with  # use this attribute to match common EKF with neighbor
         )
-        self.synchronizeFlag = {
-            targetID: defaultdict(dict) for targetID in targPriorities.keys()
+        self.synchronize_flag = {
+            targetID: defaultdict(dict) for targetID in intent.keys()
         }  # Flag to synchronize filters
-        self.R_factor = 1
 
         # ET Parameters
         self.delta_alpha = 1
         self.delta_beta = 1
         self.delta = 10
-
-    def et_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Event Triggered Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def et_EKF_pred(self, targetID, envTime):
-        """
-        Event Triggered Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def et_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Event Triggered Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
 
     def event_trigger_processing(
         self, sat: 'satellite.Satellite', envTime: float, comms: comms.Comms
@@ -846,7 +634,7 @@ class EtEstimator(BaseEstimator):
                 cov_pred = localEKF.covariancePredHist[targetID][envTime]
 
                 # Run Prediction Step on this target for common fitler
-                commonEKF.et_EKF_pred(targetID, envTime)
+                commonEKF.EKF_pred(targetID, envTime)
 
                 # Proccess the new measurement from sender with the local and common filter
                 measVec_size = 50
@@ -950,7 +738,7 @@ class EtEstimator(BaseEstimator):
                 cov_pred = localEKF.covarianceHist[targetID][envTime]
 
                 # Run Prediction Step on this target for common fitler
-                commonEKF.et_EKF_pred(targetID, envTime)
+                commonEKF.EKF_pred(targetID, envTime)
 
                 # Proccess the new measurement from sender with the local and common filter
                 alpha, beta = commNode['sent_measurements'][time_sent][targetID][
@@ -1049,7 +837,7 @@ class EtEstimator(BaseEstimator):
 
         # Sensor Noise Matrix
         R = (
-            sender.sensor.bearingsError[scalarIdx] ** 2 * self.R_factor
+            sender.sensor.bearingsError[scalarIdx] ** 2
         )  # Sensor noise matrix scaled by 1000x
 
         # Compute innovation
@@ -1151,7 +939,7 @@ class EtEstimator(BaseEstimator):
 
         # Compute Sensor Noise Matrix
         R = (
-            sender.sensor.bearingsError[scalarIdx] ** 2 * self.R_factor
+            sender.sensor.bearingsError[scalarIdx] ** 2
         )  # Sensor noise matrix scaled by 1000x
 
         # Define innovation covariance
@@ -1264,7 +1052,7 @@ class EtEstimator(BaseEstimator):
         if len(commonEKF.estHist[targetID]) == 1:
             return alpha, beta
 
-        commonEKF.et_EKF_pred(targetID, time)
+        commonEKF.EKF_pred(targetID, time)
 
         # Get the most recent estimate and covariance
         pred_est = commonEKF.estHist[targetID][time]
@@ -1373,154 +1161,6 @@ class EtEstimator(BaseEstimator):
         neighbor_commonEKF.covarianceHist[targetID][envTime] = cov_fused
         neighbor_commonEKF.trackErrorHist[targetID][envTime] = (
             neighbor_commonEKF.calcTrackError(est_fused, cov_fused)
-        )
-
-    def det_of_fused_covariance(self, omega, cov1, cov2):
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega (float): Weight of the first covariance matrix.
-            cov1 (np.ndarray): Covariance matrix of the first estimate.
-            cov2 (np.ndarray): Covariance matrix of the second estimate.
-
-        Returns:
-            float: Determinant of the fused covariance matrix.
-        """
-        omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
-        )
-        return np.linalg.det(P)
-
-
-### Ground Station Estimator Class
-class GsEstimator(BaseEstimator):
-    def __init__(self, targetPriorities: dict[int, int]):
-        """
-        Initialize Ground Station Estimator object.
-
-        Args:
-        - targetIDs (list): List of target IDs to track.
-        """
-        super().__init__(targetPriorities)
-
-        self.R_factor = 1
-
-    def gs_EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        """
-        Ground Station Extended Kalman Filter initialization step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_initialize(target, envTime)
-
-    def gs_EKF_pred(self, targetID: int, envTime: float) -> None:
-        """
-        Ground Station Extended Kalman Filter prediction step.
-
-        Args:
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_pred(targetID, envTime)
-
-    def gs_EKF_update(
-        self,
-        sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
-    ) -> None:
-        """
-        Ground Station Extended Kalman Filter update step.
-
-        Args:
-        - sats (list): List of satellites.
-        - measurements (list): List of measurements.
-        - target (object): Target object.
-        - envTime (float): Current environment time.
-        """
-        super().EKF_update(sats, measurements, targetID, envTime)
-
-    def gs_CI(
-        self,
-        targetID: int,
-        est_sent: npt.NDArray,
-        cov_sent: npt.NDArray,
-        time_sent: float,
-    ) -> None:
-        """
-        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
-
-        Args:
-        - targetID (int): Target ID.
-        - est_sent (np.ndarray): Sent estimate.
-        - cov_sent (np.ndarray): Sent covariance.
-        - time_sent (float): Time the estimate was sent.
-        """
-
-        # First, check does the estimator already have a est and cov for this target?
-        if not self.estHist[targetID] and not self.covarianceHist[targetID]:
-            # If not, use the sent estimate and covariance to initialize
-            self.estHist[targetID][time_sent] = est_sent
-            self.covarianceHist[targetID][time_sent] = cov_sent
-            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                est_sent, cov_sent
-            )
-            return
-
-        # Now, if the estimator already has an estimate and covariance for this target, check if we should CI
-        time_prior = max(self.estHist[targetID].keys())
-
-        # If the send time is older than the prior estimate, discard the sent estimate
-        if time_sent < time_prior:
-            return
-
-        if time_sent - time_prior > 5:
-            self.estHist[targetID][time_sent] = est_sent
-            self.covarianceHist[targetID][time_sent] = cov_sent
-            self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-                est_sent, cov_sent
-            )
-            return
-
-        # Else do CI
-        est_prior = self.estHist[targetID][time_prior]
-        cov_prior = self.covarianceHist[targetID][time_prior]
-
-        # Propagate the prior estimate and covariance to the new time
-        dt = time_sent - time_prior
-        est_prior = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
-        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
-
-        # Minimize the covariance determinant
-        omega_opt = optimize.minimize(
-            self.det_of_fused_covariance,
-            [0.5],
-            args=(cov_prior, cov_sent),
-            bounds=[(0, 1)],
-        ).x
-
-        # Compute the fused covariance
-        cov1 = cov_prior
-        cov2 = cov_sent
-        cov_prior = np.linalg.inv(
-            omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2)
-        )
-        est_prior = cov_prior @ (
-            omega_opt * np.linalg.inv(cov1) @ est_prior
-            + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
-        )
-
-        # Save the fused estimate and covariance
-        self.estHist[targetID][time_sent] = est_prior
-        self.covarianceHist[targetID][time_sent] = cov_prior
-        self.trackErrorHist[targetID][time_sent] = self.calcTrackError(
-            est_prior, cov_prior
         )
 
     def det_of_fused_covariance(self, omega, cov1, cov2):

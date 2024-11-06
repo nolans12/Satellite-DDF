@@ -8,12 +8,32 @@ from typing import Sequence
 import numpy as np
 from numpy import typing as npt
 
+# Target -> Satellite -> # of numbers
 TargetAggregator = dict[int, dict[str, int]]
 
 
 class GsDataType(enum.Enum):
-    CI = enum.auto()
-    MEAS = enum.auto()
+    COVARIANCE_INTERSECTION = enum.auto()
+    MEASUREMENT = enum.auto()
+
+
+@dataclasses.dataclass
+class State:
+    time: float
+    x: float
+    y: float
+    z: float
+    vx: float
+    vy: float
+    vz: float
+
+
+@dataclasses.dataclass
+class Measurement:
+    target_id: int
+    time: float
+    alpha: float
+    beta: float
 
 
 @dataclasses.dataclass
@@ -33,6 +53,12 @@ class MeasurementTransmission(Transmission):
     @property
     def has_alpha_beta(self) -> bool:
         return not np.isnan(self.alpha) and not np.isnan(self.beta)
+
+
+@dataclasses.dataclass
+class EstimateTransmission(Transmission):
+    estimate: npt.NDArray
+    covariance: npt.NDArray
 
 
 @dataclasses.dataclass
