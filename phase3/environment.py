@@ -390,10 +390,9 @@ class Environment:
             if not measurements:
                 continue
 
-            self._central_estimator.EKF_pred(targ, self.time.value)
-            self._central_estimator.EKF_update(
-                sats_w_measurements, measurements, targetID, self.time.value
-            )
+            self._central_estimator.EKF_predict(measurements)
+            # self._central_estimator.EKF_update(measurements)
+            self._central_estimator.EKF_update(measurements, sats_w_measurements)
 
     def send_to_ground_best_sat(self):
         """

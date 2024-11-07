@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from astropy import units as u
 from numpy import typing as npt
@@ -116,12 +117,27 @@ class SensingSatellite(Satellite):
 
         # If the measurement is an np.ndarray of in-track, cross-track measurements
         if measurement is not None:
+
+            # Get the [x, y, z, vx, vy, vz] sat state
+            sat_state = np.array(
+                [
+                    self.orbit.r.value[0],
+                    self.orbit.r.value[1],
+                    self.orbit.r.value[2],
+                    self.orbit.v.value[0],
+                    self.orbit.v.value[1],
+                    self.orbit.v.value[2],
+                ]
+            )
+
             self._measurement_hist.append(
                 collection.Measurement(
                     target_id=target_id,
                     time=time,
                     alpha=measurement[0],
                     beta=measurement[1],
+                    sat_state=sat_state,
+                    meas_noise=self._sensor.R,
                 )
             )
 
@@ -176,18 +192,12 @@ class FusionSatellite(Satellite):
         assert self._estimator is not None, 'Independent estimator is not initialized'
         target_id = target.target_id
 
-        if self._estimator.estimation_data.empty:
-            # The estimator contains zero data in it (first target)
-            self._estimator.EKF_initialize(target, time)
-        else:
-            # Check, does the targetID already exist in the estimator?
-            if target_id in self._estimator.estimation_data['targetID'].values:
-                # If estimate exists, predict and update
-                self._estimator.EKF_pred(target_id, time)
-                self._estimator.EKF_update([self], [measurement], target_id, time)
-            else:
-                # If no estimate exists, initialize
-                self._estimator.EKF_initialize(target, time)
+        # Predict step will initialize if needed
+        self._estimator.EKF_pred(measurement, target_id, time)
+
+        # Update with measurement if we have one
+        if measurement is not None:
+            self._estimator.EKF_update([self], [measurement], target.target_id, time)
 
     def filter_CI(self, data_received: pd.DataFrame) -> None:
         """

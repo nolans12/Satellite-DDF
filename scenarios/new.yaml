@@ -1223,7 +1223,7 @@ plot:
   gifs:
   - SATELLITE_SIMULATION
   - DYNAMIC_COMMS
-  output_prefix: test
+  output_prefix: new
   plots:
   - ESTIMATION
   - COMMUNICATION
@@ -1494,66 +1494,6 @@ targets:
     heading: 0
     speed: 80
     target_id: 1
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ2:
-    color: '#eea62a'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 50
-    target_id: 2
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ3:
-    color: '#58b428'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 40
-    target_id: 3
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ4:
-    color: '#2879b4'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 30
-    target_id: 4
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ5:
-    color: '#b228b4'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 20
-    target_id: 5
     uncertainty:
     - 3.0
     - 7.5

@@ -1,6 +1,7 @@
 from typing import cast
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from numpy import typing as npt
 from poliastro import twobody
@@ -35,6 +36,8 @@ class Sensor:
         self.detectChance = detectChance
         self.name = name
         self.resolution = resolution
+
+        self.R = np.diag(bearingsError**2)
 
     def get_measurement(
         self, sat_orbit: twobody.Orbit, targ_pos: npt.NDArray
@@ -131,68 +134,59 @@ class Sensor:
         rVec = self._normalize(r_value)  # find unit radial vector
         vVec = self._normalize(v_value)  # find unit in-track vector
         wVec = self._normalize(
-            np.cross(r_value, v_value)
+            jnp.cross(r_value, v_value)
         )  # find unit cross-track vector
 
         # Create transformation matrix T
-        T = np.stack([vVec.T, wVec.T, rVec.T])
+        T = jnp.stack([vVec.T, wVec.T, rVec.T])
 
         # Rotate satellite and target into sensor frame
-        sat_pos = np.array(r_value)  # get satellite position
+        sat_pos = jnp.array(r_value)  # get satellite position
         x_sat_sens, y_sat_sens, z_sat_sens = (
             T @ sat_pos
         )  # rotate satellite into sensor frame
 
-        meas_ECI_sym = np.array(meas_ECI)  # get noisy measurement
+        meas_ECI_sym = jnp.array(meas_ECI)  # get noisy measurement
         x_targ_sens, y_targ_sens, z_targ_sens = (
             T @ meas_ECI_sym
         )  # rotate measurement into sensor frame
 
         # Get the relative bearings from sensor to target
-        satVec = np.array(
+        satVec = jnp.array(
             [x_sat_sens, y_sat_sens, z_sat_sens]
         )  # get satellite vector in sensor frame
 
         # Get the In-Track and Cross-Track angles
-        targVec_inTrack = satVec - np.array(
+        targVec_inTrack = satVec - jnp.array(
             [x_targ_sens, 0, z_targ_sens]
         )  # get in-track component
-        in_track_angle = np.arctan2(
-            np.linalg.norm(np.cross(targVec_inTrack, satVec)),
-            np.dot(targVec_inTrack, satVec),
+        in_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)),
+            jnp.dot(targVec_inTrack, satVec),
         )  # calculate in-track angle
 
         # Do a sign check for in-track angle
         # If targVec_inTrack is negative, switch
-        if x_targ_sens < 0:
-            in_track_angle = -in_track_angle
+        in_track_angle = jnp.where(x_targ_sens < 0, -in_track_angle, in_track_angle)
 
-        targVec_crossTrack = satVec - np.array(
+        targVec_crossTrack = satVec - jnp.array(
             [0, y_targ_sens, z_targ_sens]
         )  # get cross-track component
-        cross_track_angle = np.arctan2(
-            np.linalg.norm(np.cross(targVec_crossTrack, satVec)),
-            np.dot(targVec_crossTrack, satVec),
+        cross_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)),
+            jnp.dot(targVec_crossTrack, satVec),
         )  # calculate cross-track angle
 
-        # If targVec_inTrack is negative, switch
-        if x_targ_sens < 0:
-            in_track_angle = -in_track_angle
-
         # If targVec_crossTrack is negative, switch
-        if y_targ_sens < 0:
-            cross_track_angle = -cross_track_angle
+        cross_track_angle = jnp.where(
+            y_targ_sens < 0, -cross_track_angle, cross_track_angle
+        )
 
-        # Do a sign check for cross-track angle
-        # If targVec_crossTrack is negative, switch
-        if y_targ_sens < 0:
-            cross_track_angle = -cross_track_angle
-
-        in_track_angle_deg = in_track_angle * 180 / np.pi  # convert to degrees
-        cross_track_angle_deg = cross_track_angle * 180 / np.pi  # convert to degrees
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi  # convert to degrees
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi  # convert to degrees
 
         # Return the relative bearings from sensor to target
-        return np.array([in_track_angle_deg, cross_track_angle_deg])
+        return jnp.array([in_track_angle_deg, cross_track_angle_deg])
 
     def jacobian_ECI_to_bearings(
         self, sat_orbit: twobody.Orbit, meas_ECI_full: npt.NDArray
@@ -209,7 +203,9 @@ class Sensor:
             Jacobian matrix H.
         """
         # Extract predited position from the full ECI measurement vector
-        pred_position = np.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]])
+        pred_position = jnp.array(
+            [meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]]
+        )
 
         # Use reverse automatic differentiation since more inputs 3 than outputs 2
         jacobian = jax.jacrev(
@@ -219,11 +215,11 @@ class Sensor:
         )(pred_position)
 
         # Initialize a new Jacobian matrix with zeros
-        new_jacobian = np.zeros((2, 6))
+        new_jacobian = jnp.zeros((2, 6))
 
         # Populate the new Jacobian matrix with the relevant values
         for i in range(3):
-            new_jacobian = new_jacobian[:, 2 * i] = jacobian[:, i]
+            new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
 
         return cast(npt.NDArray, new_jacobian)
 

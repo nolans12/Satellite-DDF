@@ -30,152 +30,194 @@ class BaseEstimator:
 
         Initalizes the data frame for storing the data
         """
+
+        # Meas data dictionary, keyed by targetID into a measurement data frame
+        self.initialization_data = {}
+
+        # Estimation data
         self.estimation_data = pd.DataFrame()
 
-    def _EKF_initialize(self, target: target.Target, envTime: float) -> None:
-        # Initialize the state with some noise (this is why the target is passed in)
-        prior_pos = np.array(
-            [target.pos[0], target.pos[1], target.pos[2]]
-        ) + np.random.normal(0, 15, 3)
-        prior_vel = np.array(
-            [target.vel[0], target.vel[1], target.vel[2]]
-        ) + np.random.normal(0, 1.5, 3)
-        est_prior = np.array(
-            [
-                prior_pos[0],
-                prior_vel[0],
-                prior_pos[1],
-                prior_vel[1],
-                prior_pos[2],
-                prior_vel[2],
-            ],
-            dtype=np.float32,
-        )
-        # Initial covariance matrix
-        P_prior = np.array(
-            [
-                [2500, 0, 0, 0, 0, 0],
-                [0, 100, 0, 0, 0, 0],
-                [0, 0, 2500, 0, 0, 0],
-                [0, 0, 0, 100, 0, 0],
-                [0, 0, 0, 0, 2500, 0],
-                [0, 0, 0, 0, 0, 100],
-            ]
-        )
+    def _EKF_initialize(self, measurement: collection.Measurement) -> None:
+        """
+        Initialize the EKF using the measurement.
+        """
 
-        # Store initial values and return for first iteration
+        # Take the bearings measurement and shoot it down to the Earth, then take that as initial state
+        target_id = measurement.target_id
+        time = measurement.time
+        sat_pos = measurement.sat_state
+        r = sat_pos[0:3]
+        v = sat_pos[3:6]
+        alpha = measurement.alpha
+        beta = measurement.beta
+
+        # Get the transform from ECI to the sensor frame
+        rVec = r / np.linalg.norm(r)
+        vVec = v / np.linalg.norm(v)
+        wVec = np.cross(rVec, vVec)
+        wVec = wVec / np.linalg.norm(wVec)
+        T = np.stack([vVec, wVec, rVec])
+
+        sat_pos_sens = T @ r
+
+        # Just get the distance from Earth
+        h = np.linalg.norm(sat_pos_sens) - 6378
+
+        # Get the magnitude of in track and cross track, use tangent
+        in_track = h * np.tan(alpha * np.pi / 180)
+        cross_track = h * np.tan(beta * np.pi / 180)
+
+        # Get the position of targ estimate
+        pos_est_sens = np.array([in_track, cross_track, 6378])
+
+        # Now take estimate back into ECI
+        pos_est = T.T @ pos_est_sens
+
+        # Now, take this position and use it as the initial state
+        est_init = np.array([pos_est[0], 10, pos_est[1], 10, pos_est[2], 10])
+
+        # Initialize the covariance
+        P_init = np.eye(6) * 1000
+
+        # Save the initial values
         self.save_current_estimation_data(
-            target.target_id, envTime, est_prior, P_prior, np.zeros(2), np.eye(2)
+            target_id, time, est_init, P_init, np.zeros(2), np.eye(2)
         )
 
-    def EKF_pred(self, targ: target.Target, envTime: float) -> None:
+    def EKF_predict(self, measurements: list[collection.Measurement]) -> None:
         """
         Predict the next state of the target using the state transition function.
         """
-        if self.estimation_data.empty or targ.target_id not in self.estimation_data['targetID'].values:
-            self._EKF_initialize(targ, envTime)
-            return
 
-        # Get most recent estimate and covariance
-        latest_estimate = self.estimation_data[
-            self.estimation_data['targetID'] == targ.target_id
-        ].iloc[-1]
-        time_prior = latest_estimate['time']
-        est_prior = latest_estimate['est']
-        P_prior = latest_estimate['cov']
+        # For each targetID, recieved, either predict or initialize
+        for measurement in measurements:
 
-        # Calculate time difference since last estimate
-        dt = envTime - time_prior
+            target_id = measurement.target_id
 
-        # Predict next state using state transition function
-        est_pred = self.state_transition(est_prior, dt)
+            # Check, does a filter exist for this targetID?
+            if (
+                self.estimation_data.empty
+                or target_id not in self.estimation_data['targetID'].values
+            ):
+                # print(f"Initializing target {target_id}")
+                self._EKF_initialize(measurement)
+                continue
 
-        # Evaluate Jacobian of state transition function
-        F = self.state_transition_jacobian(est_prior, dt)
+            # If we have an estimate, predict it!
 
-        # Predict process noise associated with state transition
-        Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])
+            # Get most recent estimate and covariance
+            latest_estimate = self.estimation_data[
+                self.estimation_data['targetID'] == target_id
+            ].iloc[-1]
+            time_prior = latest_estimate['time']
+            est_prior = latest_estimate['est']
+            P_prior = latest_estimate['cov']
 
-        # Predict covariance
-        P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+            # Calculate time difference since last estimate
+            dt = measurement.time - time_prior
+            # print(f"Predicting target {target_id} with dt = {dt}")
 
-        self.save_current_estimation_data(
-            targ.target_id, envTime, est_pred, P_pred, np.zeros(2), np.eye(2)
-        )
+            # Predict next state using state transition function
+            est_pred = self.state_transition(est_prior, dt)
 
+            # Evaluate Jacobian of state transition function
+            F = self.state_transition_jacobian(est_prior, dt)
+
+            # Predict process noise associated with state transition
+            Q = np.diag([0.1, 0.01, 0.1, 0.01, 0.1, 0.01])
+
+            # Predict covariance
+            P_pred = np.dot(F, np.dot(P_prior, F.T)) + Q
+
+            self.save_current_estimation_data(
+                target_id, measurement.time, est_pred, P_pred, np.zeros(2), np.eye(2)
+            )
+
+    # TODO: i would like to remove the sats, but the helper functions and etc need it, i dont think they really do with the new meas struct but
     def EKF_update(
         self,
+        measurements: list[collection.Measurement],
         sats: list['satellite.Satellite'],
-        measurements,
-        targetID: int,
-        envTime: float,
     ) -> None:
         """
         Update the estimate of the target using the measurement.
+
+        Args:
+            measurements: List of measurements containing targetID, time, satellite state, and bearings
         """
 
-        if not isinstance(measurements[0], np.ndarray):
-            return
+        # Get unique target IDs from measurements
+        target_ids = set(m.target_id for m in measurements)
 
-        # Get the prior estimate and covariance
-        latest_estimate = self.estimation_data[
-            self.estimation_data['targetID'] == targetID
-        ].iloc[-1]
+        # Process each target ID separately
+        for target_id in target_ids:
+            # Get measurements for this target
+            target_measurements = [m for m in measurements if m.target_id == target_id]
 
-        # Does the current time equal the time of the latest estimate?
-        # If so, then latest was just a prediction, so we can remove it and replace it with the update
-        if envTime == latest_estimate['time']:
-            self.estimation_data = self.estimation_data.iloc[:-1]
+            if not target_measurements:
+                continue
 
-        est_pred = latest_estimate['est']
-        P_pred = latest_estimate['cov']
+            # Get the prior estimate and covariance
+            latest_estimate = self.estimation_data[
+                self.estimation_data['targetID'] == target_id
+            ].iloc[-1]
 
-        # Assume that the measurements are in the form of [alpha, beta] for each satellite
-        numMeasurements = 2 * len(measurements)
+            meas_time = target_measurements[0].time
 
-        # Prepare for measurements and update the estimate
-        z = np.zeros((numMeasurements, 1))  # Stacked vector of measurements
-        H = np.zeros((numMeasurements, 6))  # Jacobian of the sensor model
-        R = np.zeros((numMeasurements, numMeasurements))  # Sensor noise matrix
-        innovation = np.zeros((numMeasurements, 1))
+            # Does the current time equal the time of the latest estimate?
+            # If so, then latest was just a prediction, so we can remove it and replace it with the update (so dont get double count in data)
+            if meas_time == latest_estimate['time']:
+                self.estimation_data = self.estimation_data.iloc[:-1]
 
-        # Iterate over satellites to get measurements and update matrices
-        for i, sat in enumerate(sats):
-            z[2 * i : 2 * i + 2] = np.reshape(
-                measurements[i][:], (2, 1)
-            )  # Measurement stack
-            H[2 * i : 2 * i + 2, 0:6] = sat.sensor.jacobian_ECI_to_bearings(
-                sat, est_pred
-            )  # Jacobian of the sensor model
-            R[2 * i : 2 * i + 2, 2 * i : 2 * i + 2] = (
-                np.eye(2) * sat.sensor.bearingsError**2
-            )  # Sensor noise matrix
+            est_pred = latest_estimate['est']
+            P_pred = latest_estimate['cov']
 
-            z_pred = np.array(
-                sat.sensor.convert_to_bearings(
-                    sat, np.array([est_pred[0], est_pred[2], est_pred[4]])
-                )
-            )  # Predicted measurements
-            innovation[2 * i : 2 * i + 2] = z[2 * i : 2 * i + 2] - np.reshape(
-                z_pred, (2, 1)
-            )  # Innovations
+            # Assume that the measurements are in the form of [alpha, beta] for each satellite
+            num_measurements = 2 * len(target_measurements)
 
-        # Calculate innovation covariance
-        innovationCov = np.dot(H, np.dot(P_pred, H.T)) + R
+            # Prepare for measurements and update the estimate
+            z = np.zeros((num_measurements, 1))  # Stacked vector of measurements
+            H = np.zeros((num_measurements, 6))  # Jacobian of the sensor model
+            R = np.zeros((num_measurements, num_measurements))  # Sensor noise matrix
+            innovation = np.zeros((num_measurements, 1))
 
-        # Solve for Kalman gain
-        K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovationCov)))
+            # Iterate over satellites to get measurements and update matrices
+            for i, sat in enumerate(sats):
+                z[2 * i : 2 * i + 2] = np.reshape(
+                    [measurements[i].alpha, measurements[i].beta], (2, 1)
+                )  # Measurement stack
+                H[2 * i : 2 * i + 2, 0:6] = sat._sensor.jacobian_ECI_to_bearings(
+                    sat.orbit, est_pred
+                )  # Jacobian of the sensor model
+                R[2 * i : 2 * i + 2, 2 * i : 2 * i + 2] = (
+                    np.eye(2) * sat._sensor.bearingsError**2
+                )  # Sensor noise matrix
 
-        # Correct prediction
-        est = est_pred + np.reshape(np.dot(K, innovation), (6))
+                z_pred = np.array(
+                    sat._sensor._convert_to_bearings(
+                        sat.orbit, np.array([est_pred[0], est_pred[2], est_pred[4]])
+                    )
+                )  # Predicted measurements
+                innovation[2 * i : 2 * i + 2] = z[2 * i : 2 * i + 2] - np.reshape(
+                    z_pred, (2, 1)
+                )  # Innovations
 
-        # Correct covariance
-        P = P_pred - np.dot(K, np.dot(H, P_pred))
+            # Calculate innovation covariance
+            innovation_cov = np.dot(H, np.dot(P_pred, H.T)) + R
 
-        # Save data
-        self.save_current_estimation_data(
-            targetID, envTime, est, P, innovation, innovationCov
-        )
+            # Solve for Kalman gain
+            K = np.dot(P_pred, np.dot(H.T, np.linalg.inv(innovation_cov)))
+
+            # Correct prediction
+            est = est_pred + np.reshape(np.dot(K, innovation), (6))
+
+            # Correct covariance
+            P = P_pred - np.dot(K, np.dot(H, P_pred))
+
+            # Save data
+            self.save_current_estimation_data(
+                target_id, meas_time, est, P, innovation, innovation_cov
+            )
 
     def state_transition(self, estPrior: npt.NDArray, dt: float) -> jnpt.ArrayLike:
         """

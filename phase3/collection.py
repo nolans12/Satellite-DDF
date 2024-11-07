@@ -34,6 +34,8 @@ class Measurement:
     time: float
     alpha: float
     beta: float
+    sat_state: npt.NDArray
+    meas_noise: npt.NDArray
 
 
 @dataclasses.dataclass
