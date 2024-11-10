@@ -24,7 +24,9 @@ class Plotter:
         self._config = config
 
         # Environment Plotting parameters
-        self._fig = plt.figure(figsize=(10, 8))
+        self._fig = plt.figure(
+            figsize=(10, 8)
+        )  # I keep having errors here with matplot lib version, sometimes errors, some not, -nolan
         self._ax = cast(axes3d.Axes3D, self._fig.add_subplot(111, projection='3d'))
 
         # If you want to do clustered case:

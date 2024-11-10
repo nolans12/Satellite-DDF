@@ -4,6 +4,7 @@ from typing import Generic, Protocol, Sequence, TypeVar, overload
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 from numpy import typing as npt
 
 from common import dataclassframe
@@ -76,221 +77,89 @@ class Comms(Generic[S, F, G]):
             self.G.add_node(node)
         self.update_edges()
 
-    @overload
-    def send_estimate(  # Link to link send
+    def send_measurements_path(
         self,
-        est_meas: npt.NDArray,
-        cov_meas: npt.NDArray,
-        target_id: int,
-        time: float,
-        *,
+        measurements: list[collection.Measurement],
         sender: str,
         receiver: str,
-    ) -> None: ...
-
-    @overload
-    def send_estimate(  # Path send
-        self,
-        est_meas: npt.NDArray,
-        cov_meas: npt.NDArray,
-        target_id: int,
         time: float,
-        *,
-        path: list[str],
-    ) -> None: ...
-
-    def send_estimate(
-        self,
-        est_meas: npt.NDArray,
-        cov_meas: npt.NDArray,
-        target_id: int,
-        time: float,
-        *,
-        sender: str | None = None,
-        receiver: str | None = None,
-        path: list[str] | None = None,
+        size: float,
     ) -> None:
-        """Send an estimate from one satellite to another
-
-        Simulate "sending a measurement" by adding the estimate to the receiver's queued
-        data on the commnication node. This way, at the end of the time step, the reciever
-        satellite can just loop through the queued data and update its estimate using DDF
-        algorithms on it.
-
-        Args:
-            sender: Satellite sending the estimate.
-            receiver: Satellite receiving the estimate.
-            est_meas: Estimate to send.
-            cov_meas: Covariance estimate to send.
-            target_id: ID of the target the estimate is from.
-            time: Time the estimate was taken.
         """
-        if path is not None and self._valid_path(path):
-            for i in range(1, len(path)):
-                self.send_estimate(  # Very nice!
-                    est_meas,
-                    cov_meas,
-                    target_id,
-                    time,
-                    sender=path[i - 1],
-                    receiver=path[i],
-                )
-            return
-
-        assert sender is not None and receiver is not None
-
-        # Check if the receiver is in the sender's neighbors
-        if not self.G.has_edge(sender, receiver):
-            return
-
-        # Before we decide if we want to send the estimate, make sure it wont
-        # violate the bandwidth constraints
-        if (
-            self.G.edges[sender, receiver]['used_bandwidth']
-            + est_meas.size * 2
-            + cov_meas.size / 2
-            > self.G.edges[sender, receiver]['max_bandwidth']
-        ):
-            logging.warning(
-                f'Bandwidth exceeded between {sender} and {receiver} with current '
-                f'bandwith of {self.G.edges[sender, receiver]["used_bandwidth"]} and '
-                f'max bandwidth of {self.G.edges[sender, receiver]["max_bandwidth"]}'
-            )
-            return
-        else:
-            # Update the used bandwidth
-            self.G.edges[sender, receiver]['used_bandwidth'] += (
-                est_meas.size * 2 + cov_meas.size / 2
-            )
-
-        self.estimates.append(
-            collection.EstimateTransmission(
-                target_id=target_id,
-                sender=sender,
-                receiver=receiver,
-                time=time,
-                size=est_meas.size * 2 + cov_meas.size // 2,
-                estimate=est_meas,
-                covariance=cov_meas,
-            )
-        )
-
-    def receive_estimates(
-        self, receiver: str, time: float
-    ) -> list[collection.EstimateTransmission]:
-        """Receive all estimates for a node.
-
-        Args:
-            receiver: Node to receive estimates for.
-
-        Returns:
-            List of estimates for the node.
+        Send a measurement through a chain of satellites in the network.
         """
-        estimates = self.estimates.loc[
-            (self.estimates['receiver'] == receiver) & (self.estimates['time'] == time)
-        ]
 
-        return self.estimates.to_dataclasses(estimates)
+        # Check what the path is
 
-    @overload
-    def send_measurements(  # Link to link send
+        # here send measurement through a chain of satellites in the network
+        # and then post processing the measurements recieved
+        # will check if the target id were talking about is in the custody of the fusion satellite
+        # if so, process in EKF the measurements
+        # otherwise skip
+
+        # get the path from sender to receiver
+        path = self.get_path(sender, receiver, size)
+
+        if path is None:
+            return
+
+        # send the measurements through the path
+        for i in range(1, len(path)):
+            self.send_measurements_pair(measurements, path[i - 1], path[i], time, size)
+
+    def send_measurements_pair(
         self,
-        alpha: float,
-        beta: float,
-        target_id: int,
-        time: float,
-        *,
+        measurements: list[collection.Measurement],
         sender: str,
         receiver: str,
-    ) -> None: ...
-
-    @overload
-    def send_measurements(  # Path send
-        self,
-        alpha: float,
-        beta: float,
-        target_id: int,
         time: float,
-        *,
-        path: list[str],
-    ) -> None: ...
-
-    def send_measurements(
-        self,
-        alpha: float,
-        beta: float,
-        target_id: int,
-        time: float,
-        *,
-        sender: str | None = None,
-        receiver: str | None = None,
-        path: list[str] | None = None,
+        size: float,
     ) -> None:
-        """Send a vector of measurements from one satellite to another.
-
-        Share the measurement vector from the sender to the receiver by
-        adding it to the receiver's measurement data on the communication node.
-
-        Args:
-            sender: Satellite sending the measurements.
-            receiver: Satellite receiving the measurements.
-            alpha: Alpha measurement to send.
-            beta: Beta measurement to send.
-            target_id: ID of the target the measurements are from.
-            time: Time the measurements were taken.
         """
-        if path is not None and self._valid_path(path):
-            for i in range(1, len(path)):
-                self.send_measurements(
-                    alpha, beta, target_id, time, sender=path[i - 1], receiver=path[i]
-                )
-            return
+        Send a measurement through a pair of satellites in the network.
+        """
+        # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
+        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
-        assert sender is not None and receiver is not None
-
-        # Check if the receiver is in the sender's neighbors
-        if not self.G.has_edge(sender, receiver):
-            return
-
-        measurement_size = 2 + 2  # 2 for the meas vector, 2 for the sensor noise
-        if np.isnan(alpha):
-            measurement_size -= 1
-
-        if np.isnan(beta):
-            measurement_size -= 1
-
-        # TODO: check bandwidth before sending measurements
-
+        # Create a transmition
         self.measurements.append(
             collection.MeasurementTransmission(
-                target_id=target_id,
-                sender=sender,
-                receiver=receiver,
-                time=time,
-                size=measurement_size,
-                alpha=alpha,
-                beta=beta,
+                sender, receiver, size, time, measurements
             )
         )
+
+        # Update the edge bandwidth
+        self.G[sender][receiver]['used_bandwidth'] += size
 
     def receive_measurements(
         self, receiver: str, time: float
-    ) -> list[collection.MeasurementTransmission]:
+    ) -> list[collection.Measurement]:
         """Receive all measurements for a node.
 
         Args:
             receiver: Node to receive measurements for.
+            time: Time to get measurements for.
 
         Returns:
             List of measurements for the node.
         """
-        # TODO: Change to time >= time since last time step for each target ID
-        measurements = self.measurements.loc[
+        transmissions = self.measurements.loc[
             (self.measurements['receiver'] == receiver)
-            & (self.measurements['time'] == time)
+            & (self.measurements['time'] >= time)
         ]
 
-        return self.measurements.to_dataclasses(measurements)
+        # Convert transmissions to list of Measurements
+        measurements = []
+        for _, transmission in transmissions.iterrows():
+            # Convert each dict back to a Measurement dataclass
+            measurements.extend(
+                [
+                    collection.Measurement(**m) if isinstance(m, dict) else m
+                    for m in transmission.measurements
+                ]
+            )
+
+        return measurements
 
     def get_neighbors(self, node: str) -> list[str]:
         """Get the neighbors of a node.
@@ -303,7 +172,16 @@ class Comms(Generic[S, F, G]):
         """
         return list(self.G.neighbors(node))
 
-    def get_path(self, node1: str, node2: str) -> list[str] | None:
+    def get_distance(self, node1: str, node2: str) -> float:
+        """Get the distance between two nodes.
+
+        Args:
+            node1: Starting node.
+            node2: Ending node.
+        """
+        return np.linalg.norm(self._nodes[node1].pos - self._nodes[node2].pos)
+
+    def get_path(self, node1: str, node2: str, size: float) -> list[str] | None:
         """Get the shortest path between two nodes.
 
         Args:
@@ -314,11 +192,24 @@ class Comms(Generic[S, F, G]):
             Shortest path between the two nodes.
         """
         try:
-            path: list[str] = nx.shortest_path(self.G, node1, node2)  # type: ignore
+            # Create a copy of the graph with edges filtered by available bandwidth
+            valid_edges = [
+                (u, v)
+                for u, v in self.G.edges()
+                if self.G[u][v]['max_bandwidth'] - self.G[u][v]['used_bandwidth']
+                >= size
+            ]
+
+            # Create subgraph with only valid edges that can support the bandwidth
+            G_valid = self.G.edge_subgraph(valid_edges)
+
+            # Find shortest path in the valid subgraph
+            path: list[str] = nx.shortest_path(G_valid, node1, node2)  # type: ignore
             return [self._nodes[node].name for node in path]
+
         except nx.NetworkXNoPath:
             logging.warning(
-                f'No path between {node1} and {node2} in the communication network.'
+                f'No path with sufficient bandwidth between {node1} and {node2} in the communication network.'
             )
             return None
 

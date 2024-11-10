@@ -74,7 +74,7 @@ class BaseEstimator:
         pos_est = T.T @ pos_est_sens
 
         # Now, take this position and use it as the initial state
-        est_init = np.array([pos_est[0], 10, pos_est[1], 10, pos_est[2], 10])
+        est_init = np.array([pos_est[0], 0, pos_est[1], 0, pos_est[2], 0])
 
         # Initialize the covariance
         P_init = np.eye(6) * 1000

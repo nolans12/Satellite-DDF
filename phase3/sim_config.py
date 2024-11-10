@@ -29,6 +29,7 @@ class Estimators(enum.Enum):
     LOCAL = enum.auto()
     COVARIANCE_INTERSECTION = enum.auto()
     EVENT_TRIGGERED = enum.auto()
+    FEDERATED = enum.auto()
 
 
 @dataclasses.dataclass

@@ -37,7 +37,7 @@ class Sensor:
         self.name = name
         self.resolution = resolution
 
-        self.R = np.diag(bearingsError**2)
+        self.R = np.diag(bearingsError**2)  # assume diagonal, no cross-correlation
 
     def get_measurement(
         self, sat_orbit: twobody.Orbit, targ_pos: npt.NDArray

@@ -10,7 +10,7 @@ comms:
   max_neighbors: 3
   max_range: 10000
   min_range: 500
-estimator: CENTRAL
+estimator: FEDERATED
 fusion_satellites:
   FusionSat0:
     color: green

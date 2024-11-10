@@ -34,27 +34,43 @@ class Measurement:
     time: float
     alpha: float
     beta: float
-    sat_state: npt.NDArray
-    meas_noise: npt.NDArray
+    sat_state: npt.NDArray  # 6x1 of the [x,y,z,vx,vy,vz]
+    meas_noise: (
+        npt.NDArray
+    )  # 2x2 of the [sig_alpha^2, rho*sig_alpha*sig_beta; rho*sig_alpha*sig_beta, sig_beta^2]
 
 
 @dataclasses.dataclass
 class Transmission:
-    target_id: int
-    sender: str
-    receiver: str
-    time: float
-    size: int
+    sender: str  # sat/gs name
+    receiver: str  # sat/gs name
+    size: float  # number of bytes (estimate)
+    time: float  # time of transmission
 
 
 @dataclasses.dataclass
 class MeasurementTransmission(Transmission):
-    alpha: float
-    beta: float
+    measurements: list[Measurement]
 
-    @property
-    def has_alpha_beta(self) -> bool:
-        return not np.isnan(self.alpha) and not np.isnan(self.beta)
+
+
+# @dataclasses.dataclass
+# class Transmission:
+#     target_id: int
+#     sender: str
+#     receiver: str
+#     time: float
+#     size: int
+
+
+# @dataclasses.dataclass
+# class MeasurementTransmission(Transmission):
+#     alpha: float
+#     beta: float
+
+#     @property
+#     def has_alpha_beta(self) -> bool:
+#         return not np.isnan(self.alpha) and not np.isnan(self.beta)
 
 
 @dataclasses.dataclass

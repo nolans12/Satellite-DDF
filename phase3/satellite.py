@@ -88,6 +88,9 @@ class Satellite:
 class SensingSatellite(Satellite):
     def __init__(self, *args, sensor: sensor.Sensor, **kwargs):
         super().__init__(*args, **kwargs)
+        self.bounty = (
+            {}
+        )  # targetID: satID (name), who this sat should talk to if they see the target
         self._sensor = sensor
 
         # Data frame for measurements
@@ -141,6 +144,42 @@ class SensingSatellite(Satellite):
                 )
             )
 
+    def send_meas_to_fusion(self, target_id: int, time: float) -> None:
+        """
+        Send measurements from the sensing satellites to the fusion satellites.
+        """
+
+        # Get all measurements for this target_id
+        measurements = self.get_measurements(target_id=target_id, time=time)
+
+        if measurements:
+            # Check, does this sat have custody of this target?
+            if target_id in self.bounty:
+                # If so, send the measurements to the fusion satellite
+                sat_id = self.bounty[target_id]
+                self._network.send_measurements_path(
+                    measurements,
+                    self.name,
+                    sat_id,
+                    time=time,
+                    size=50 * len(measurements),
+                )
+            else:
+                print(f"Sat {self.name} does not have a bounty for target {target_id}")
+                # Just send to nearest fusion satellite
+
+                neighbors = self._get_neighbors()
+                nearest_fusion_sat = min(
+                    neighbors, key=lambda x: self._network.get_distance(self.name, x)
+                )
+                self._network.send_measurements_path(
+                    measurements,
+                    self.name,
+                    nearest_fusion_sat,
+                    time=time,
+                    size=50 * len(measurements),
+                )
+
     def get_measurements(
         self, target_id: int, time: float | None = None
     ) -> list[collection.Measurement]:
@@ -171,8 +210,38 @@ class FusionSatellite(Satellite):
         self, *args, local_estimator: estimator.BaseEstimator | None, **kwargs
     ):
         super().__init__(*args, **kwargs)
+        self.custody = {}  # targetID: Boolean, who this sat has custody of
         self._estimator = local_estimator
         self._et_estimators: list['estimator.EtEstimator'] = []
+
+    def process_measurements(self, time: float) -> None:
+        """
+        Process the measurements from the fusion satellite.
+        """
+
+        # Find the set of measurements that were sent to this fusion satellite at this time step (use self._network.measurements data frame)
+        data_received = self._network.receive_measurements(self.name, time)
+
+        if not data_received:
+            return
+
+        # Get unique target IDs from received data
+        target_ids = {meas.target_id for meas in data_received}
+
+        for target_id in target_ids:
+            # Get all measurements for this targetID
+            meas_for_target = [
+                meas for meas in data_received if meas.target_id == target_id
+            ]
+
+            # Send the measurements to the estimator
+            self._estimator.EKF_predict(meas_for_target)
+            self._estimator.EKF_update(meas_for_target, [self])
+
+            # Also, figure out if custody of this target needs to be updated?
+            test = 1
+
+            # im here, do logic for custody
 
     def update_estimator(
         self, measurement: npt.NDArray, target: target.Target, time: float

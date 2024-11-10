@@ -78,6 +78,8 @@ class Environment:
             estimator_clz = estimator.IndependentEstimator
         elif cfg.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
             estimator_clz = estimator.CiEstimator
+        elif cfg.estimator is sim_config.Estimators.FEDERATED:
+            estimator_clz = estimator.IndependentEstimator
         else:
             estimator_clz = None
 
@@ -146,6 +148,13 @@ class Environment:
             # Get the measurements from the satellites
             self.collect_all_measurements()
 
+            if self._config.estimator is not sim_config.Estimators.CENTRAL:
+                # Have the sensing satellites send their measurements to the fusion satellites
+                self.transport_measurements_to_fusion()
+
+                # Have the fusion satellites process their measurements
+                self.process_fusion_measurements()
+
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
 
@@ -194,6 +203,21 @@ class Environment:
         for sat in self._sensing_sats:
             for targ in self._targs:
                 sat.collect_measurements(targ.target_id, targ.pos, self.time.value)
+
+    def transport_measurements_to_fusion(self) -> None:
+        """
+        Transport measurements from the sensing satellites to the fusion satellites.
+        """
+        for sat in self._sensing_sats:
+            for targ in self._targs:
+                sat.send_meas_to_fusion(targ.target_id, self.time.value)
+
+    def process_fusion_measurements(self) -> None:
+        """
+        Process the measurements from the fusion satellites.
+        """
+        for sat in self._fusion_sats:
+            sat.process_measurements(self.time.value)
 
     def data_fusion(self) -> None:
         """
