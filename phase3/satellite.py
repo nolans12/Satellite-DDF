@@ -45,8 +45,20 @@ class Satellite:
     def initialize(self, network: comms.Comms) -> None:
         self.__network = network
 
-    def _get_neighbors(self) -> list[str]:
-        return self._network.get_neighbors(self.name)
+    def _get_neighbors(self, sat_type: str | None = None) -> list[str]:
+
+        neighbors = self._network.get_neighbors(self.name)
+        if sat_type is None:
+            return neighbors
+
+        # Filter neighbors based on type
+        filtered = []
+        for neighbor in neighbors:
+            if sat_type == "fusion" and neighbor.startswith("FusionSat"):
+                filtered.append(neighbor)
+            elif sat_type == "sensing" and neighbor.startswith("SensingSat"):
+                filtered.append(neighbor)
+        return filtered
 
     def propagate(self, time_step: u.Quantity[u.s], time: float):
         """
@@ -138,10 +150,40 @@ class SensingSatellite(Satellite):
                     time=time,
                     alpha=measurement[0],
                     beta=measurement[1],
+                    sat_name=self.name,
                     sat_state=sat_state,
                     R_mat=self._sensor.R,
                 )
             )
+
+    def update_bounties(self, time: float) -> None:
+        """
+        Update the bounty for each target.
+        """
+
+        # Can use the network to get the .bounties
+        bounties = self.get_bounties(time)
+
+        # Update the bounty for each target
+        for target_id, source in bounties:
+            self.bounty[target_id] = source
+
+    def get_bounties(self, time: float) -> list[tuple[int, str]]:
+        """
+        Get the bounties for the satellite.
+
+        Args:
+            time: Time to get bounties for.
+
+        Returns:
+            List of tuples containing (target_id, source_satellite) for each bounty.
+        """
+        bounties = self._network.bounties.loc[
+            (self._network.bounties['time'] == time)
+            & (self._network.bounties['destination'] == self.name)
+        ]
+
+        return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
 
     def send_meas_to_fusion(self, target_id: int, time: float) -> None:
         """
@@ -158,8 +200,8 @@ class SensingSatellite(Satellite):
                 sat_id = self.bounty[target_id]
                 self._network.send_measurements_path(
                     measurements,
-                    self.name,
-                    sat_id,
+                    self.name,  # source
+                    sat_id,  # destination
                     time=time,
                     size=50 * len(measurements),
                 )
@@ -167,14 +209,14 @@ class SensingSatellite(Satellite):
                 print(f"Sat {self.name} does not have a bounty for target {target_id}")
                 # Just send to nearest fusion satellite
 
-                neighbors = self._get_neighbors()
+                neighbors = self._get_neighbors(sat_type="fusion")
                 nearest_fusion_sat = min(
                     neighbors, key=lambda x: self._network.get_distance(self.name, x)
                 )
                 self._network.send_measurements_path(
                     measurements,
-                    self.name,
-                    nearest_fusion_sat,
+                    self.name,  # source
+                    nearest_fusion_sat,  # destination
                     time=time,
                     size=50 * len(measurements),
                 )
@@ -205,20 +247,18 @@ class SensingSatellite(Satellite):
 
 
 class FusionSatellite(Satellite):
-    def __init__(
-        self, *args, local_estimator: estimator.BaseEstimator | None, **kwargs
-    ):
+    def __init__(self, *args, local_estimator: estimator.Estimator | None, **kwargs):
         super().__init__(*args, **kwargs)
         self.custody = {}  # targetID: Boolean, who this sat has custody of
         self._estimator = local_estimator
-        self._et_estimators: list['estimator.EtEstimator'] = []
 
     def process_measurements(self, time: float) -> None:
         """
         Process the measurements from the fusion satellite.
         """
 
-        # Find the set of measurements that were sent to this fusion satellite at this time step (use self._network.measurements data frame)
+        # Find the set of measurements that were sent to this fusion satellite
+        # ONLY IF DESTINATION == self.name
         data_received = self._network.receive_measurements(self.name, time)
 
         if not data_received:
@@ -234,13 +274,30 @@ class FusionSatellite(Satellite):
             ]
 
             # Send the measurements to the estimator
-            self._estimator.EKF_predict(meas_for_target)
-            self._estimator.EKF_update(meas_for_target)
+            if self._estimator is not None:
+                self._estimator.EKF_predict(meas_for_target)
+                self._estimator.EKF_update(meas_for_target)
 
-            # Also, figure out if custody of this target needs to be updated?
-            test = 1
+                # Update the custody
+                # Here, we are assuming if destination, must be custody
+                self.custody[target_id] = True
 
-            # im here, do logic for custody
+                # Now, send back bountys to all avaliable sensing satellites.
+                self.send_bounties(target_id, time)
+
+    def send_bounties(self, target_id: int, time: float) -> None:
+        """
+        Send a bounty to all avaliable sensing satellites.
+        """
+
+        neighbors = self._get_neighbors(sat_type="sensing")
+        size = 1  # bytes of a bounty send
+
+        # Send a bounty update to all neighbors
+        for neighbor in neighbors:
+            self._network.send_bounty(
+                self.name, neighbor, neighbor, target_id, size, time
+            )
 
     def filter_CI(self, data_received: pd.DataFrame) -> None:
         """

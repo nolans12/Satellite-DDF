@@ -228,6 +228,9 @@ class Plotter:
         - out_dir: The directory path where the GIF files will be saved. Defaults to the directory of the script.
         - fps: Frames per second for the GIF. Defaults to 10.
         """
+        # Make sure the output directory exists
+        out_dir.mkdir(exist_ok=True)
+
         frame_duration = 1000 / fps  # in ms
         save_name = self._config.output_prefix
 

@@ -62,6 +62,8 @@ class Comms(Generic[S, F, G]):
             clz=collection.MeasurementTransmission
         )
 
+        self.bounties = dataclassframe.DataClassFrame(clz=collection.BountyTransmission)
+
         self._sensing_sats = {sat.name for sat in sensing_sats}
         self._fusion_sats = {sat.name for sat in fusion_sats}
         self._ground_stations = {gs.name for gs in ground_stations}
@@ -79,8 +81,8 @@ class Comms(Generic[S, F, G]):
     def send_measurements_path(
         self,
         measurements: list[collection.Measurement],
-        sender: str,
-        receiver: str,
+        source: str,
+        destination: str,
         time: float,
         size: float,
     ) -> None:
@@ -88,29 +90,25 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a chain of satellites in the network.
         """
 
-        # Check what the path is
-
-        # here send measurement through a chain of satellites in the network
-        # and then post processing the measurements recieved
-        # will check if the target id were talking about is in the custody of the fusion satellite
-        # if so, process in EKF the measurements
-        # otherwise skip
-
         # get the path from sender to receiver
-        path = self.get_path(sender, receiver, size)
+        path = self.get_path(source, destination, size)
 
         if path is None:
             return
 
         # send the measurements through the path
         for i in range(1, len(path)):
-            self.send_measurements_pair(measurements, path[i - 1], path[i], time, size)
+            self.send_measurements_pair(
+                measurements, path[i - 1], path[i], source, destination, time, size
+            )
 
     def send_measurements_pair(
         self,
         measurements: list[collection.Measurement],
         sender: str,
         receiver: str,
+        source: str,
+        destination: str,
         time: float,
         size: float,
     ) -> None:
@@ -123,7 +121,7 @@ class Comms(Generic[S, F, G]):
         # Create a transmition
         self.measurements.append(
             collection.MeasurementTransmission(
-                sender, receiver, size, time, measurements
+                sender, receiver, source, destination, size, time, measurements
             )
         )
 
@@ -145,6 +143,7 @@ class Comms(Generic[S, F, G]):
         transmissions = self.measurements.loc[
             (self.measurements['receiver'] == receiver)
             & (self.measurements['time'] >= time)
+            & (self.measurements['destination'] == receiver)
         ]
 
         # Convert transmissions to list of Measurements
@@ -159,6 +158,38 @@ class Comms(Generic[S, F, G]):
             )
 
         return measurements
+
+    def send_bounty(
+        self,
+        sender: str,
+        receiver: str,
+        destination: str,
+        target_id: int,
+        size: float,
+        time: float,
+    ) -> None:
+        """
+        Send a bounty to a receiver.
+        """
+
+        print(f"{sender} sending bounty to {receiver} for target {target_id}")
+
+        # Create a bounty # TODO: add path logic eventually, for now just doing pairwise neighbors
+        # But, eventually want to send to all sensing that can see the target, not just neighbors
+        self.bounties.append(
+            collection.BountyTransmission(
+                sender=sender,
+                receiver=receiver,
+                source=sender,
+                destination=destination,
+                target_id=target_id,
+                size=size,
+                time=time,
+            )
+        )
+
+        # Update the edge bandwidth
+        self.G[sender][receiver]['used_bandwidth'] += size
 
     def get_neighbors(self, node: str) -> list[str]:
         """Get the neighbors of a node.

@@ -34,6 +34,7 @@ class Measurement:
     time: float
     alpha: float
     beta: float
+    sat_name: str  # name of the satellite that took the measurement
     sat_state: npt.NDArray  # 6x1 of the [x,y,z,vx,vy,vz]
     R_mat: npt.NDArray  # sensor noise matrix
 
@@ -42,6 +43,8 @@ class Measurement:
 class Transmission:
     sender: str  # sat/gs name
     receiver: str  # sat/gs name
+    source: str  # sat/gs name
+    destination: str  # sat/gs name
     size: float  # number of bytes (estimate)
     time: float  # time of transmission
 
@@ -51,23 +54,10 @@ class MeasurementTransmission(Transmission):
     measurements: list[Measurement]
 
 
-# @dataclasses.dataclass
-# class Transmission:
-#     target_id: int
-#     sender: str
-#     receiver: str
-#     time: float
-#     size: int
-
-
-# @dataclasses.dataclass
-# class MeasurementTransmission(Transmission):
-#     alpha: float
-#     beta: float
-
-#     @property
-#     def has_alpha_beta(self) -> bool:
-#         return not np.isnan(self.alpha) and not np.isnan(self.beta)
+# At the moment, just pairwise neighbors, maybe eventually add destination and have paths?
+@dataclasses.dataclass
+class BountyTransmission(Transmission):
+    target_id: int
 
 
 @dataclasses.dataclass
