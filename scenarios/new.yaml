@@ -10,7 +10,7 @@ comms:
   max_neighbors: 3
   max_range: 10000
   min_range: 500
-estimator: FEDERATED
+estimator: CENTRAL
 fusion_satellites:
   FusionSat0:
     color: green
@@ -1483,7 +1483,7 @@ sensors:
     - 1.15
     fov: 115
 sim_duration_m: 10
-sim_time_step_m: 0.166666
+sim_time_step_m: 0.1
 targets:
   Targ1:
     color: '#e71714'

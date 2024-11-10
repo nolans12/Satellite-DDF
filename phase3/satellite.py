@@ -140,7 +140,7 @@ class SensingSatellite(Satellite):
                     alpha=measurement[0],
                     beta=measurement[1],
                     sat_state=sat_state,
-                    meas_noise=self._sensor.R,
+                    R_mat=self._sensor.R,
                 )
             )
 
@@ -236,7 +236,7 @@ class FusionSatellite(Satellite):
 
             # Send the measurements to the estimator
             self._estimator.EKF_predict(meas_for_target)
-            self._estimator.EKF_update(meas_for_target, [self])
+            self._estimator.EKF_update(meas_for_target)
 
             # Also, figure out if custody of this target needs to be updated?
             test = 1

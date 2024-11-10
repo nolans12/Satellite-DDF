@@ -1,5 +1,4 @@
-from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -133,12 +132,7 @@ class BaseEstimator:
                 target_id, measurement.time, est_pred, P_pred, np.zeros(2), np.eye(2)
             )
 
-    # TODO: i would like to remove the sats, but the helper functions and etc need it, i dont think they really do with the new meas struct but
-    def EKF_update(
-        self,
-        measurements: list[collection.Measurement],
-        sats: list['satellite.Satellite'],
-    ) -> None:
+    def EKF_update(self, measurements: list[collection.Measurement]) -> None:
         """
         Update the estimate of the target using the measurement.
 
@@ -182,21 +176,19 @@ class BaseEstimator:
             innovation = np.zeros((num_measurements, 1))
 
             # Iterate over satellites to get measurements and update matrices
-            for i, sat in enumerate(sats):
+            for i, measurement in enumerate(target_measurements):
                 z[2 * i : 2 * i + 2] = np.reshape(
-                    [measurements[i].alpha, measurements[i].beta], (2, 1)
+                    [measurement.alpha, measurement.beta], (2, 1)
                 )  # Measurement stack
-                H[2 * i : 2 * i + 2, 0:6] = sat._sensor.jacobian_ECI_to_bearings(
-                    sat.orbit, est_pred
+                H[2 * i : 2 * i + 2, 0:6] = self.jacobian_eci_to_bearings(
+                    measurement, est_pred
                 )  # Jacobian of the sensor model
                 R[2 * i : 2 * i + 2, 2 * i : 2 * i + 2] = (
-                    np.eye(2) * sat._sensor.bearingsError**2
+                    measurement.R_mat
                 )  # Sensor noise matrix
-
-                z_pred = np.array(
-                    sat._sensor._convert_to_bearings(
-                        sat.orbit, np.array([est_pred[0], est_pred[2], est_pred[4]])
-                    )
+                z_pred = self.eci_to_bearings(
+                    measurement.sat_state,
+                    np.array([est_pred[0], est_pred[2], est_pred[4]]),
                 )  # Predicted measurements
                 innovation[2 * i : 2 * i + 2] = z[2 * i : 2 * i + 2] - np.reshape(
                     z_pred, (2, 1)
@@ -345,6 +337,93 @@ class BaseEstimator:
         )
 
         return jacobian
+
+    def eci_to_bearings(
+        self, sat_state: npt.NDArray, est_ECI_pos: npt.NDArray
+    ) -> jnpt.ArrayLike:
+        """
+        Transform ECI coordinates to bearings angles.
+
+        Args:
+            sat_state: Current satellite state vector. [x, y, z, vx, vy, vz]
+            est_ECI: Target position vector in ECI coordinates [x, y, z].
+
+        Returns:
+            np.ndarray: In-track and cross-track angles between satellite and target.
+        """
+
+        rVec = jnp.array(sat_state[0:3])
+        vVec = jnp.array(sat_state[3:6])
+
+        rUnit = rVec / jnp.linalg.norm(rVec)
+        vUnit = vVec / jnp.linalg.norm(vVec)
+        wUnit = jnp.cross(rUnit, vUnit) / jnp.linalg.norm(jnp.cross(rUnit, vUnit))
+
+        T = jnp.stack([vUnit, wUnit, rUnit])
+
+        x_sat_sens, y_sat_sens, z_sat_sens = (
+            T @ rVec
+        )  # rotate satellite into sensor frame
+
+        meas_ECI_sym = jnp.array(est_ECI_pos)  # get noisy measurement
+        x_targ_sens, y_targ_sens, z_targ_sens = (
+            T @ meas_ECI_sym
+        )  # rotate target into sensor frame
+
+        satVec = jnp.array([x_sat_sens, y_sat_sens, z_sat_sens])
+
+        targVec_inTrack = satVec - jnp.array(
+            [x_targ_sens, 0, z_targ_sens]
+        )  # get in-track component
+        in_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_inTrack, satVec)),
+            jnp.dot(targVec_inTrack, satVec),
+        )  # calculate in-track angle
+
+        # If targVec_inTrack is negative, switch
+        in_track_angle = jnp.where(x_targ_sens < 0, -in_track_angle, in_track_angle)
+
+        targVec_crossTrack = satVec - jnp.array(
+            [0, y_targ_sens, z_targ_sens]
+        )  # get cross-track component
+        cross_track_angle = jnp.arctan2(
+            jnp.linalg.norm(jnp.cross(targVec_crossTrack, satVec)),
+            jnp.dot(targVec_crossTrack, satVec),
+        )  # calculate cross-track angle
+
+        # If targVec_crossTrack is negative, switch
+        cross_track_angle = jnp.where(
+            y_targ_sens < 0, -cross_track_angle, cross_track_angle
+        )
+
+        in_track_angle_deg = in_track_angle * 180 / jnp.pi  # convert to degrees
+        cross_track_angle_deg = cross_track_angle * 180 / jnp.pi  # convert to degrees
+
+        return jnp.array([in_track_angle_deg, cross_track_angle_deg])
+
+    def jacobian_eci_to_bearings(
+        self, measurement: collection.Measurement, est_ECI: npt.NDArray
+    ) -> npt.NDArray:
+        """
+        Calculate the Jacobian matrix of the ECI to bearings transformation.
+        """
+
+        # Get the satellite state
+        sat_state = measurement.sat_state
+
+        # Get the position estimate
+        est_ECI_pos = jnp.array([est_ECI[0], est_ECI[2], est_ECI[4]])
+
+        jacobian = jax.jacrev(lambda x: self.eci_to_bearings(sat_state, x))(est_ECI_pos)
+
+        # Initialize a new Jacobian matrix with zeros
+        new_jacobian = jnp.zeros((2, 6))
+
+        # Populate the new Jacobian matrix with the relevant values
+        for i in range(3):
+            new_jacobian = new_jacobian.at[:, 2 * i].set(jacobian[:, i])
+
+        return cast(npt.NDArray, new_jacobian)
 
     def calcTrackError(self, est: npt.NDArray, cov: npt.NDArray) -> float:
         """

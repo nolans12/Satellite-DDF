@@ -172,7 +172,7 @@ class Environment:
     def post_process(self):
         self.save_data_frames(save_name=self._config.plot.output_prefix)
         # Save gifs
-        # self._plotter.render_gifs()
+        self._plotter.render_gifs()
 
     def propagate(self, time_step: u.Quantity[u.minute]) -> None:
         """
@@ -219,178 +219,6 @@ class Environment:
         for sat in self._fusion_sats:
             sat.process_measurements(self.time.value)
 
-    def data_fusion(self) -> None:
-        """
-        Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
-        """
-        if self._config.estimator is sim_config.Estimators.CENTRAL:
-            self.central_fusion()
-        elif self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
-            self.send_estimates()
-        elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-            self.send_measurements()
-
-        # Now, each satellite will perform covariance intersection on the measurements sent to it
-        if self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
-            for sat in self._fusion_sats:
-                # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
-                data_recieved = self._comms.comm_data[
-                    (self._comms.comm_data['receiver'] == sat.name)
-                    & (self._comms.comm_data['type'] == 'estimate')
-                ]
-
-                sat.filter_CI(data_recieved)
-
-            if self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-                etEKF = sat.etEstimators[0]
-                etEKF.event_trigger_processing(sat, self.time.to_value(), self._comms)
-
-        # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
-        elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-            for sat in self._fusion_sats:
-                etEKF = sat.etEstimators[0]
-                etEKF.event_trigger_updating(sat, self.time.to_value(), self._comms)
-
-    def send_estimates(self):
-        """
-        Send the most recent estimates from each satellite to its neighbors.
-
-        Worst case CI, everybody sents to everybody
-        """
-        # Loop through all satellites
-        random_sats = self._sensing_sats[:] + self._fusion_sats[:]
-        random.shuffle(random_sats)
-        for sat in random_sats:
-            # For each targetID in the satellite estimate history
-
-            # also shuffle the targetIDs (using new data frames)
-            data_sat = sat.estimator.estimation_data
-
-            # If no data, skip
-            if data_sat.empty:
-                continue
-
-            # Else, get the targetIDs
-            targetIDs = data_sat['targetID'].unique()
-
-            # Shuffle the targetIDs
-            random.shuffle(targetIDs)
-            for targetID in targetIDs:
-
-                # Now, get the most recent estimate for this targetID
-                data_curr = data_sat[data_sat['targetID'] == targetID].iloc[-1]
-                est = data_curr['est']
-                cov = data_curr['cov']
-
-                # Send the estimate to all neighbors
-                for neighbor in self._comms.G.neighbors(sat):
-                    self._comms.send_estimate(
-                        sat, neighbor, est, cov, targetID, self.time.value
-                    )
-
-    def send_measurements(self):
-        """
-        Send the most recent measurements from each satellite to its neighbors.
-        """
-        # Loop through all satellites
-        for sat in self._sensing_sats:
-            # For each targetID in satellites measurement history
-            for (
-                target
-            ) in self._targs:  # TODO: iniitalize with senders est and cov + noise?
-                if target.targetID in sat.targetIDs:
-                    targetID = target.targetID
-                    envTime = self.time.value
-                    # Skip if there are no measurements for this targetID
-                    if isinstance(
-                        sat.measurementHist[target.targetID][envTime], np.ndarray
-                    ):
-                        # This means satellite has a measurement for this target, now send it to neighbors
-                        for neighbor in self._comms.G.neighbors(sat):
-                            neighbor: satellite.Satellite
-                            # If target is not in neighbors priority list, skip
-                            if targetID not in neighbor.targPriority.keys():
-                                continue
-
-                            # Get the most recent measurement time
-                            satTime = max(
-                                sat.measurementHist[targetID].keys()
-                            )  #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
-
-                            # Get the local EKF for this satellite
-                            local_EKF = sat.etEstimators[0]
-
-                            # Check for a new commonEKF between two satellites
-                            commonEKF = None
-                            for each_etEstimator in sat.etEstimators:
-                                if each_etEstimator.shareWith == neighbor.name:
-                                    commonEKF = each_etEstimator
-                                    break
-
-                            if (
-                                commonEKF is None
-                            ):  # or make a common filter if one doesn't exist
-                                commonEKF = estimator.EtEstimator(
-                                    local_EKF.targetPriorities, shareWith=neighbor.name
-                                )
-                                commonEKF.EFK_initialize(target, envTime)
-                                sat.etEstimators.append(commonEKF)
-                                # commonEKF.synchronizeFlag[targetID][envTime] = True
-
-                            if len(commonEKF.estHist[targetID]) == 0:
-                                commonEKF.EFK_initialize(target, envTime)
-
-                            # Get the neighbors localEKF
-                            neighbor_localEKF = neighbor.etEstimators[0]
-
-                            # If the neighbor doesn't have a local EKF on this target, create one
-                            if len(neighbor_localEKF.estHist[targetID]) == 0:
-                                neighbor_localEKF.EKF_initialize(target, envTime)
-
-                            # Check for a common EKF between the two satellites
-                            commonEKF = None
-                            for each_etEstimator in neighbor.etEstimators:
-                                if each_etEstimator.shareWith == sat.name:
-                                    commonEKF = each_etEstimator
-                                    break
-
-                            if (
-                                commonEKF is None
-                            ):  # if I don't, create one and add it to etEstimators list
-                                commonEKF = estimator.EtEstimator(
-                                    neighbor.targPriority, shareWith=sat.name
-                                )
-                                commonEKF.EFK_initialize(target, envTime)
-                                neighbor.etEstimators.append(commonEKF)
-                                # commonEKF.synchronizeFlag[targetID][envTime] = True
-
-                            if len(commonEKF.estHist[targetID]) == 0:
-                                commonEKF.EFK_initialize(target, envTime)
-
-                            # Create implicit and explicit measurements vector for this neighbor
-                            alpha, beta = local_EKF.event_trigger(
-                                sat, neighbor, targetID, satTime
-                            )
-
-                            # Send that to neightbor
-                            self._comms.send_measurements(
-                                sat, neighbor, alpha, beta, targetID, satTime
-                            )
-
-                            if commonEKF.synchronize_flag[targetID][envTime]:
-                                # Since this runs twice, we need to make sure we don't double count the data
-                                self._comms.total_comm_et_data.append(
-                                    collection.MeasurementTransmission(
-                                        target_id=targetID,
-                                        sender=sat.name,
-                                        receiver=neighbor.name,
-                                        time=envTime,
-                                        size=50,
-                                        alpha=alpha,
-                                        beta=beta,
-                                    )
-                                )
-
     def central_fusion(self):
         """
         Perform central fusion using collected measurements.
@@ -403,20 +231,187 @@ class Environment:
             targetID = targ.target_id
             measurements: list[collection.Measurement] = []
 
-            sats_w_measurements = []
-
             for sat in self._sensing_sats:
                 measures = sat.get_measurements(targetID, self.time.value)
                 measurements.extend(measures)
-                if measures:
-                    sats_w_measurements.append(sat)
 
             if not measurements:
                 continue
 
             self._central_estimator.EKF_predict(measurements)
-            # self._central_estimator.EKF_update(measurements)
-            self._central_estimator.EKF_update(measurements, sats_w_measurements)
+            self._central_estimator.EKF_update(measurements)
+
+    # def data_fusion(self) -> None:
+    #     """
+    #     Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
+    #     """
+    #     if self._config.estimator is sim_config.Estimators.CENTRAL:
+    #         self.central_fusion()
+    #     elif self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
+    #         self.send_estimates()
+    #     elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
+    #         self.send_measurements()
+
+    #     # Now, each satellite will perform covariance intersection on the measurements sent to it
+    #     if self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
+    #         for sat in self._fusion_sats:
+    #             # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
+    #             data_recieved = self._comms.comm_data[
+    #                 (self._comms.comm_data['receiver'] == sat.name)
+    #                 & (self._comms.comm_data['type'] == 'estimate')
+    #             ]
+
+    #             sat.filter_CI(data_recieved)
+
+    #         if self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
+    #             etEKF = sat.etEstimators[0]
+    #             etEKF.event_trigger_processing(sat, self.time.to_value(), self._comms)
+
+    #     # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
+    #     elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
+    #         for sat in self._fusion_sats:
+    #             etEKF = sat.etEstimators[0]
+    #             etEKF.event_trigger_updating(sat, self.time.to_value(), self._comms)
+
+    # def send_estimates(self):
+    #     """
+    #     Send the most recent estimates from each satellite to its neighbors.
+
+    #     Worst case CI, everybody sents to everybody
+    #     """
+    #     # Loop through all satellites
+    #     random_sats = self._sensing_sats[:] + self._fusion_sats[:]
+    #     random.shuffle(random_sats)
+    #     for sat in random_sats:
+    #         # For each targetID in the satellite estimate history
+
+    #         # also shuffle the targetIDs (using new data frames)
+    #         data_sat = sat.estimator.estimation_data
+
+    #         # If no data, skip
+    #         if data_sat.empty:
+    #             continue
+
+    #         # Else, get the targetIDs
+    #         targetIDs = data_sat['targetID'].unique()
+
+    #         # Shuffle the targetIDs
+    #         random.shuffle(targetIDs)
+    #         for targetID in targetIDs:
+
+    #             # Now, get the most recent estimate for this targetID
+    #             data_curr = data_sat[data_sat['targetID'] == targetID].iloc[-1]
+    #             est = data_curr['est']
+    #             cov = data_curr['cov']
+
+    #             # Send the estimate to all neighbors
+    #             for neighbor in self._comms.G.neighbors(sat):
+    #                 self._comms.send_estimate(
+    #                     sat, neighbor, est, cov, targetID, self.time.value
+    #                 )
+
+    # def send_measurements(self):
+    #     """
+    #     Send the most recent measurements from each satellite to its neighbors.
+    #     """
+    #     # Loop through all satellites
+    #     for sat in self._sensing_sats:
+    #         # For each targetID in satellites measurement history
+    #         for (
+    #             target
+    #         ) in self._targs:  # TODO: iniitalize with senders est and cov + noise?
+    #             if target.targetID in sat.targetIDs:
+    #                 targetID = target.targetID
+    #                 envTime = self.time.value
+    #                 # Skip if there are no measurements for this targetID
+    #                 if isinstance(
+    #                     sat.measurementHist[target.targetID][envTime], np.ndarray
+    #                 ):
+    #                     # This means satellite has a measurement for this target, now send it to neighbors
+    #                     for neighbor in self._comms.G.neighbors(sat):
+    #                         neighbor: satellite.Satellite
+    #                         # If target is not in neighbors priority list, skip
+    #                         if targetID not in neighbor.targPriority.keys():
+    #                             continue
+
+    #                         # Get the most recent measurement time
+    #                         satTime = max(
+    #                             sat.measurementHist[targetID].keys()
+    #                         )  #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
+
+    #                         # Get the local EKF for this satellite
+    #                         local_EKF = sat.etEstimators[0]
+
+    #                         # Check for a new commonEKF between two satellites
+    #                         commonEKF = None
+    #                         for each_etEstimator in sat.etEstimators:
+    #                             if each_etEstimator.shareWith == neighbor.name:
+    #                                 commonEKF = each_etEstimator
+    #                                 break
+
+    #                         if (
+    #                             commonEKF is None
+    #                         ):  # or make a common filter if one doesn't exist
+    #                             commonEKF = estimator.EtEstimator(
+    #                                 local_EKF.targetPriorities, shareWith=neighbor.name
+    #                             )
+    #                             commonEKF.EFK_initialize(target, envTime)
+    #                             sat.etEstimators.append(commonEKF)
+    #                             # commonEKF.synchronizeFlag[targetID][envTime] = True
+
+    #                         if len(commonEKF.estHist[targetID]) == 0:
+    #                             commonEKF.EFK_initialize(target, envTime)
+
+    #                         # Get the neighbors localEKF
+    #                         neighbor_localEKF = neighbor.etEstimators[0]
+
+    #                         # If the neighbor doesn't have a local EKF on this target, create one
+    #                         if len(neighbor_localEKF.estHist[targetID]) == 0:
+    #                             neighbor_localEKF.EKF_initialize(target, envTime)
+
+    #                         # Check for a common EKF between the two satellites
+    #                         commonEKF = None
+    #                         for each_etEstimator in neighbor.etEstimators:
+    #                             if each_etEstimator.shareWith == sat.name:
+    #                                 commonEKF = each_etEstimator
+    #                                 break
+
+    #                         if (
+    #                             commonEKF is None
+    #                         ):  # if I don't, create one and add it to etEstimators list
+    #                             commonEKF = estimator.EtEstimator(
+    #                                 neighbor.targPriority, shareWith=sat.name
+    #                             )
+    #                             commonEKF.EFK_initialize(target, envTime)
+    #                             neighbor.etEstimators.append(commonEKF)
+    #                             # commonEKF.synchronizeFlag[targetID][envTime] = True
+
+    #                         if len(commonEKF.estHist[targetID]) == 0:
+    #                             commonEKF.EFK_initialize(target, envTime)
+
+    #                         # Create implicit and explicit measurements vector for this neighbor
+    #                         alpha, beta = local_EKF.event_trigger(
+    #                             sat, neighbor, targetID, satTime
+    #                         )
+
+    #                         # Send that to neightbor
+    #                         self._comms.send_measurements(
+    #                             sat, neighbor, alpha, beta, targetID, satTime
+    #                         )
+
+    #                         if commonEKF.synchronize_flag[targetID][envTime]:
+    #                             # Since this runs twice, we need to make sure we don't double count the data
+    #                             self._comms.total_comm_et_data.append(
+    #                                 collection.MeasurementTransmission(
+    #                                     target_id=targetID,
+    #                                     sender=sat.name,
+    #                                     receiver=neighbor.name,
+    #                                     time=envTime,
+    #                                     size=50,
+    #                                     alpha=alpha,
+    #                                     beta=beta,
+    #                                 )
+    #                             )
 
     def send_to_ground_best_sat(self):
         """

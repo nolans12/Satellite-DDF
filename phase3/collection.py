@@ -35,9 +35,7 @@ class Measurement:
     alpha: float
     beta: float
     sat_state: npt.NDArray  # 6x1 of the [x,y,z,vx,vy,vz]
-    meas_noise: (
-        npt.NDArray
-    )  # 2x2 of the [sig_alpha^2, rho*sig_alpha*sig_beta; rho*sig_alpha*sig_beta, sig_beta^2]
+    R_mat: npt.NDArray  # sensor noise matrix
 
 
 @dataclasses.dataclass
@@ -51,7 +49,6 @@ class Transmission:
 @dataclasses.dataclass
 class MeasurementTransmission(Transmission):
     measurements: list[Measurement]
-
 
 
 # @dataclasses.dataclass
