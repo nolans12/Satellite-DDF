@@ -4,7 +4,6 @@ from typing import Generic, Protocol, Sequence, TypeVar, overload
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 from numpy import typing as npt
 
 from common import dataclassframe

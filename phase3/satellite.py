@@ -9,7 +9,6 @@ from phase3 import comms
 from phase3 import estimator
 from phase3 import orbit
 from phase3 import sensor
-from phase3 import target
 
 
 class Satellite:
@@ -242,31 +241,6 @@ class FusionSatellite(Satellite):
             test = 1
 
             # im here, do logic for custody
-
-    def update_estimator(
-        self, measurement: npt.NDArray, target: target.Target, time: float
-    ) -> None:  # TODO: fix this such that dont require target
-        """Update the independent estimator for the satellite.
-
-        The satellite will update its independent estimator using the measurement provided.
-        This will call the EKF functions to update the state and covariance estimates based on the measurement.
-
-        Args:
-            measurement (object): Measurement data obtained from the sensor.
-            target (object): Target object containing targetID and other relevant information.
-            time (float): Current time at which the measurement is taken.
-        """
-        # This assertion checks that the independent estimator exists
-        # It raises an AssertionError if self.indeptEstimator is None
-        assert self._estimator is not None, 'Independent estimator is not initialized'
-        target_id = target.target_id
-
-        # Predict step will initialize if needed
-        self._estimator.EKF_pred(measurement, target_id, time)
-
-        # Update with measurement if we have one
-        if measurement is not None:
-            self._estimator.EKF_update([self], [measurement], target.target_id, time)
 
     def filter_CI(self, data_received: pd.DataFrame) -> None:
         """
