@@ -419,6 +419,139 @@ class Estimator:
 
         return cast(npt.NDArray, new_jacobian)
 
+    def CI(self, estimates: list[collection.Estimate]) -> None:
+        """
+        Helper function to perform Covariance Intersection fusion on a list of estimates.
+
+        Args:
+            estimates: List of Estimate objects to fuse
+
+        Updates the current estimate with all inputted estimates
+        """
+
+        # Get all target_ids in the list
+        target_ids = [est.target_id for est in estimates]
+
+        # Then, iteratively do CI for each target_id sent
+        for target_id in target_ids:
+
+            # Get all estimates for this target
+            target_estimates = [est for est in estimates if est.target_id == target_id]
+
+            # Check, do i have an estimate for this target? If so, add it to the list
+            if (
+                not self.estimation_data.empty
+                and target_id in self.estimation_data.target_id.values
+            ):
+                # Get the current estimate
+                current_estimate = self.estimation_data[
+                    self.estimation_data.target_id == target_id
+                ].iloc[-1]
+                target_estimates.append(current_estimate)
+
+            # Now, loop through all estimates and iteratively do CI
+            start_estimate = target_estimates[0]
+            if len(target_estimates) == 1:
+                fused_estimate = start_estimate  # If theres only 1 estimate in list, just take it as the fused
+            else:
+                fused_estimate = start_estimate
+                # Otherwise, iteratively do CI
+                for next_estimate in target_estimates[1:]:
+                    fused_estimate = self.CI_helper(fused_estimate, next_estimate)
+
+            # If we have an existing estimate for this target, override the most recent one
+            if (
+                not self.estimation_data.empty
+                and target_id in self.estimation_data.target_id.values
+            ):
+                # Drop the old estimate
+                index_to_delete = self.estimation_data[
+                    self.estimation_data.target_id == target_id
+                ].index[-1]
+                self.estimation_data = self.estimation_data.drop(index=index_to_delete)
+
+            # Add the fused estimate
+            self.save_current_estimation_data(
+                target_id,
+                fused_estimate.time,
+                fused_estimate.estimate,
+                fused_estimate.covariance,
+                np.zeros(2),
+                np.eye(2),
+            )
+
+    def CI_helper(
+        self, est1: collection.Estimate, est2: collection.Estimate
+    ) -> collection.Estimate:
+        """
+        Helper function to perform CI fusion on two estimates.
+        """
+
+        # Figure out which time is newer, or are they the same?
+        if est1.time > est2.time:
+            newer_est = est1
+            older_est = est2
+            dt = newer_est.time - older_est.time
+        else:  # est2.time >= est1.time
+            newer_est = est2
+            older_est = est1
+            dt = newer_est.time - older_est.time
+
+        est_new = newer_est.estimate
+        cov_new = newer_est.covariance
+
+        # Predict the older estimate (might be dt = 0, doesnt matter)
+        est_prior = self.state_transition(older_est.estimate, dt)
+        F = self.state_transition_jacobian(est_prior, dt)
+        cov_prior = np.dot(F, np.dot(older_est.covariance, F.T))
+
+        # Minimize the covariance determinant
+        omega_opt = optimize.minimize(
+            self.det_of_fused_covariance,
+            [0.5],
+            args=(cov_prior, cov_new),
+            bounds=[(0, 1)],
+        ).x
+
+        # Compute the fused covariance
+        cov_fused = np.linalg.inv(
+            omega_opt * np.linalg.inv(cov_prior)
+            + (1 - omega_opt) * np.linalg.inv(cov_new)
+        )
+        est_fused = cov_fused @ (
+            omega_opt * np.linalg.inv(cov_prior) @ est_prior
+            + (1 - omega_opt) * np.linalg.inv(cov_new) @ est_new
+        )
+
+        return collection.Estimate(
+            target_id=est1.target_id,
+            time=newer_est.time,
+            estimate=est_fused,
+            covariance=cov_fused,
+            innovation=np.zeros(2),
+            innovation_covariance=np.eye(2),
+            track_error=self.calcTrackError(est_fused, cov_fused),
+        )
+
+    def det_of_fused_covariance(
+        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
+    ) -> float:
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega: Weight of the first covariance matrix
+            cov1: Covariance matrix of the first estimate
+            cov2: Covariance matrix of the second estimate
+
+        Returns:
+            Determinant of the fused covariance matrix
+        """
+        P = np.linalg.inv(
+            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        )
+        return np.linalg.det(P)
+
     def calcTrackError(self, est: npt.NDArray, cov: npt.NDArray) -> float:
         """
         Calculate the track quality metric for the current estimate.
@@ -462,64 +595,21 @@ class Estimator:
     ) -> None:
         """
         Save the current estimation data for the target.
-
-        Args:
-        - targetID: Target ID.
-        - time: Current environment time.
-        - est: Current estimate for the target ECI state = [x, vx, y, vy, z, vz].
-        - cov: Current covariance matrix for the target ECI state.
-        - innovation: Innovation vector.
-        - innovationCov: Innovation covariance matrix.
         """
-
-        # Create new estimate
-        new_estimate = collection.Estimate(
-            target_id=targetID,
-            time=time,
-            estimate=est,
-            covariance=cov,
-            innovation=innovation,
-            innovation_covariance=innovationCov,
-            track_error=self.calcTrackError(est, cov),
+        new_estimate = pd.DataFrame(
+            [
+                collection.Estimate(
+                    target_id=targetID,
+                    time=time,
+                    estimate=est,
+                    covariance=cov,
+                    innovation=innovation,
+                    innovation_covariance=innovationCov,
+                    track_error=self.calcTrackError(est, cov),
+                )
+            ]
         )
 
-        # Append using concat
         self.estimation_data = pd.concat(
-            [self.estimation_data, pd.DataFrame([new_estimate])], ignore_index=True
+            [self.estimation_data, new_estimate], ignore_index=True
         )
-
-    def CI(self, estimates: list[collection.Estimate]) -> None:
-        """
-        Helper function to perform Covariance Intersection fusion on a list of estimates.
-
-        Args:
-            estimates: List of Estimate objects to fuse
-
-        Updates the current estimate with all inputted estimates
-        """
-        pass
-
-        # Take my current estimate (if it exists) and add it to the list of estimates
-
-        # Then, iteratively do CI with all pairs in the list
-
-        # IM HERE
-
-    def det_of_fused_covariance(
-        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
-    ) -> float:
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega: Weight of the first covariance matrix
-            cov1: Covariance matrix of the first estimate
-            cov2: Covariance matrix of the second estimate
-
-        Returns:
-            Determinant of the fused covariance matrix
-        """
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
-        )
-        return np.linalg.det(P)

@@ -210,7 +210,7 @@ class SensingSatellite(Satellite):
         measurements = self.get_measurements(target_id=target_id, time=time)
 
         if measurements:
-            # Check, does this sat have custody of this target?
+            # Check, does this sat have a bounty on this target?
             if target_id in self.bounty:
                 # If so, send the measurements to the fusion satellite
                 sat_id = self.bounty[target_id]

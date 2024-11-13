@@ -300,6 +300,9 @@ class Environment:
                         for est, sat in estimate_sat_pairs
                         if sat.name != curr_sat.name
                     ]
+                    print(
+                        f"Satellite {curr_sat.name} fusing with {[sat.name for est, sat in estimate_sat_pairs if sat.name != curr_sat.name]}"
+                    )
                     curr_sat._estimator.CI(
                         other_estimates
                     )  # Perform CI with list of all other estimates
@@ -321,7 +324,7 @@ class Environment:
         Update the bounties for the sensing satellites.
         """
         for sat in self._sensing_sats:
-            sat.update_bounties(self.time.value - self._config.sim_time_step_m)
+            sat.update_bounties(self.time.value)
 
     def collect_all_measurements(self) -> None:
         """
