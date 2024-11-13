@@ -60,6 +60,22 @@ class Satellite:
                 filtered.append(neighbor)
         return filtered
 
+    def _get_nearest(self, sat_type: str, number: int) -> list[str]:
+        """
+        Gets the nearest X amount of neighbors of a given satellite type
+
+        Returns them as a list of stringed neighbor names.
+        """
+        # Get all nodes of a given type
+        options = self._network.get_nodes(sat_type)
+
+        # Get the nearest X amount of nodes
+        nearest = sorted(
+            options, key=lambda x: self._network.get_distance(self.name, x)
+        )[:number]
+
+        return nearest
+
     def propagate(self, time_step: u.Quantity[u.s], time: float):
         """
         Propagate the satellite's orbit forward in time by the given time step.
@@ -190,7 +206,7 @@ class SensingSatellite(Satellite):
         Send measurements from the sensing satellites to the fusion satellites.
         """
 
-        # Get all measurements for this target_id
+        # Get all measurements for this target_id at this time
         measurements = self.get_measurements(target_id=target_id, time=time)
 
         if measurements:
@@ -206,7 +222,6 @@ class SensingSatellite(Satellite):
                     size=50 * len(measurements),
                 )
             else:
-                print(f"Sat {self.name} does not have a bounty for target {target_id}")
                 # Just send to nearest fusion satellite
 
                 neighbors = self._get_neighbors(sat_type="fusion")
@@ -219,6 +234,10 @@ class SensingSatellite(Satellite):
                     nearest_fusion_sat,  # destination
                     time=time,
                     size=50 * len(measurements),
+                )
+
+                print(
+                    f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
                 )
 
     def get_measurements(
@@ -273,64 +292,26 @@ class FusionSatellite(Satellite):
                 meas for meas in data_received if meas.target_id == target_id
             ]
 
-            # Send the measurements to the estimator
+            # Update estimators based on measurements
             if self._estimator is not None:
                 self._estimator.EKF_predict(meas_for_target)
                 self._estimator.EKF_update(meas_for_target)
 
-                # Update the custody
-                # Here, we are assuming if destination, must be custody
-                self.custody[target_id] = True
-
-                # Now, send back bountys to all avaliable sensing satellites.
-                self.send_bounties(target_id, time)
-
-    def send_bounties(self, target_id: int, time: float) -> None:
+    def send_bounties(self, target_id: int, time: float, nearest_sens: int) -> None:
         """
-        Send a bounty to all avaliable sensing satellites.
+        Send a bounty on the target_id from source to all avaliable sensing satellites.
+
+        Inputs:
+            target_id: The target ID to send a bounty on.
+            time: The time at which to send the bounty.
+            nearest_sens: The number of nearest sensing satellites to send the bounty to.
         """
 
-        neighbors = self._get_neighbors(sat_type="sensing")
+        neighbors = self._get_nearest(sat_type="sensing", number=nearest_sens)
         size = 1  # bytes of a bounty send
 
         # Send a bounty update to all neighbors
         for neighbor in neighbors:
-            self._network.send_bounty(
-                self.name, neighbor, neighbor, target_id, size, time
+            self._network.send_bounty_path(
+                self.name, neighbor, self.name, neighbor, target_id, size, time
             )
-
-    def filter_CI(self, data_received: pd.DataFrame) -> None:
-        """
-        Update the satellite estimator using covariance intersection data that was sent to it.
-        """
-
-        # Use the estimator.CI function to update the estimator with any data recieved, at that time step
-        # Want to only fuse data that is newer than the latest estimate the estimator has on that target
-
-        for targetID in self._targetIDs:
-
-            # Get the latest estimate time for this target
-
-            # Does the estimator have any data?
-            if not self._estimator.estimation_data.empty:
-                # Does the targetID exist in the estimator?
-                if targetID in self._estimator.estimation_data['targetID'].values:
-                    latest_estimate_time = self._estimator.estimation_data[
-                        self._estimator.estimation_data['targetID'] == targetID
-                    ]['time'].max()
-                else:
-                    # If the targetID does not exist in the estimator, then the latest estimate time is negative infinity
-                    latest_estimate_time = float('-inf')
-            else:
-                # If the estimator is empty, then the latest estimate time is negative infinity
-                latest_estimate_time = float('-inf')
-
-            # Get all data received for this target
-            data_for_target = data_received[data_received['targetID'] == targetID]
-
-            # Now, loop through all data for the target, and only fuse data that is newer than the latest estimate
-            for _, row in data_for_target.iterrows():
-                if row['time'] >= latest_estimate_time:
-                    self._estimator.CI(
-                        targetID, row['data'][0], row['data'][1], row['time']
-                    )

@@ -8,6 +8,7 @@ from jax import typing as jnpt
 from numpy import typing as npt
 from scipy import optimize
 
+from common import dataclassframe
 from phase3 import collection
 
 
@@ -25,7 +26,7 @@ class Estimator:
         self.initialization_data = {}
 
         # Estimation data
-        self.estimation_data = pd.DataFrame()
+        self.estimation_data = dataclassframe.DataClassFrame(clz=collection.Estimate)
 
     def _EKF_initialize(self, measurement: collection.Measurement) -> None:
         """
@@ -87,7 +88,9 @@ class Estimator:
             # Check, does a filter exist for this targetID?
             if (
                 self.estimation_data.empty
-                or target_id not in self.estimation_data['targetID'].values
+                or target_id not in self.estimation_data.target_id.values
+                or self.estimation_data.iloc[-1].time + 5
+                < measurement.time  # old estimate is too old, 5 minute buffer?
             ):
                 # print(f"Initializing target {target_id}")
                 self._EKF_initialize(measurement)
@@ -97,11 +100,11 @@ class Estimator:
 
             # Get most recent estimate and covariance
             latest_estimate = self.estimation_data[
-                self.estimation_data['targetID'] == target_id
+                self.estimation_data.target_id == target_id
             ].iloc[-1]
-            time_prior = latest_estimate['time']
-            est_prior = latest_estimate['est']
-            P_prior = latest_estimate['cov']
+            time_prior = latest_estimate.time
+            est_prior = latest_estimate.estimate
+            P_prior = latest_estimate.covariance
 
             # Calculate time difference since last estimate
             dt = measurement.time - time_prior
@@ -144,18 +147,18 @@ class Estimator:
 
             # Get the prior estimate and covariance
             latest_estimate = self.estimation_data[
-                self.estimation_data['targetID'] == target_id
+                self.estimation_data.target_id == target_id
             ].iloc[-1]
 
             meas_time = target_measurements[0].time
 
             # Does the current time equal the time of the latest estimate?
             # If so, then latest was just a prediction, so we can remove it and replace it with the update (so dont get double count in data)
-            if meas_time == latest_estimate['time']:
+            if meas_time == latest_estimate.time:
                 self.estimation_data = self.estimation_data.iloc[:-1]
 
-            est_pred = latest_estimate['est']
-            P_pred = latest_estimate['cov']
+            est_pred = latest_estimate.estimate
+            P_pred = latest_estimate.covariance
 
             # Assume that the measurements are in the form of [alpha, beta] for each satellite
             num_measurements = 2 * len(target_measurements)
@@ -448,130 +451,6 @@ class Estimator:
 
         return posError
 
-    def CI(
-        self,
-        targetID: int,
-        est_sent: npt.NDArray,
-        cov_sent: npt.NDArray,
-        time_sent: float,
-    ) -> None:
-        """
-        Covaraince interesection function to conservatively combine received estimates and covariances on a target.
-
-        Args:
-        - targetID (int): Target ID.
-        - est_sent (np.ndarray): Sent estimate.
-        - cov_sent (np.ndarray): Sent covariance.
-        - time_sent (float): Time the estimate was sent.
-        """
-
-        # First, check does the estimator already have a est and cov for this target?
-        if self.estimation_data.empty:
-
-            # Store initial values and return for first iteration
-            self.save_current_estimation_data(
-                targetID,
-                time_sent,
-                est_sent,
-                cov_sent,
-                np.zeros(2),
-                np.eye(2),  # We will just use 0s for innovation on GS
-            )
-            return
-
-        # If the estimation data isnt empty, check does it contain the targetID?
-        if targetID not in self.estimation_data['targetID'].values:
-            # If not, use the sent estimate and covariance to initialize
-            self.save_current_estimation_data(
-                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
-            )
-            return
-
-        # Now, we do have a prior on this target, so can just do CI with new estimate
-
-        # Get all data for this target
-        target_data = self.estimation_data[self.estimation_data['targetID'] == targetID]
-
-        # Get the most recent data, (the max of the time column)
-        time_prior = target_data['time'].max()
-        # Now, get the full state data from this targetID, time combo
-        data_prior = target_data[target_data['time'] == time_prior].iloc[0]
-        est_prior = data_prior['est']
-        cov_prior = data_prior['cov']
-
-        # If the send time is older than the prior estimate, discard the sent estimate
-        if time_sent < time_prior:
-            return
-
-        # If the time difference is greater than 5 minutes, just use the new estimate
-        if time_sent - time_prior > 5:
-            self.save_current_estimation_data(
-                targetID, time_sent, est_sent, cov_sent, np.zeros(2), np.eye(2)
-            )
-            return
-
-        # Else do CI
-
-        # Propagate the prior estimate and covariance to the new time
-        dt = time_sent - time_prior
-
-        if dt == 0:
-            test = 1
-
-        est_prior = self.state_transition(est_prior, dt)
-        F = self.state_transition_jacobian(est_prior, dt)
-        cov_prior = np.dot(F, np.dot(cov_prior, F.T))
-
-        # Minimize the covariance determinant
-        omega_opt = optimize.minimize(
-            self.det_of_fused_covariance,
-            [0.5],
-            args=(cov_prior, cov_sent),
-            bounds=[(0, 1)],
-        ).x
-
-        # Compute the fused covariance
-        cov1 = cov_prior
-        cov2 = cov_sent
-        cov_prior = np.linalg.inv(
-            omega_opt * np.linalg.inv(cov1) + (1 - omega_opt) * np.linalg.inv(cov2)
-        )
-        est_prior = cov_prior @ (
-            omega_opt * np.linalg.inv(cov1) @ est_prior
-            + (1 - omega_opt) * np.linalg.inv(cov2) @ est_sent
-        )
-
-        # Remove the old estimator data associated with this targetID at this time (if it exists)
-        self.estimation_data = self.estimation_data[
-            ~(
-                (self.estimation_data['targetID'] == targetID)
-                & (self.estimation_data['time'] == time_sent)
-            )
-        ]
-
-        # Save the fused estimate and covariance
-        self.save_current_estimation_data(
-            targetID, time_sent, est_prior, cov_prior, np.zeros(2), np.eye(2)
-        )
-
-    def det_of_fused_covariance(self, omega, cov1, cov2):
-        """
-        Calculate the determinant of the fused covariance matrix.
-
-        Args:
-            omega (float): Weight of the first covariance matrix.
-            cov1 (np.ndarray): Covariance matrix of the first estimate.
-            cov2 (np.ndarray): Covariance matrix of the second estimate.
-
-        Returns:
-            float: Determinant of the fused covariance matrix.
-        """
-        omega = omega[0]  # Ensure omega is a scalar
-        P = np.linalg.inv(
-            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
-        )
-        return np.linalg.det(P)
-
     def save_current_estimation_data(
         self,
         targetID: int,
@@ -593,20 +472,54 @@ class Estimator:
         - innovationCov: Innovation covariance matrix.
         """
 
-        # Create a new row for the data frame
-        new_row = pd.DataFrame(
-            {
-                'targetID': [targetID],
-                'time': [time],
-                'est': [est],
-                'cov': [cov],
-                'innovation': [innovation],
-                'innovationCov': [innovationCov],
-                'trackError': [self.calcTrackError(est, cov)],
-            }
+        # Create new estimate
+        new_estimate = collection.Estimate(
+            target_id=targetID,
+            time=time,
+            estimate=est,
+            covariance=cov,
+            innovation=innovation,
+            innovation_covariance=innovationCov,
+            track_error=self.calcTrackError(est, cov),
         )
 
-        # Concatenate the new row to the existing data frame
+        # Append using concat
         self.estimation_data = pd.concat(
-            [self.estimation_data, new_row], ignore_index=True
+            [self.estimation_data, pd.DataFrame([new_estimate])], ignore_index=True
         )
+
+    def CI(self, estimates: list[collection.Estimate]) -> None:
+        """
+        Helper function to perform Covariance Intersection fusion on a list of estimates.
+
+        Args:
+            estimates: List of Estimate objects to fuse
+
+        Updates the current estimate with all inputted estimates
+        """
+        pass
+
+        # Take my current estimate (if it exists) and add it to the list of estimates
+
+        # Then, iteratively do CI with all pairs in the list
+
+        # IM HERE
+
+    def det_of_fused_covariance(
+        self, omega: float, cov1: npt.NDArray, cov2: npt.NDArray
+    ) -> float:
+        """
+        Calculate the determinant of the fused covariance matrix.
+
+        Args:
+            omega: Weight of the first covariance matrix
+            cov1: Covariance matrix of the first estimate
+            cov2: Covariance matrix of the second estimate
+
+        Returns:
+            Determinant of the fused covariance matrix
+        """
+        P = np.linalg.inv(
+            omega * np.linalg.inv(cov1) + (1 - omega) * np.linalg.inv(cov2)
+        )
+        return np.linalg.det(P)

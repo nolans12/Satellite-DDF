@@ -116,7 +116,7 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a pair of satellites in the network.
         """
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
-        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
+        # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
         # Create a transmition
         self.measurements.append(
@@ -159,28 +159,68 @@ class Comms(Generic[S, F, G]):
 
         return measurements
 
-    def send_bounty(
+    def send_bounty_path(
         self,
         sender: str,
         receiver: str,
+        source: str,
         destination: str,
         target_id: int,
         size: float,
         time: float,
     ) -> None:
+        """Send a bounty through a chain of satellites in the network.
+
+        Args:
+            sender: Initial sending node
+            receiver: Final receiving node
+            source: Original source of the bounty
+            destination: Final destination of the bounty
+            target_id: ID of the target the bounty is for
+            size: Size of the bounty transmission in bytes
+            time: Time the transmission occurs
         """
-        Send a bounty to a receiver.
+        # get the path from sender to receiver
+        path = self.get_path(source, destination, size)
+
+        if path is None:
+            return
+
+        print(f"{source} sending bounty to {destination} for target {target_id}")
+
+        # send the bounty through the path
+        for i in range(1, len(path)):
+            self.send_bounty_pair(
+                path[i - 1], path[i], source, destination, target_id, size, time
+            )
+
+    def send_bounty_pair(
+        self,
+        sender: str,
+        receiver: str,
+        source: str,
+        destination: str,
+        target_id: int,
+        size: float,
+        time: float,
+    ) -> None:
+        """Send a bounty between a pair of satellites in the network.
+
+        Args:
+            sender: Sending node
+            receiver: Receiving node
+            source: Original source of the bounty
+            destination: Final destination of the bounty
+            target_id: ID of the target the bounty is for
+            size: Size of the bounty transmission in bytes
+            time: Time the transmission occurs
         """
 
-        print(f"{sender} sending bounty to {receiver} for target {target_id}")
-
-        # Create a bounty # TODO: add path logic eventually, for now just doing pairwise neighbors
-        # But, eventually want to send to all sensing that can see the target, not just neighbors
         self.bounties.append(
             collection.BountyTransmission(
                 sender=sender,
                 receiver=receiver,
-                source=sender,
+                source=source,
                 destination=destination,
                 target_id=target_id,
                 size=size,
@@ -201,6 +241,19 @@ class Comms(Generic[S, F, G]):
             List of names of neighbors of the satellite.
         """
         return list(self.G.neighbors(node))
+
+    def get_nodes(self, sat_type: str) -> list[str]:
+        """Get all nodes of a given type.
+
+        Loop through all nodes and return the ones of the given type
+        """
+        nodes = []
+        for node in self._nodes:
+            if sat_type == "fusion" and node.startswith("FusionSat"):
+                nodes.append(node)
+            elif sat_type == "sensing" and node.startswith("SensingSat"):
+                nodes.append(node)
+        return nodes
 
     def get_distance(self, node1: str, node2: str) -> float:
         """Get the distance between two nodes.

@@ -40,6 +40,17 @@ class Measurement:
 
 
 @dataclasses.dataclass
+class Estimate:
+    target_id: int
+    time: float
+    estimate: npt.NDArray
+    covariance: npt.NDArray
+    innovation: npt.NDArray
+    innovation_covariance: npt.NDArray
+    track_error: float
+
+
+@dataclasses.dataclass
 class Transmission:
     sender: str  # sat/gs name
     receiver: str  # sat/gs name
@@ -54,16 +65,15 @@ class MeasurementTransmission(Transmission):
     measurements: list[Measurement]
 
 
+@dataclasses.dataclass
+class EstimateTransmission(Transmission):
+    estimates: list[Estimate]
+
+
 # At the moment, just pairwise neighbors, maybe eventually add destination and have paths?
 @dataclasses.dataclass
 class BountyTransmission(Transmission):
     target_id: int
-
-
-@dataclasses.dataclass
-class EstimateTransmission(Transmission):
-    estimate: npt.NDArray
-    covariance: npt.NDArray
 
 
 @dataclasses.dataclass

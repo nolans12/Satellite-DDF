@@ -4,6 +4,7 @@ import pathlib
 import random
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 
 from phase3 import collection
@@ -142,16 +143,25 @@ class Environment:
             # Get the measurements from the satellites
             self.collect_all_measurements()
 
-            if self._config.estimator is not sim_config.Estimators.CENTRAL:
-
-                # Update the bounties for the sensing satellites
-                self.update_bounties()
+            if self._config.estimator is sim_config.Estimators.FEDERATED:
 
                 # Have the sensing satellites send their measurements to the fusion satellites
                 self.transport_measurements_to_fusion()
 
                 # Have the fusion satellites process their measurements
                 self.process_fusion_measurements()
+
+                # Only update custodies and bounties once plan_horizon
+                # if self.time.value % self._config.plan_horizon_m == 0:
+
+                # TODO: for now just always update custodies and bounties
+                # The fusion layer figures out who should have custody on which targets/regions
+                # End goal is to send out to sensing layers who they should report too
+                self.update_custodies_and_fuse()
+
+                # Update the bounties for the sensing satellites
+                # Based on receiving targets from fusion layer
+                self.update_bounties()
 
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
@@ -193,6 +203,118 @@ class Environment:
 
         # Update the communication network for the new sat positions
         self._comms.update_edges()
+
+    def update_custodies_and_fuse(self) -> None:
+        """
+        The fusion layer figures out who should have custody on which targets/regions
+        End goal is to send out to sensing layers who they should report too
+        """
+
+        # CONSISTENCY:
+        # - Returns a dictionary mapping from targetID to a fused/consistent estimate
+        target_estimates = self.get_consistent()
+
+        # CUSTODY:
+        # Once have consistent knowledge of the target states, figure out custody assignments
+        # To start, just use satellite that is closest to the target
+        custody_assignments = {}
+
+        # Loop through all target estimates
+        for target_id, estimate in target_estimates.items():
+            # Get the closest satellite to the target
+            targ_pos = estimate.estimate[np.array([0, 2, 4])]
+
+            closest_sat = None
+            closest_sat_dist = float('inf')
+            for sat in self._fusion_sats:
+                sat_pos = sat.pos
+                dist = np.linalg.norm(targ_pos - sat_pos)
+                if dist < closest_sat_dist:
+                    closest_sat_dist = dist
+                    closest_sat = sat
+
+            custody_assignments[target_id] = closest_sat
+
+        # TODO: TRACK TO TRACK HANDOFF
+
+        # Use sat.send_bounties to send out the custody assignments
+        for target_id, sat in custody_assignments.items():
+            sat.custody[target_id] = True
+            print(f'Sat {sat.name} has custody of target {target_id}')
+            sat.send_bounties(target_id, self.time.value, nearest_sens=5)
+
+        # Turn all other custody to false
+        for sat in self._fusion_sats:
+            for target_id in sat.custody:
+                if (
+                    target_id not in custody_assignments
+                    or sat.name != custody_assignments[target_id].name
+                ):
+                    sat.custody[target_id] = False
+
+    def get_consistent(self):
+        """
+        Ensures the fusion layer is consistent that uses CI to fuse common estimates.
+        Assumes:
+        - All estimates are known throughout the network.
+        - Satellites can instantly do CI with each other.
+
+        Returns:
+        - Dictionary mapping from targetID to a fused/consistent estimate
+        """
+
+        # ASSUMPTION: All estimates are known throughout the network, perfect information
+
+        # Collect all estimates in the network, at current time step
+        target_estimates = {}
+        for sat in self._fusion_sats:
+            if sat._estimator is None or sat._estimator.estimation_data.empty:
+                continue
+
+            # Get latest estimates for each target this satellite tracks
+            current_estimates = sat._estimator.estimation_data[
+                sat._estimator.estimation_data.time == self.time.value
+            ]
+
+            for target_id in set(current_estimates.target_id):
+                if target_id not in target_estimates:
+                    target_estimates[target_id] = []
+
+                # Get estimate for this target from this satellite at current time
+                target_estimate = current_estimates[
+                    current_estimates.target_id == target_id
+                ].iloc[-1]
+
+                # Store tuple of (estimate, satellite) for each target (need sat to use the CI call)
+                target_estimates[target_id].append((target_estimate, sat))
+
+        # CONSISTENCY:
+        # - If there are multiple estimates for the same target, perform CI with all of them
+        # - Assume the fusion layer just magically can do this at the moment, perfect knowledge/comms
+        for target_id, estimate_sat_pairs in target_estimates.items():
+            # If two satellites have estimates for the same target, perform CI with all of them
+            if len(estimate_sat_pairs) > 1:
+                for nan, curr_sat in estimate_sat_pairs:  # For each sat
+                    other_estimates = [
+                        est
+                        for est, sat in estimate_sat_pairs
+                        if sat.name != curr_sat.name
+                    ]
+                    curr_sat._estimator.CI(
+                        other_estimates
+                    )  # Perform CI with list of all other estimates
+
+                # Update the target estimates dictionary with the fused estimate (most recent)
+                target_estimates[target_id] = estimate_sat_pairs[0][
+                    1
+                ]._estimator.estimation_data.iloc[
+                    -1
+                ]  # Take just the first satellites fused estimate
+            else:
+                # This removes the sat object from the dictionary, is just the estimate stored in target_estimates
+                target_estimates[target_id] = estimate_sat_pairs[0][0]
+
+        return target_estimates
 
     def update_bounties(self) -> None:
         """
