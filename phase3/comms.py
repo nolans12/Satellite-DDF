@@ -118,6 +118,9 @@ class Comms(Generic[S, F, G]):
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
         # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
+        # Set the edge to be active
+        self.G[sender][receiver]['active'] = "Measurement"
+
         # Create a transmition
         self.measurements.append(
             collection.MeasurementTransmission(
@@ -216,6 +219,9 @@ class Comms(Generic[S, F, G]):
             time: Time the transmission occurs
         """
 
+        # Set the edge to be active
+        self.G[sender][receiver]['active'] = "Bounty"
+
         self.bounties.append(
             collection.BountyTransmission(
                 sender=sender,
@@ -288,6 +294,7 @@ class Comms(Generic[S, F, G]):
 
             # Find shortest path in the valid subgraph
             path: list[str] = nx.shortest_path(G_valid, node1, node2)  # type: ignore
+            # print(f"Path from {node1} to {node2}: {path}")
             return [self._nodes[node].name for node in path]
 
         except nx.NetworkXNoPath:
@@ -334,6 +341,10 @@ class Comms(Generic[S, F, G]):
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
                     )
+
+                    # Set the edge to be active
+                    self.G[agent1.name][agent2.name]['active'] = False
+                    self.G[agent2.name][agent1.name]['active'] = False
 
         # Restrict to just the maximum number of neighbors
         for agent in self._nodes.values():

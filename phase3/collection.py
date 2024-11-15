@@ -70,7 +70,6 @@ class EstimateTransmission(Transmission):
     estimates: list[Estimate]
 
 
-# At the moment, just pairwise neighbors, maybe eventually add destination and have paths?
 @dataclasses.dataclass
 class BountyTransmission(Transmission):
     target_id: int

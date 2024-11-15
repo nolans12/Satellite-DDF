@@ -1,7 +1,6 @@
 # Import classes
-import os
 import pathlib
-import random
+import time
 
 import numpy as np
 import pandas as pd
@@ -35,6 +34,7 @@ class Environment:
         self._ground_stations = ground_stations
         self._targs = targs
         self._comms = comms
+        self._custody = {}
 
         # Initialize time parameter to 0
         self.time = u.Quantity(0, u.minute)
@@ -44,6 +44,8 @@ class Environment:
         self._central_estimator = None
         if self._config.estimator is sim_config.Estimators.CENTRAL:
             self._central_estimator = estimator.Estimator()
+
+        self.timer = pd.DataFrame(columns=['time', 'federated_processing_time'])
 
     @classmethod
     def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
@@ -144,6 +146,7 @@ class Environment:
             self.collect_all_measurements()
 
             if self._config.estimator is sim_config.Estimators.FEDERATED:
+                start_time = time.time()
 
                 # Have the sensing satellites send their measurements to the fusion satellites
                 self.transport_measurements_to_fusion()
@@ -151,17 +154,15 @@ class Environment:
                 # Have the fusion satellites process their measurements
                 self.process_fusion_measurements()
 
-                # Only update custodies and bounties once plan_horizon
-                # if self.time.value % self._config.plan_horizon_m == 0:
-
-                # TODO: for now just always update custodies and bounties
-                # The fusion layer figures out who should have custody on which targets/regions
-                # End goal is to send out to sensing layers who they should report too
+                # Update custodies and fuse throughout fusion layer
                 self.update_custodies_and_fuse()
 
-                # Update the bounties for the sensing satellites
-                # Based on receiving targets from fusion layer
+                # Process the bounties queued on the network
                 self.update_bounties()
+
+                # Record the execution time
+                execution_time = time.time() - start_time
+                self.timer.loc[len(self.timer)] = [self.time.value, execution_time]
 
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
@@ -174,6 +175,11 @@ class Environment:
                 self._ground_stations,
                 self._comms,
             )
+
+        # print the average of the timer dataframe
+        print(
+            f'Average federated processing time: {self.timer["federated_processing_time"].mean():.2f} seconds'
+        )
 
         print('Simulation Complete')
 
@@ -214,43 +220,14 @@ class Environment:
         # - Returns a dictionary mapping from targetID to a fused/consistent estimate
         target_estimates = self.get_consistent()
 
-        # CUSTODY:
-        # Once have consistent knowledge of the target states, figure out custody assignments
-        # To start, just use satellite that is closest to the target
-        custody_assignments = {}
+        # CUSTODY PLAN:
+        # - Returns a dictionary mapping from targetID to the closest fusion satellite
+        custody_assignments = self.closest_fusion_custody(target_estimates)
 
-        # Loop through all target estimates
-        for target_id, estimate in target_estimates.items():
-            # Get the closest satellite to the target
-            targ_pos = estimate.estimate[np.array([0, 2, 4])]
-
-            closest_sat = None
-            closest_sat_dist = float('inf')
-            for sat in self._fusion_sats:
-                sat_pos = sat.pos
-                dist = np.linalg.norm(targ_pos - sat_pos)
-                if dist < closest_sat_dist:
-                    closest_sat_dist = dist
-                    closest_sat = sat
-
-            custody_assignments[target_id] = closest_sat
-
-        # TODO: TRACK TO TRACK HANDOFF
-
-        # Use sat.send_bounties to send out the custody assignments
-        for target_id, sat in custody_assignments.items():
-            sat.custody[target_id] = True
-            print(f'Sat {sat.name} has custody of target {target_id}')
-            sat.send_bounties(target_id, self.time.value, nearest_sens=5)
-
-        # Turn all other custody to false
-        for sat in self._fusion_sats:
-            for target_id in sat.custody:
-                if (
-                    target_id not in custody_assignments
-                    or sat.name != custody_assignments[target_id].name
-                ):
-                    sat.custody[target_id] = False
+        # CUSTODY HANDOFF:
+        # - Track to track handoff as needed
+        # - Also resends out bounties to the sensing satellites
+        self.custody_handoff(custody_assignments)
 
     def get_consistent(self):
         """
@@ -300,9 +277,9 @@ class Environment:
                         for est, sat in estimate_sat_pairs
                         if sat.name != curr_sat.name
                     ]
-                    print(
-                        f"Satellite {curr_sat.name} fusing with {[sat.name for est, sat in estimate_sat_pairs if sat.name != curr_sat.name]}"
-                    )
+                    for est, sat in estimate_sat_pairs:
+                        if sat.name != curr_sat.name:
+                            print(f"Fusing with {sat.name} on target {target_id}")
                     curr_sat._estimator.CI(
                         other_estimates
                     )  # Perform CI with list of all other estimates
@@ -318,6 +295,103 @@ class Environment:
                 target_estimates[target_id] = estimate_sat_pairs[0][0]
 
         return target_estimates
+
+    def closest_fusion_custody(self, target_estimates: dict) -> dict:
+        """
+        Determine custody assignments based on closest fusion satellite to each target.
+
+        Args:
+            target_estimates: Dictionary mapping target_id to its current estimate
+
+        Returns:
+            Dictionary mapping target_id to the closest fusion satellite
+        """
+        custody_assignments = {}
+
+        # Loop through all target estimates
+        for target_id, estimate in target_estimates.items():
+            # Get the closest satellite to the target
+            targ_pos = estimate.estimate[np.array([0, 2, 4])]
+
+            closest_sat = None
+            closest_sat_dist = float('inf')
+            for sat in self._fusion_sats:
+                sat_pos = sat.pos
+                dist = np.linalg.norm(targ_pos - sat_pos)
+                if dist < closest_sat_dist:
+                    closest_sat_dist = dist
+                    closest_sat = sat
+
+            custody_assignments[target_id] = closest_sat
+
+        return custody_assignments
+
+    def custody_handoff(self, custody_assignments: dict) -> None:
+        """
+        Update the custody assignments for the satellites based on track to track handoff.
+
+        The input is the new custody assignments. dict[target_id] = sat_object
+        Need to loop through old custodies and update them to the new ones.
+        """
+
+        # Get current custody assignments
+        current_custody = {
+            target_id: sat for sat in self._fusion_sats for target_id in sat.custody
+        }
+
+        # Get all target ids in the new custody assignments
+        new_target_ids = set(custody_assignments.keys())
+
+        for target_id in new_target_ids:
+
+            prior_est = None
+            # Check if the custody has changed
+            if (
+                target_id in current_custody
+                and current_custody[target_id].name
+                != custody_assignments[target_id].name
+            ):
+                # If the custody has changed need to do track to track handoff
+                # Turn off the old custody assignment
+                old_sat = current_custody[target_id]
+                old_sat.custody[target_id] = False
+
+                # Only get prior estimate if old satellite has estimation data for this target
+                if (
+                    not old_sat._estimator.estimation_data.empty
+                    and target_id in old_sat._estimator.estimation_data.target_id.values
+                ):
+                    prior_est = old_sat._estimator.estimation_data[
+                        old_sat._estimator.estimation_data.target_id == target_id
+                    ].iloc[-1]
+
+            new_sat = custody_assignments[target_id]
+            if prior_est is not None:
+                # Initialize the new satellite's estimator with the prior estimate
+                # ASSUMING INSTANT TRANSMISSION OF ESTIMATE
+                new_sat._estimator.save_current_estimation_data(
+                    target_id,
+                    prior_est.time,
+                    prior_est.estimate,
+                    prior_est.covariance,
+                    prior_est.innovation,
+                    prior_est.innovation_covariance,
+                )
+                print(
+                    f"Track to track handoff for target {target_id} from {old_sat.name} to {new_sat.name}"
+                )
+                # # Add edge if it doesn't exist and set it as active for track handoff
+                # if not self._comms.G.has_edge(old_sat.name, new_sat.name):
+                #     self._comms.G.add_edge(old_sat.name, new_sat.name)
+                #     self._comms.G[old_sat.name][new_sat.name]['max_bandwidth'] = 100000
+                #     self._comms.G[old_sat.name][new_sat.name]['used_bandwidth'] = 0
+                # self._comms.G[old_sat.name][new_sat.name]['active'] = "Track Handoff"
+
+            new_sat.custody[target_id] = True
+            print(f'Sat {new_sat.name} has custody of target {target_id}')
+            new_sat.send_bounties(
+                target_id, self.time.value, nearest_sens=3
+            )  # TODO: Change this to be nearest sensing satellites to targ estimate
 
     def update_bounties(self) -> None:
         """

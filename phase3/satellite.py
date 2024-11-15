@@ -176,13 +176,20 @@ class SensingSatellite(Satellite):
         """
         Update the bounty for each target.
         """
-
         # Can use the network to get the .bounties
         bounties = self.get_bounties(time)
 
         # Update the bounty for each target
         for target_id, source in bounties:
             self.bounty[target_id] = source
+
+        # Get just the target IDs from the bounties tuples
+        bounty_target_ids = [target_id for target_id, _ in bounties]
+
+        # Remove bounties that are no longer active
+        expired_targets = [tid for tid in self.bounty if tid not in bounty_target_ids]
+        for target_id in expired_targets:
+            del self.bounty[target_id]
 
     def get_bounties(self, time: float) -> list[tuple[int, str]]:
         """

@@ -72,10 +72,11 @@ class Plotter:
         """
         self._reset_plot()
         self._plot_earth()
-        self._plot_satellites(sats)
+        # self._plot_satellites(sats)
+        self._plot_satellite_only_important(sats)
         self._plot_targets(targets)
-        self._plot_communication(comms)
-        self._plot_ground_stations(ground_stations)
+        self._plot_communication(comms, sats)
+        # self._plot_ground_stations(ground_stations)
         self._plot_legend_time(time)
         self._export_image()
 
@@ -129,6 +130,55 @@ class Plotter:
                 )
             )
 
+    def _plot_satellite_only_important(
+        self, sats: Sequence[satellite.Satellite]
+    ) -> None:
+        """
+        Plot all satellites, with different visibility based on their importance:
+        - Satellites with custody/bounty: fully visible with sensor projection box
+        - Other satellites: faintly visible without sensor projection box
+        """
+        for sat in sats:
+            # Determine importance of satellite
+            is_important = False
+            if isinstance(sat, satellite.FusionSatellite):
+                is_important = bool(sat.custody and any(sat.custody.values()))
+            elif isinstance(sat, satellite.SensingSatellite):
+                is_important = bool(sat.bounty)
+
+            # Plot the current xyz location of the satellite
+            x, y, z = sat.orbit.r.value
+            satName = sat.name.split('.')[0]
+
+            # Use different alpha values based on importance
+            alpha = 1.0 if is_important else 0.2
+            self._ax.scatter(x, y, z, s=40, color=sat.color, label=satName, alpha=alpha)
+
+            # Only plot sensor projection for important satellites
+            if is_important:
+                points = sat.get_projection_box()
+                if points is None:
+                    continue
+
+                self._ax.scatter(
+                    points[:, 0],
+                    points[:, 1],
+                    points[:, 2],  # type: ignore
+                    color=sat.color,
+                    marker='x',
+                )
+
+                box = np.array([points[1], points[4], points[2], points[3], points[1]])
+                self._ax.add_collection3d(
+                    art3d.Poly3DCollection(
+                        [box],
+                        facecolors=sat.color,
+                        linewidths=1,
+                        edgecolors=sat.color,
+                        alpha=0.1,
+                    )
+                )
+
     def _plot_targets(self, targets: Sequence[target.Target]) -> None:
         """
         Plot the current state of each target, including their positions and velocities.
@@ -156,7 +206,9 @@ class Plotter:
         # ### ALSO USE IF YOU WANT EARTH TO NOT BE SEE THROUGH
         # self._ax.plot_surface(self._x_earth*0.9, self._y_earth*0.9, self._z_earth*0.9, color = 'white', alpha=1)
 
-    def _plot_communication(self, comms: comms.Comms) -> None:
+    def _plot_communication(
+        self, comms: comms.Comms, sats: Sequence[satellite.Satellite]
+    ) -> None:
         """
         Plot the communication structure between satellites.
         """
@@ -164,27 +216,43 @@ class Plotter:
             return
 
         for edge in comms.G.edges:
-            sat1 = edge[0]
-            sat2 = edge[1]
+            if comms.G.edges[edge]['active'] is None:
+                continue
+            sat1_name = edge[0]
+            sat2_name = edge[1]
+            sat1 = next((sat for sat in sats if sat.name == sat1_name), None)
+            sat2 = next((sat for sat in sats if sat.name == sat2_name), None)
+            if sat1 is None or sat2 is None:
+                continue
             x1, y1, z1 = sat1.orbit.r.value
             x2, y2, z2 = sat2.orbit.r.value
-            if comms.G.edges[edge]['active']:
+            if comms.G.edges[edge]['active'] == "Track Handoff": # TODO: make it a list, not just a singlar string
+                self._ax.plot(
+                    [x1, x2],
+                    [y1, y2],
+                    [z1, z2],
+                    color=(0.5, 0.0, 0.5),  # Purple color
+                    linestyle='dashed',
+                    linewidth=2,
+                )
+                plt.pause(0.5)  # Pause for 0.5 seconds
+            elif comms.G.edges[edge]['active'] == "Bounty":
+                self._ax.plot(
+                    [x1, x2],
+                    [y1, y2],
+                    [z1, z2],
+                    color=(1.0, 0.3, 0.3),
+                    linestyle='dotted',
+                    linewidth=1,
+                )
+            elif comms.G.edges[edge]['active'] == "Measurement":
                 self._ax.plot(
                     [x1, x2],
                     [y1, y2],
                     [z1, z2],
                     color=(0.3, 1.0, 0.3),
-                    linestyle='dashed',
+                    linestyle='solid',
                     linewidth=2,
-                )
-            else:
-                self._ax.plot(
-                    [x1, x2],
-                    [y1, y2],
-                    [z1, z2],
-                    color='k',
-                    linestyle='dashed',
-                    linewidth=1,
                 )
 
     def _plot_ground_stations(
