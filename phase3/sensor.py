@@ -1,6 +1,5 @@
 from typing import cast
 
-import jax
 import numpy as np
 from numpy import typing as npt
 from poliastro import twobody
@@ -35,6 +34,8 @@ class Sensor:
         self.detectChance = detectChance
         self.name = name
         self.resolution = resolution
+
+        self.R = np.diag(bearingsError**2)  # assume diagonal, no cross-correlation
 
     def get_measurement(
         self, sat_orbit: twobody.Orbit, targ_pos: npt.NDArray
@@ -164,8 +165,7 @@ class Sensor:
 
         # Do a sign check for in-track angle
         # If targVec_inTrack is negative, switch
-        if x_targ_sens < 0:
-            in_track_angle = -in_track_angle
+        in_track_angle = -in_track_angle if x_targ_sens < 0 else in_track_angle
 
         targVec_crossTrack = satVec - np.array(
             [0, y_targ_sens, z_targ_sens]
@@ -175,57 +175,14 @@ class Sensor:
             np.dot(targVec_crossTrack, satVec),
         )  # calculate cross-track angle
 
-        # If targVec_inTrack is negative, switch
-        if x_targ_sens < 0:
-            in_track_angle = -in_track_angle
-
         # If targVec_crossTrack is negative, switch
-        if y_targ_sens < 0:
-            cross_track_angle = -cross_track_angle
-
-        # Do a sign check for cross-track angle
-        # If targVec_crossTrack is negative, switch
-        if y_targ_sens < 0:
-            cross_track_angle = -cross_track_angle
+        cross_track_angle = -cross_track_angle if y_targ_sens < 0 else cross_track_angle
 
         in_track_angle_deg = in_track_angle * 180 / np.pi  # convert to degrees
         cross_track_angle_deg = cross_track_angle * 180 / np.pi  # convert to degrees
 
         # Return the relative bearings from sensor to target
         return np.array([in_track_angle_deg, cross_track_angle_deg])
-
-    def jacobian_ECI_to_bearings(
-        self, sat_orbit: twobody.Orbit, meas_ECI_full: npt.NDArray
-    ) -> npt.NDArray:
-        """
-        Compute the Jacobian matrix H used in a Kalman filter for the sensor. Describes
-        sensitivity of the sensor measurements to changes in predicted state of the target.
-
-        Args:
-            sat: Satellite object.
-            meas_ECI_full: Full ECI measurement vector [x, vx, y, vy, z, vz].
-
-        Returns:
-            Jacobian matrix H.
-        """
-        # Extract predited position from the full ECI measurement vector
-        pred_position = np.array([meas_ECI_full[0], meas_ECI_full[2], meas_ECI_full[4]])
-
-        # Use reverse automatic differentiation since more inputs 3 than outputs 2
-        jacobian = jax.jacrev(
-            lambda x: self._transform_eci_to_bearings(
-                sat_orbit.r.value, sat_orbit.v.value, x
-            )
-        )(pred_position)
-
-        # Initialize a new Jacobian matrix with zeros
-        new_jacobian = np.zeros((2, 6))
-
-        # Populate the new Jacobian matrix with the relevant values
-        for i in range(3):
-            new_jacobian = new_jacobian[:, 2 * i] = jacobian[:, i]
-
-        return cast(npt.NDArray, new_jacobian)
 
     def _in_FOV(self, projection_box: npt.NDArray, targ_pos: npt.NDArray) -> bool:
         """

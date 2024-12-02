@@ -1,5 +1,5 @@
 sim_duration_m: 10
-sim_time_step_m: .166666
+sim_time_step_m: .1
 
 plot:
   output_prefix: "test"
@@ -15,15 +15,14 @@ plot:
 
   gifs:
     - "SATELLITE_SIMULATION"
-    - "DYNAMIC_COMMS"
 
 comms:
-  max_bandwidth: 60
-  max_neighbors: 3
-  max_range: 10000
-  min_range: 500
+  max_bandwidth: 1000
+  max_neighbors: 4
+  max_range: 1000000
+  min_range: 0
 
-estimator: "COVARIANCE_INTERSECTION"
+estimator: "FEDERATED"
 
 targets:
   Targ1:
@@ -63,6 +62,10 @@ targets:
     color: "#b228b4"
 
 sensors:
+  SensorGreat:
+    fov: 115
+    # 0.1
+    bearings_error: [0.115, 0.115]
   SensorGood:
     fov: 115
     # 1%

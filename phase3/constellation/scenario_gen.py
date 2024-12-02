@@ -49,7 +49,7 @@ def _prompt_for_walker_delta(sat_type: str) -> tuple[int, int, float, float, flo
 
     altitude_km = number.NumberPrompt(
         message='Enter the altitude of the satellites in kilometers',
-        default=550,  # LEO
+        default=1000,  # LEO
         float_allowed=True,
         min_allowed=400.0,  # VLEO
     ).execute()

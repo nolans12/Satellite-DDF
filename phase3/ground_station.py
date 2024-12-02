@@ -21,7 +21,7 @@ class GroundStation:
     def __init__(
         self,
         name: str,
-        estimator: estimator.GsEstimator,
+        estimator: estimator.Estimator,
         config: sim_config.GroundStation,
     ):
         """Initialize a GroundStation object.

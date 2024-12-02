@@ -1,9 +1,9 @@
 # Import classes
-import os
 import pathlib
-import random
+import time
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 
 from phase3 import collection
@@ -34,6 +34,7 @@ class Environment:
         self._ground_stations = ground_stations
         self._targs = targs
         self._comms = comms
+        self._custody = {}
 
         # Initialize time parameter to 0
         self.time = u.Quantity(0, u.minute)
@@ -42,7 +43,9 @@ class Environment:
 
         self._central_estimator = None
         if self._config.estimator is sim_config.Estimators.CENTRAL:
-            self._central_estimator = estimator.CentralEstimator()
+            self._central_estimator = estimator.Estimator()
+
+        self.timer = pd.DataFrame(columns=['time', 'federated_processing_time'])
 
     @classmethod
     def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
@@ -73,13 +76,8 @@ class Environment:
             for name, s in cfg.sensing_satellites.items()
         ]
 
-        if cfg.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-            # The central estimator is an independent estimator
-            estimator_clz = estimator.IndependentEstimator
-        elif cfg.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
-            estimator_clz = estimator.CiEstimator
-        else:
-            estimator_clz = None
+        # All estimators are the same now
+        estimator_clz = estimator.Estimator
 
         fusion_sats = [
             satellite.FusionSatellite(
@@ -94,7 +92,7 @@ class Environment:
         ground_stations = [
             ground_station.GroundStation(
                 name=name,
-                estimator=estimator.GsEstimator(),
+                estimator=estimator_clz(),
                 config=gs,
             )
             for name, gs in cfg.ground_stations.items()
@@ -125,6 +123,7 @@ class Environment:
         """
 
         print("Simulation Started")
+        print(f"Running in {self._config.estimator.name} mode")
 
         time_steps = self._config.sim_duration_m / self._config.sim_time_step_m
         # round to the nearest int
@@ -146,6 +145,25 @@ class Environment:
             # Get the measurements from the satellites
             self.collect_all_measurements()
 
+            if self._config.estimator is sim_config.Estimators.FEDERATED:
+                start_time = time.time()
+
+                # Have the sensing satellites send their measurements to the fusion satellites
+                self.transport_measurements_to_fusion()
+
+                # Have the fusion satellites process their measurements
+                self.process_fusion_measurements()
+
+                # Update custodies and fuse throughout fusion layer
+                self.update_custodies_and_fuse()
+
+                # Process the bounties queued on the network
+                self.update_bounties()
+
+                # Record the execution time
+                execution_time = time.time() - start_time
+                self.timer.loc[len(self.timer)] = [self.time.value, execution_time]
+
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
 
@@ -158,12 +176,17 @@ class Environment:
                 self._comms,
             )
 
+        # print the average of the timer dataframe
+        print(
+            f'Average federated processing time: {self.timer["federated_processing_time"].mean():.2f} seconds'
+        )
+
         print('Simulation Complete')
 
     def post_process(self):
         self.save_data_frames(save_name=self._config.plot.output_prefix)
         # Save gifs
-        # self._plotter.render_gifs()
+        self._plotter.render_gifs()
 
     def propagate(self, time_step: u.Quantity[u.minute]) -> None:
         """
@@ -187,6 +210,196 @@ class Environment:
         # Update the communication network for the new sat positions
         self._comms.update_edges()
 
+    def update_custodies_and_fuse(self) -> None:
+        """
+        The fusion layer figures out who should have custody on which targets/regions
+        End goal is to send out to sensing layers who they should report too
+        """
+
+        # CONSISTENCY:
+        # - Returns a dictionary mapping from targetID to a fused/consistent estimate
+        target_estimates = self.get_consistent()
+
+        # CUSTODY PLAN:
+        # - Returns a dictionary mapping from targetID to the closest fusion satellite
+        custody_assignments = self.closest_fusion_custody(target_estimates)
+
+        # CUSTODY HANDOFF:
+        # - Track to track handoff as needed
+        # - Also resends out bounties to the sensing satellites
+        self.custody_handoff(custody_assignments)
+
+    def get_consistent(self):
+        """
+        Ensures the fusion layer is consistent that uses CI to fuse common estimates.
+        Assumes:
+        - All estimates are known throughout the network.
+        - Satellites can instantly do CI with each other.
+
+        Returns:
+        - Dictionary mapping from targetID to a fused/consistent estimate
+        """
+
+        # ASSUMPTION: All estimates are known throughout the network, perfect information
+
+        # Collect all estimates in the network, at current time step
+        target_estimates = {}
+        for sat in self._fusion_sats:
+            if sat._estimator is None or sat._estimator.estimation_data.empty:
+                continue
+
+            # Get latest estimates for each target this satellite tracks
+            current_estimates = sat._estimator.estimation_data[
+                sat._estimator.estimation_data.time == self.time.value
+            ]
+
+            for target_id in set(current_estimates.target_id):
+                if target_id not in target_estimates:
+                    target_estimates[target_id] = []
+
+                # Get estimate for this target from this satellite at current time
+                target_estimate = current_estimates[
+                    current_estimates.target_id == target_id
+                ].iloc[-1]
+
+                # Store tuple of (estimate, satellite) for each target (need sat to use the CI call)
+                target_estimates[target_id].append((target_estimate, sat))
+
+        # CONSISTENCY:
+        # - If there are multiple estimates for the same target, perform CI with all of them
+        # - Assume the fusion layer just magically can do this at the moment, perfect knowledge/comms
+        for target_id, estimate_sat_pairs in target_estimates.items():
+            # If two satellites have estimates for the same target, perform CI with all of them
+            if len(estimate_sat_pairs) > 1:
+                for nan, curr_sat in estimate_sat_pairs:  # For each sat
+                    other_estimates = [
+                        est
+                        for est, sat in estimate_sat_pairs
+                        if sat.name != curr_sat.name
+                    ]
+                    for est, sat in estimate_sat_pairs:
+                        if sat.name != curr_sat.name:
+                            print(f"Fusing with {sat.name} on target {target_id}")
+                    curr_sat._estimator.CI(
+                        other_estimates
+                    )  # Perform CI with list of all other estimates
+
+                # Update the target estimates dictionary with the fused estimate (most recent)
+                target_estimates[target_id] = estimate_sat_pairs[0][
+                    1
+                ]._estimator.estimation_data.iloc[
+                    -1
+                ]  # Take just the first satellites fused estimate
+            else:
+                # This removes the sat object from the dictionary, is just the estimate stored in target_estimates
+                target_estimates[target_id] = estimate_sat_pairs[0][0]
+
+        return target_estimates
+
+    def closest_fusion_custody(self, target_estimates: dict) -> dict:
+        """
+        Determine custody assignments based on closest fusion satellite to each target.
+
+        Args:
+            target_estimates: Dictionary mapping target_id to its current estimate
+
+        Returns:
+            Dictionary mapping target_id to the closest fusion satellite
+        """
+        custody_assignments = {}
+
+        # Loop through all target estimates
+        for target_id, estimate in target_estimates.items():
+            # Get the closest satellite to the target
+            targ_pos = estimate.estimate[np.array([0, 2, 4])]
+
+            closest_sat = None
+            closest_sat_dist = float('inf')
+            for sat in self._fusion_sats:
+                sat_pos = sat.pos
+                dist = np.linalg.norm(targ_pos - sat_pos)
+                if dist < closest_sat_dist:
+                    closest_sat_dist = dist
+                    closest_sat = sat
+
+            custody_assignments[target_id] = closest_sat
+
+        return custody_assignments
+
+    def custody_handoff(self, custody_assignments: dict) -> None:
+        """
+        Update the custody assignments for the satellites based on track to track handoff.
+
+        The input is the new custody assignments. dict[target_id] = sat_object
+        Need to loop through old custodies and update them to the new ones.
+        """
+
+        # Get current custody assignments
+        current_custody = {
+            target_id: sat for sat in self._fusion_sats for target_id in sat.custody
+        }
+
+        # Get all target ids in the new custody assignments
+        new_target_ids = set(custody_assignments.keys())
+
+        for target_id in new_target_ids:
+
+            prior_est = None
+            # Check if the custody has changed
+            if (
+                target_id in current_custody
+                and current_custody[target_id].name
+                != custody_assignments[target_id].name
+            ):
+                # If the custody has changed need to do track to track handoff
+                # Turn off the old custody assignment
+                old_sat = current_custody[target_id]
+                old_sat.custody[target_id] = False
+
+                # Only get prior estimate if old satellite has estimation data for this target
+                if (
+                    not old_sat._estimator.estimation_data.empty
+                    and target_id in old_sat._estimator.estimation_data.target_id.values
+                ):
+                    prior_est = old_sat._estimator.estimation_data[
+                        old_sat._estimator.estimation_data.target_id == target_id
+                    ].iloc[-1]
+
+            new_sat = custody_assignments[target_id]
+            if prior_est is not None:
+                # Initialize the new satellite's estimator with the prior estimate
+                # ASSUMING INSTANT TRANSMISSION OF ESTIMATE
+                new_sat._estimator.save_current_estimation_data(
+                    target_id,
+                    prior_est.time,
+                    prior_est.estimate,
+                    prior_est.covariance,
+                    prior_est.innovation,
+                    prior_est.innovation_covariance,
+                )
+                print(
+                    f"Track to track handoff for target {target_id} from {old_sat.name} to {new_sat.name}"
+                )
+                # # Add edge if it doesn't exist and set it as active for track handoff
+                # if not self._comms.G.has_edge(old_sat.name, new_sat.name):
+                #     self._comms.G.add_edge(old_sat.name, new_sat.name)
+                #     self._comms.G[old_sat.name][new_sat.name]['max_bandwidth'] = 100000
+                #     self._comms.G[old_sat.name][new_sat.name]['used_bandwidth'] = 0
+                # self._comms.G[old_sat.name][new_sat.name]['active'] = "Track Handoff"
+
+            new_sat.custody[target_id] = True
+            print(f'Sat {new_sat.name} has custody of target {target_id}')
+            new_sat.send_bounties(
+                target_id, self.time.value, nearest_sens=3
+            )  # TODO: Change this to be nearest sensing satellites to targ estimate
+
+    def update_bounties(self) -> None:
+        """
+        Update the bounties for the sensing satellites.
+        """
+        for sat in self._sensing_sats:
+            sat.update_bounties(self.time.value)
+
     def collect_all_measurements(self) -> None:
         """
         Collect measurements from the satellites.
@@ -195,177 +408,20 @@ class Environment:
             for targ in self._targs:
                 sat.collect_measurements(targ.target_id, targ.pos, self.time.value)
 
-    def data_fusion(self) -> None:
+    def transport_measurements_to_fusion(self) -> None:
         """
-        Perform data fusion by collecting measurements, performing central fusion, sending estimates, and performing covariance intersection.
+        Transport measurements from the sensing satellites to the fusion satellites.
         """
-        if self._config.estimator is sim_config.Estimators.CENTRAL:
-            self.central_fusion()
-        elif self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
-            self.send_estimates()
-        elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-            self.send_measurements()
-
-        # Now, each satellite will perform covariance intersection on the measurements sent to it
-        if self._config.estimator is sim_config.Estimators.COVARIANCE_INTERSECTION:
-            for sat in self._fusion_sats:
-                # Get just the data sent using CI, (match receiver to sat name and type to 'estimate')
-                data_recieved = self._comms.comm_data[
-                    (self._comms.comm_data['receiver'] == sat.name)
-                    & (self._comms.comm_data['type'] == 'estimate')
-                ]
-
-                sat.filter_CI(data_recieved)
-
-            if self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-                etEKF = sat.etEstimators[0]
-                etEKF.event_trigger_processing(sat, self.time.to_value(), self._comms)
-
-        # ET estimator needs prediction to happen at everytime step, thus, even if measurement is none we need to predict
-        elif self._config.estimator is sim_config.Estimators.EVENT_TRIGGERED:
-            for sat in self._fusion_sats:
-                etEKF = sat.etEstimators[0]
-                etEKF.event_trigger_updating(sat, self.time.to_value(), self._comms)
-
-    def send_estimates(self):
-        """
-        Send the most recent estimates from each satellite to its neighbors.
-
-        Worst case CI, everybody sents to everybody
-        """
-        # Loop through all satellites
-        random_sats = self._sensing_sats[:] + self._fusion_sats[:]
-        random.shuffle(random_sats)
-        for sat in random_sats:
-            # For each targetID in the satellite estimate history
-
-            # also shuffle the targetIDs (using new data frames)
-            data_sat = sat.estimator.estimation_data
-
-            # If no data, skip
-            if data_sat.empty:
-                continue
-
-            # Else, get the targetIDs
-            targetIDs = data_sat['targetID'].unique()
-
-            # Shuffle the targetIDs
-            random.shuffle(targetIDs)
-            for targetID in targetIDs:
-
-                # Now, get the most recent estimate for this targetID
-                data_curr = data_sat[data_sat['targetID'] == targetID].iloc[-1]
-                est = data_curr['est']
-                cov = data_curr['cov']
-
-                # Send the estimate to all neighbors
-                for neighbor in self._comms.G.neighbors(sat):
-                    self._comms.send_estimate(
-                        sat, neighbor, est, cov, targetID, self.time.value
-                    )
-
-    def send_measurements(self):
-        """
-        Send the most recent measurements from each satellite to its neighbors.
-        """
-        # Loop through all satellites
         for sat in self._sensing_sats:
-            # For each targetID in satellites measurement history
-            for (
-                target
-            ) in self._targs:  # TODO: iniitalize with senders est and cov + noise?
-                if target.targetID in sat.targetIDs:
-                    targetID = target.targetID
-                    envTime = self.time.value
-                    # Skip if there are no measurements for this targetID
-                    if isinstance(
-                        sat.measurementHist[target.targetID][envTime], np.ndarray
-                    ):
-                        # This means satellite has a measurement for this target, now send it to neighbors
-                        for neighbor in self._comms.G.neighbors(sat):
-                            neighbor: satellite.Satellite
-                            # If target is not in neighbors priority list, skip
-                            if targetID not in neighbor.targPriority.keys():
-                                continue
+            for targ in self._targs:
+                sat.send_meas_to_fusion(targ.target_id, self.time.value)
 
-                            # Get the most recent measurement time
-                            satTime = max(
-                                sat.measurementHist[targetID].keys()
-                            )  #  this should be irrelevant and equal to  self.time since a measurement is sent on same timestep
-
-                            # Get the local EKF for this satellite
-                            local_EKF = sat.etEstimators[0]
-
-                            # Check for a new commonEKF between two satellites
-                            commonEKF = None
-                            for each_etEstimator in sat.etEstimators:
-                                if each_etEstimator.shareWith == neighbor.name:
-                                    commonEKF = each_etEstimator
-                                    break
-
-                            if (
-                                commonEKF is None
-                            ):  # or make a common filter if one doesn't exist
-                                commonEKF = estimator.EtEstimator(
-                                    local_EKF.targetPriorities, shareWith=neighbor.name
-                                )
-                                commonEKF.EFK_initialize(target, envTime)
-                                sat.etEstimators.append(commonEKF)
-                                # commonEKF.synchronizeFlag[targetID][envTime] = True
-
-                            if len(commonEKF.estHist[targetID]) == 0:
-                                commonEKF.EFK_initialize(target, envTime)
-
-                            # Get the neighbors localEKF
-                            neighbor_localEKF = neighbor.etEstimators[0]
-
-                            # If the neighbor doesn't have a local EKF on this target, create one
-                            if len(neighbor_localEKF.estHist[targetID]) == 0:
-                                neighbor_localEKF.EKF_initialize(target, envTime)
-
-                            # Check for a common EKF between the two satellites
-                            commonEKF = None
-                            for each_etEstimator in neighbor.etEstimators:
-                                if each_etEstimator.shareWith == sat.name:
-                                    commonEKF = each_etEstimator
-                                    break
-
-                            if (
-                                commonEKF is None
-                            ):  # if I don't, create one and add it to etEstimators list
-                                commonEKF = estimator.EtEstimator(
-                                    neighbor.targPriority, shareWith=sat.name
-                                )
-                                commonEKF.EFK_initialize(target, envTime)
-                                neighbor.etEstimators.append(commonEKF)
-                                # commonEKF.synchronizeFlag[targetID][envTime] = True
-
-                            if len(commonEKF.estHist[targetID]) == 0:
-                                commonEKF.EFK_initialize(target, envTime)
-
-                            # Create implicit and explicit measurements vector for this neighbor
-                            alpha, beta = local_EKF.event_trigger(
-                                sat, neighbor, targetID, satTime
-                            )
-
-                            # Send that to neightbor
-                            self._comms.send_measurements(
-                                sat, neighbor, alpha, beta, targetID, satTime
-                            )
-
-                            if commonEKF.synchronize_flag[targetID][envTime]:
-                                # Since this runs twice, we need to make sure we don't double count the data
-                                self._comms.total_comm_et_data.append(
-                                    collection.MeasurementTransmission(
-                                        target_id=targetID,
-                                        sender=sat.name,
-                                        receiver=neighbor.name,
-                                        time=envTime,
-                                        size=50,
-                                        alpha=alpha,
-                                        beta=beta,
-                                    )
-                                )
+    def process_fusion_measurements(self) -> None:
+        """
+        Process the measurements from the fusion satellites.
+        """
+        for sat in self._fusion_sats:
+            sat.process_measurements(self.time.value)
 
     def central_fusion(self):
         """
@@ -379,21 +435,15 @@ class Environment:
             targetID = targ.target_id
             measurements: list[collection.Measurement] = []
 
-            sats_w_measurements = []
-
             for sat in self._sensing_sats:
                 measures = sat.get_measurements(targetID, self.time.value)
                 measurements.extend(measures)
-                if measures:
-                    sats_w_measurements.append(sat)
 
             if not measurements:
                 continue
 
-            self._central_estimator.EKF_pred(targ, self.time.value)
-            self._central_estimator.EKF_update(
-                sats_w_measurements, measurements, targetID, self.time.value
-            )
+            self._central_estimator.EKF_predict(measurements)
+            self._central_estimator.EKF_update(measurements)
 
     def send_to_ground_best_sat(self):
         """
@@ -498,44 +548,36 @@ class Environment:
         target_path = save_path / 'targets'
         target_path.mkdir(exist_ok=True)
         for targ in self._targs:
-            targ._state_hist.to_csv(target_path / f'{targ.name}.csv')
+            if not targ._state_hist.empty:
+                targ._state_hist.to_csv(target_path / f'{targ.name}.csv')
 
         ## Make a satellite state folder
         satellite_path = save_path / 'satellites'
         satellite_path.mkdir(exist_ok=True)
-        for sat in self._fusion_sats:
-            sat._state_hist.to_csv(satellite_path / f'{sat.name}_state.csv')
+        for sat in self._fusion_sats + self._sensing_sats:
+            if not sat._state_hist.empty:
+                sat._state_hist.to_csv(satellite_path / f'{sat.name}_state.csv')
 
         for sat in self._sensing_sats:
-            sat._measurement_hist.to_csv(
-                satellite_path / f'{sat.name}_measurements.csv'
-            )
+            if not sat._measurement_hist.empty:
+                sat._measurement_hist.to_csv(
+                    satellite_path / f'{sat.name}_measurements.csv'
+                )
 
-        # ## Make a comms folder # TODO: fix with ryans new data class
-        # comms_path = os.path.join(savePath, f"comms")
-        # os.makedirs(comms_path, exist_ok=True)
-        # if not self._comms.comm_data.empty:
-        #     self._comms.comm_data.to_csv(os.path.join(comms_path, f"comm_data.csv"))
-
-        # ## Make an estimator folder # TODO fix with estimator stuff
-        # estimator_path = os.path.join(savePath, f"estimators")
-        # os.makedirs(estimator_path, exist_ok=True)
-        # # Now, save all estimator data
-        # for sat in self.sats:
-        #     if sat.estimator is not None:
-        #         sat.estimator.estimation_data.to_csv(  # TODO: this should just be sat.estimator.estimation_data, need to change naming syntax
-        #             os.path.join(estimator_path, f"{sat.name}_estimator.csv")
-        #         )
-        # for gs in self.groundStations:
-        #     if gs.estimator is not None:
-        #         gs.estimator.estimation_data.to_csv(
-        #             os.path.join(estimator_path, f"{gs.name}_estimator.csv")
-        #         )
-
-        ## Save centralized estimator
+        ## Make an estimator folder
         estimator_path = save_path / 'estimators'
         estimator_path.mkdir(exist_ok=True)
-        if self._central_estimator is not None:
+        # Now, save all estimator data
+        for sat in self._fusion_sats:
+            if sat._estimator is not None:
+                if not sat._estimator.estimation_data.empty:
+                    sat._estimator.estimation_data.to_csv(
+                        estimator_path / f"{sat.name}_estimator.csv"
+                    )
+        if (
+            self._central_estimator is not None
+            and not self._central_estimator.estimation_data.empty
+        ):
             self._central_estimator.estimation_data.to_csv(
                 estimator_path / 'central_estimator.csv'
             )

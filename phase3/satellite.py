@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from astropy import units as u
 from numpy import typing as npt
@@ -8,7 +9,6 @@ from phase3 import comms
 from phase3 import estimator
 from phase3 import orbit
 from phase3 import sensor
-from phase3 import target
 
 
 class Satellite:
@@ -45,8 +45,36 @@ class Satellite:
     def initialize(self, network: comms.Comms) -> None:
         self.__network = network
 
-    def _get_neighbors(self) -> list[str]:
-        return self._network.get_neighbors(self.name)
+    def _get_neighbors(self, sat_type: str | None = None) -> list[str]:
+
+        neighbors = self._network.get_neighbors(self.name)
+        if sat_type is None:
+            return neighbors
+
+        # Filter neighbors based on type
+        filtered = []
+        for neighbor in neighbors:
+            if sat_type == "fusion" and neighbor.startswith("FusionSat"):
+                filtered.append(neighbor)
+            elif sat_type == "sensing" and neighbor.startswith("SensingSat"):
+                filtered.append(neighbor)
+        return filtered
+
+    def _get_nearest(self, sat_type: str, number: int) -> list[str]:
+        """
+        Gets the nearest X amount of neighbors of a given satellite type
+
+        Returns them as a list of stringed neighbor names.
+        """
+        # Get all nodes of a given type
+        options = self._network.get_nodes(sat_type)
+
+        # Get the nearest X amount of nodes
+        nearest = sorted(
+            options, key=lambda x: self._network.get_distance(self.name, x)
+        )[:number]
+
+        return nearest
 
     def propagate(self, time_step: u.Quantity[u.s], time: float):
         """
@@ -87,6 +115,9 @@ class Satellite:
 class SensingSatellite(Satellite):
     def __init__(self, *args, sensor: sensor.Sensor, **kwargs):
         super().__init__(*args, **kwargs)
+        self.bounty = (
+            {}
+        )  # targetID: satID (name), who this sat should talk to if they see the target
         self._sensor = sensor
 
         # Data frame for measurements
@@ -116,14 +147,105 @@ class SensingSatellite(Satellite):
 
         # If the measurement is an np.ndarray of in-track, cross-track measurements
         if measurement is not None:
+
+            # Get the [x, y, z, vx, vy, vz] sat state
+            sat_state = np.array(
+                [
+                    self.orbit.r.value[0],
+                    self.orbit.r.value[1],
+                    self.orbit.r.value[2],
+                    self.orbit.v.value[0],
+                    self.orbit.v.value[1],
+                    self.orbit.v.value[2],
+                ]
+            )
+
             self._measurement_hist.append(
                 collection.Measurement(
                     target_id=target_id,
                     time=time,
                     alpha=measurement[0],
                     beta=measurement[1],
+                    sat_name=self.name,
+                    sat_state=sat_state,
+                    R_mat=self._sensor.R,
                 )
             )
+
+    def update_bounties(self, time: float) -> None:
+        """
+        Update the bounty for each target.
+        """
+        # Can use the network to get the .bounties
+        bounties = self.get_bounties(time)
+
+        # Update the bounty for each target
+        for target_id, source in bounties:
+            self.bounty[target_id] = source
+
+        # Get just the target IDs from the bounties tuples
+        bounty_target_ids = [target_id for target_id, _ in bounties]
+
+        # Remove bounties that are no longer active
+        expired_targets = [tid for tid in self.bounty if tid not in bounty_target_ids]
+        for target_id in expired_targets:
+            del self.bounty[target_id]
+
+    def get_bounties(self, time: float) -> list[tuple[int, str]]:
+        """
+        Get the bounties for the satellite.
+
+        Args:
+            time: Time to get bounties for.
+
+        Returns:
+            List of tuples containing (target_id, source_satellite) for each bounty.
+        """
+        bounties = self._network.bounties.loc[
+            (self._network.bounties['time'] == time)
+            & (self._network.bounties['destination'] == self.name)
+        ]
+
+        return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
+
+    def send_meas_to_fusion(self, target_id: int, time: float) -> None:
+        """
+        Send measurements from the sensing satellites to the fusion satellites.
+        """
+
+        # Get all measurements for this target_id at this time
+        measurements = self.get_measurements(target_id=target_id, time=time)
+
+        if measurements:
+            # Check, does this sat have a bounty on this target?
+            if target_id in self.bounty:
+                # If so, send the measurements to the fusion satellite
+                sat_id = self.bounty[target_id]
+                self._network.send_measurements_path(
+                    measurements,
+                    self.name,  # source
+                    sat_id,  # destination
+                    time=time,
+                    size=50 * len(measurements),
+                )
+            else:
+                # Just send to nearest fusion satellite
+
+                neighbors = self._get_neighbors(sat_type="fusion")
+                nearest_fusion_sat = min(
+                    neighbors, key=lambda x: self._network.get_distance(self.name, x)
+                )
+                self._network.send_measurements_path(
+                    measurements,
+                    self.name,  # source
+                    nearest_fusion_sat,  # destination
+                    time=time,
+                    size=50 * len(measurements),
+                )
+
+                print(
+                    f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
+                )
 
     def get_measurements(
         self, target_id: int, time: float | None = None
@@ -151,76 +273,52 @@ class SensingSatellite(Satellite):
 
 
 class FusionSatellite(Satellite):
-    def __init__(
-        self, *args, local_estimator: estimator.BaseEstimator | None, **kwargs
-    ):
+    def __init__(self, *args, local_estimator: estimator.Estimator | None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.custody = {}  # targetID: Boolean, who this sat has custody of
         self._estimator = local_estimator
-        self._et_estimators: list['estimator.EtEstimator'] = []
 
-    def update_estimator(
-        self, measurement: npt.NDArray, target: target.Target, time: float
-    ) -> None:  # TODO: fix this such that dont require target
-        """Update the independent estimator for the satellite.
-
-        The satellite will update its independent estimator using the measurement provided.
-        This will call the EKF functions to update the state and covariance estimates based on the measurement.
-
-        Args:
-            measurement (object): Measurement data obtained from the sensor.
-            target (object): Target object containing targetID and other relevant information.
-            time (float): Current time at which the measurement is taken.
+    def process_measurements(self, time: float) -> None:
         """
-        # This assertion checks that the independent estimator exists
-        # It raises an AssertionError if self.indeptEstimator is None
-        assert self._estimator is not None, 'Independent estimator is not initialized'
-        target_id = target.target_id
-
-        if self._estimator.estimation_data.empty:
-            # The estimator contains zero data in it (first target)
-            self._estimator.EKF_initialize(target, time)
-        else:
-            # Check, does the targetID already exist in the estimator?
-            if target_id in self._estimator.estimation_data['targetID'].values:
-                # If estimate exists, predict and update
-                self._estimator.EKF_pred(target_id, time)
-                self._estimator.EKF_update([self], [measurement], target_id, time)
-            else:
-                # If no estimate exists, initialize
-                self._estimator.EKF_initialize(target, time)
-
-    def filter_CI(self, data_received: pd.DataFrame) -> None:
-        """
-        Update the satellite estimator using covariance intersection data that was sent to it.
+        Process the measurements from the fusion satellite.
         """
 
-        # Use the estimator.CI function to update the estimator with any data recieved, at that time step
-        # Want to only fuse data that is newer than the latest estimate the estimator has on that target
+        # Find the set of measurements that were sent to this fusion satellite
+        # ONLY IF DESTINATION == self.name
+        data_received = self._network.receive_measurements(self.name, time)
 
-        for targetID in self._targetIDs:
+        if not data_received:
+            return
 
-            # Get the latest estimate time for this target
+        # Get unique target IDs from received data
+        target_ids = {meas.target_id for meas in data_received}
 
-            # Does the estimator have any data?
-            if not self._estimator.estimation_data.empty:
-                # Does the targetID exist in the estimator?
-                if targetID in self._estimator.estimation_data['targetID'].values:
-                    latest_estimate_time = self._estimator.estimation_data[
-                        self._estimator.estimation_data['targetID'] == targetID
-                    ]['time'].max()
-                else:
-                    # If the targetID does not exist in the estimator, then the latest estimate time is negative infinity
-                    latest_estimate_time = float('-inf')
-            else:
-                # If the estimator is empty, then the latest estimate time is negative infinity
-                latest_estimate_time = float('-inf')
+        for target_id in target_ids:
+            # Get all measurements for this targetID
+            meas_for_target = [
+                meas for meas in data_received if meas.target_id == target_id
+            ]
 
-            # Get all data received for this target
-            data_for_target = data_received[data_received['targetID'] == targetID]
+            # Update estimators based on measurements
+            if self._estimator is not None:
+                self._estimator.EKF_predict(meas_for_target)
+                self._estimator.EKF_update(meas_for_target)
 
-            # Now, loop through all data for the target, and only fuse data that is newer than the latest estimate
-            for _, row in data_for_target.iterrows():
-                if row['time'] >= latest_estimate_time:
-                    self._estimator.CI(
-                        targetID, row['data'][0], row['data'][1], row['time']
-                    )
+    def send_bounties(self, target_id: int, time: float, nearest_sens: int) -> None:
+        """
+        Send a bounty on the target_id from source to all avaliable sensing satellites.
+
+        Inputs:
+            target_id: The target ID to send a bounty on.
+            time: The time at which to send the bounty.
+            nearest_sens: The number of nearest sensing satellites to send the bounty to.
+        """
+
+        neighbors = self._get_nearest(sat_type="sensing", number=nearest_sens)
+        size = 1  # bytes of a bounty send
+
+        # Send a bounty update to all neighbors
+        for neighbor in neighbors:
+            self._network.send_bounty_path(
+                self.name, neighbor, self.name, neighbor, target_id, size, time
+            )

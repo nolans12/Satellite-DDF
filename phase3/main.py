@@ -70,11 +70,9 @@ def main(
 
 
 if __name__ == '__main__':
-    # main()
 
-    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'new.yaml')
+    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'global.yaml')
 
-    # # Create the environment
     env = environment.Environment.from_config(scenario)
 
     env.simulate()

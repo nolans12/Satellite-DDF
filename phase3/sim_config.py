@@ -29,6 +29,7 @@ class Estimators(enum.Enum):
     LOCAL = enum.auto()
     COVARIANCE_INTERSECTION = enum.auto()
     EVENT_TRIGGERED = enum.auto()
+    FEDERATED = enum.auto()
 
 
 @dataclasses.dataclass
@@ -126,6 +127,9 @@ class SimConfig:
 
     # Commanders' Intents
     commanders_intent: util.CommandersIndent
+
+    # Plan horizon
+    plan_horizon_m: int
 
     # Ground Stations
     ground_stations: dict[str, GroundStation]

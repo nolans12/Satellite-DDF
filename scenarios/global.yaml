@@ -1,0 +1,2402 @@
+commanders_intent:
+  0:
+    1: 175
+    2: 225
+    3: 350
+    4: 110
+    5: 125
+comms:
+  max_bandwidth: 100000
+  max_neighbors: 4
+  max_range: 1000000
+  min_range: 0
+estimator: FEDERATED
+plan_horizon_m: 1
+fusion_satellites:
+  FusionSat0:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 0.0
+      raan: 0.0
+    sensor: null
+  FusionSat1:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 18.0
+      raan: 0.0
+    sensor: null
+  FusionSat10:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 180.0
+      raan: 0.0
+    sensor: null
+  FusionSat11:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 198.0
+      raan: 0.0
+    sensor: null
+  FusionSat12:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 216.0
+      raan: 0.0
+    sensor: null
+  FusionSat13:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 234.0
+      raan: 0.0
+    sensor: null
+  FusionSat14:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 252.0
+      raan: 0.0
+    sensor: null
+  FusionSat15:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 270.0
+      raan: 0.0
+    sensor: null
+  FusionSat16:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 288.0
+      raan: 0.0
+    sensor: null
+  FusionSat17:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 306.0
+      raan: 0.0
+    sensor: null
+  FusionSat18:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 324.0
+      raan: 0.0
+    sensor: null
+  FusionSat19:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 342.0
+      raan: 0.0
+    sensor: null
+  FusionSat2:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 36.0
+      raan: 0.0
+    sensor: null
+  FusionSat20:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 1.0
+      raan: 120.0
+    sensor: null
+  FusionSat21:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 19.0
+      raan: 120.0
+    sensor: null
+  FusionSat22:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 37.0
+      raan: 120.0
+    sensor: null
+  FusionSat23:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 55.0
+      raan: 120.0
+    sensor: null
+  FusionSat24:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 73.0
+      raan: 120.0
+    sensor: null
+  FusionSat25:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 91.0
+      raan: 120.0
+    sensor: null
+  FusionSat26:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 109.0
+      raan: 120.0
+    sensor: null
+  FusionSat27:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 127.0
+      raan: 120.0
+    sensor: null
+  FusionSat28:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 145.0
+      raan: 120.0
+    sensor: null
+  FusionSat29:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 163.0
+      raan: 120.0
+    sensor: null
+  FusionSat3:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 54.0
+      raan: 0.0
+    sensor: null
+  FusionSat30:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 181.0
+      raan: 120.0
+    sensor: null
+  FusionSat31:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 199.0
+      raan: 120.0
+    sensor: null
+  FusionSat32:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 217.0
+      raan: 120.0
+    sensor: null
+  FusionSat33:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 235.0
+      raan: 120.0
+    sensor: null
+  FusionSat34:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 253.0
+      raan: 120.0
+    sensor: null
+  FusionSat35:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 271.0
+      raan: 120.0
+    sensor: null
+  FusionSat36:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 289.0
+      raan: 120.0
+    sensor: null
+  FusionSat37:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 307.0
+      raan: 120.0
+    sensor: null
+  FusionSat38:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 325.0
+      raan: 120.0
+    sensor: null
+  FusionSat39:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 343.0
+      raan: 120.0
+    sensor: null
+  FusionSat4:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 72.0
+      raan: 0.0
+    sensor: null
+  FusionSat40:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 2.0
+      raan: 240.0
+    sensor: null
+  FusionSat41:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 20.0
+      raan: 240.0
+    sensor: null
+  FusionSat42:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 38.0
+      raan: 240.0
+    sensor: null
+  FusionSat43:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 56.0
+      raan: 240.0
+    sensor: null
+  FusionSat44:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 74.0
+      raan: 240.0
+    sensor: null
+  FusionSat45:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 92.0
+      raan: 240.0
+    sensor: null
+  FusionSat46:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 110.0
+      raan: 240.0
+    sensor: null
+  FusionSat47:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 128.0
+      raan: 240.0
+    sensor: null
+  FusionSat48:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 146.0
+      raan: 240.0
+    sensor: null
+  FusionSat49:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 164.0
+      raan: 240.0
+    sensor: null
+  FusionSat5:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 90.0
+      raan: 0.0
+    sensor: null
+  FusionSat50:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 182.0
+      raan: 240.0
+    sensor: null
+  FusionSat51:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 200.0
+      raan: 240.0
+    sensor: null
+  FusionSat52:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 218.0
+      raan: 240.0
+    sensor: null
+  FusionSat53:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 236.0
+      raan: 240.0
+    sensor: null
+  FusionSat54:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 254.0
+      raan: 240.0
+    sensor: null
+  FusionSat55:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 272.0
+      raan: 240.0
+    sensor: null
+  FusionSat56:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 290.0
+      raan: 240.0
+    sensor: null
+  FusionSat57:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 308.0
+      raan: 240.0
+    sensor: null
+  FusionSat58:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 326.0
+      raan: 240.0
+    sensor: null
+  FusionSat59:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 344.0
+      raan: 240.0
+    sensor: null
+  FusionSat6:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 108.0
+      raan: 0.0
+    sensor: null
+  FusionSat60:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 3.0
+      raan: 216.0
+    sensor: null
+  FusionSat61:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 21.0
+      raan: 216.0
+    sensor: null
+  FusionSat62:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 39.0
+      raan: 216.0
+    sensor: null
+  FusionSat63:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 57.0
+      raan: 216.0
+    sensor: null
+  FusionSat64:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 75.0
+      raan: 216.0
+    sensor: null
+  FusionSat65:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 93.0
+      raan: 216.0
+    sensor: null
+  FusionSat66:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 111.0
+      raan: 216.0
+    sensor: null
+  FusionSat67:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 129.0
+      raan: 216.0
+    sensor: null
+  FusionSat68:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 147.0
+      raan: 216.0
+    sensor: null
+  FusionSat69:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 165.0
+      raan: 216.0
+    sensor: null
+  FusionSat7:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 126.0
+      raan: 0.0
+    sensor: null
+  FusionSat70:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 183.0
+      raan: 216.0
+    sensor: null
+  FusionSat71:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 201.0
+      raan: 216.0
+    sensor: null
+  FusionSat72:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 219.0
+      raan: 216.0
+    sensor: null
+  FusionSat73:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 237.0
+      raan: 216.0
+    sensor: null
+  FusionSat74:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 255.0
+      raan: 216.0
+    sensor: null
+  FusionSat75:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 273.0
+      raan: 216.0
+    sensor: null
+  FusionSat76:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 291.0
+      raan: 216.0
+    sensor: null
+  FusionSat77:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 309.0
+      raan: 216.0
+    sensor: null
+  FusionSat78:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 327.0
+      raan: 216.0
+    sensor: null
+  FusionSat79:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 345.0
+      raan: 216.0
+    sensor: null
+  FusionSat8:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 144.0
+      raan: 0.0
+    sensor: null
+  FusionSat80:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 4.0
+      raan: 288.0
+    sensor: null
+  FusionSat81:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 22.0
+      raan: 288.0
+    sensor: null
+  FusionSat82:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 40.0
+      raan: 288.0
+    sensor: null
+  FusionSat83:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 58.0
+      raan: 288.0
+    sensor: null
+  FusionSat84:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 76.0
+      raan: 288.0
+    sensor: null
+  FusionSat85:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 94.0
+      raan: 288.0
+    sensor: null
+  FusionSat86:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 112.0
+      raan: 288.0
+    sensor: null
+  FusionSat87:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 130.0
+      raan: 288.0
+    sensor: null
+  FusionSat88:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 148.0
+      raan: 288.0
+    sensor: null
+  FusionSat89:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 166.0
+      raan: 288.0
+    sensor: null
+  FusionSat9:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 162.0
+      raan: 0.0
+    sensor: null
+  FusionSat90:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 184.0
+      raan: 288.0
+    sensor: null
+  FusionSat91:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 202.0
+      raan: 288.0
+    sensor: null
+  FusionSat92:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 220.0
+      raan: 288.0
+    sensor: null
+  FusionSat93:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 238.0
+      raan: 288.0
+    sensor: null
+  FusionSat94:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 256.0
+      raan: 288.0
+    sensor: null
+  FusionSat95:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 274.0
+      raan: 288.0
+    sensor: null
+  FusionSat96:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 292.0
+      raan: 288.0
+    sensor: null
+  FusionSat97:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 310.0
+      raan: 288.0
+    sensor: null
+  FusionSat98:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 328.0
+      raan: 288.0
+    sensor: null
+  FusionSat99:
+    color: green
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 346.0
+      raan: 288.0
+    sensor: null
+ground_stations:
+  GS1:
+    color: black
+    comms_range: 10000
+    fov: 80
+    lat: 60.0
+    lon: 10.0
+plot:
+  gifs:
+  - SATELLITE_SIMULATION
+  output_prefix: test
+  plots:
+  - ESTIMATION
+  - COMMUNICATION
+  - GROUND_STATION_RESULTS
+  show_comms: true
+  show_live: true
+sensing_satellites:
+  SensingSat0:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 0.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat1:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 18.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat10:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 180.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat11:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 198.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat12:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 216.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat13:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 234.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat14:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 252.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat15:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 270.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat16:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 288.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat17:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 306.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat18:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 324.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat19:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 342.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat2:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 36.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat20:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 1.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat21:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 19.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat22:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 37.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat23:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 55.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat24:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 73.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat25:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 91.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat26:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 109.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat27:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 127.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat28:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 145.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat29:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 163.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat3:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 54.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat30:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 181.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat31:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 199.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat32:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 217.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat33:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 235.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat34:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 253.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat35:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 271.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat36:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 289.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat37:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 307.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat38:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 325.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat39:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 343.0
+      raan: 120.0
+    sensor: SensorGreat
+  SensingSat4:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 72.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat40:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 2.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat41:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 20.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat42:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 38.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat43:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 56.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat44:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 74.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat45:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 92.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat46:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 110.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat47:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 128.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat48:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 146.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat49:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 164.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat5:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 90.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat50:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 182.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat51:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 200.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat52:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 218.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat53:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 236.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat54:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 254.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat55:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 272.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat56:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 290.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat57:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 308.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat58:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 326.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat59:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 344.0
+      raan: 240.0
+    sensor: SensorGreat
+  SensingSat6:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 108.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat7:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 126.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat8:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 144.0
+      raan: 0.0
+    sensor: SensorGreat
+  SensingSat9:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 162.0
+      raan: 0.0
+    sensor: SensorGreat
+sensors:
+  SensorBad:
+    bearings_error:
+    - 11.5
+    - 11.5
+    fov: 115
+  SensorGood:
+    bearings_error:
+    - 1.15
+    - 1.15
+    fov: 115
+  SensorGreat:
+    bearings_error:
+    - 0.115
+    - 0.115
+    fov: 115
+sim_duration_m: 10
+sim_time_step_m: 0.1
+targets:
+  Targ1:
+    color: '#e71714'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 80
+    target_id: 1
+    uncertainty:
+    - 3.0
+    - 7.5
+    - 0.0
+    - 90.0
+    - 0.1
+  # Targ2:
+  #   color: '#eea62a'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 75
+  #   target_id: 2
+  #   uncertainty:
+  #   - 3.1
+  #   - 7.6
+  #   - 0.0
+  #   - 90.0
+  #   - 0.11
+  # Targ3:
+  #   color: '#58b428'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 70
+  #   target_id: 3
+  #   uncertainty:
+  #   - 2.9
+  #   - 7.4
+  #   - 0.0
+  #   - 90.0
+  #   - 0.09
+  # Targ4:
+  #   color: '#2879b4'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 65
+  #   target_id: 4
+  #   uncertainty:
+  #   - 3.2
+  #   - 7.7
+  #   - 0.0
+  #   - 90.0
+  #   - 0.12
+  # Targ5:
+  #   color: '#b228b4'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 60
+  #   target_id: 5
+  #   uncertainty:
+  #   - 2.8
+  #   - 7.3
+  #   - 0.0
+  #   - 90.0
+  #   - 0.08
+  # Targ6:
+  #   color: '#28b4b4'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 55
+  #   target_id: 6
+  #   uncertainty:
+  #   - 3.3
+  #   - 7.8
+  #   - 0.0
+  #   - 90.0
+  #   - 0.13
+  # Targ7:
+  #   color: '#b45828'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 50
+  #   target_id: 7
+  #   uncertainty:
+  #   - 2.7
+  #   - 7.2
+  #   - 0.0
+  #   - 90.0
+  #   - 0.07
+  # Targ8:
+  #   color: '#5828b4'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 45
+  #   target_id: 8
+  #   uncertainty:
+  #   - 3.4
+  #   - 7.9
+  #   - 0.0
+  #   - 90.0
+  #   - 0.14
+  # Targ9:
+  #   color: '#b4b428'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 40
+  #   target_id: 9
+  #   uncertainty:
+  #   - 2.6
+  #   - 7.1
+  #   - 0.0
+  #   - 90.0
+  #   - 0.06
+  # Targ10:
+  #   color: '#28b458'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 35
+  #   target_id: 10
+  #   uncertainty:
+  #   - 3.5
+  #   - 8.0
+  #   - 0.0
+  #   - 90.0
+  #   - 0.15
+  # Targ11:
+  #   color: '#ff4d4d'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 30
+  #   target_id: 11
+  #   uncertainty:
+  #   - 3.1
+  #   - 7.4
+  #   - 0.0
+  #   - 90.0
+  #   - 0.11
+  # Targ12:
+  #   color: '#ff9933'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 25
+  #   target_id: 12
+  #   uncertainty:
+  #   - 2.9
+  #   - 7.6
+  #   - 0.0
+  #   - 90.0
+  #   - 0.09
+  # Targ13:
+  #   color: '#99cc00'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 20
+  #   target_id: 13
+  #   uncertainty:
+  #   - 3.2
+  #   - 7.3
+  #   - 0.0
+  #   - 90.0
+  #   - 0.12
+  # Targ14:
+  #   color: '#3399ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 80
+  #   target_id: 14
+  #   uncertainty:
+  #   - 2.8
+  #   - 7.7
+  #   - 0.0
+  #   - 90.0
+  #   - 0.08
+  # Targ15:
+  #   color: '#9933ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 75
+  #   target_id: 15
+  #   uncertainty:
+  #   - 3.3
+  #   - 7.5
+  #   - 0.0
+  #   - 90.0
+  #   - 0.13
+  # Targ16:
+  #   color: '#ff3399'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 70
+  #   target_id: 16
+  #   uncertainty:
+  #   - 3.0
+  #   - 7.8
+  #   - 0.0
+  #   - 90.0
+  #   - 0.10
+  # Targ17:
+  #   color: '#00cc99'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 65
+  #   target_id: 17
+  #   uncertainty:
+  #   - 2.7
+  #   - 7.2
+  #   - 0.0
+  #   - 90.0
+  #   - 0.07
+  # Targ18:
+  #   color: '#ff6600'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 60
+  #   target_id: 18
+  #   uncertainty:
+  #   - 3.4
+  #   - 7.9
+  #   - 0.0
+  #   - 90.0
+  #   - 0.14
+  # Targ19:
+  #   color: '#6600cc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 55
+  #   target_id: 19
+  #   uncertainty:
+  #   - 2.6
+  #   - 7.1
+  #   - 0.0
+  #   - 90.0
+  #   - 0.06
+  # Targ20:
+  #   color: '#cc6600'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 50
+  #   target_id: 20
+  #   uncertainty:
+  #   - 3.5
+  #   - 8.0
+  #   - 0.0
+  #   - 90.0
+  #   - 0.15
+  # Targ21:
+  #   color: '#00cc66'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 45
+  #   target_id: 21
+  #   uncertainty:
+  #   - 3.1
+  #   - 7.5
+  #   - 0.0
+  #   - 90.0
+  #   - 0.11
+  # Targ22:
+  #   color: '#cc0066'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 40
+  #   target_id: 22
+  #   uncertainty:
+  #   - 2.9
+  #   - 7.4
+  #   - 0.0
+  #   - 90.0
+  #   - 0.09
+  # Targ23:
+  #   color: '#6666ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 35
+  #   target_id: 23
+  #   uncertainty:
+  #   - 3.2
+  #   - 7.7
+  #   - 0.0
+  #   - 90.0
+  #   - 0.12
+  # Targ24:
+  #   color: '#ff6666'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 30
+  #   target_id: 24
+  #   uncertainty:
+  #   - 2.8
+  #   - 7.3
+  #   - 0.0
+  #   - 90.0
+  #   - 0.08
+  # Targ25:
+  #   color: '#66ff66'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 25
+  #   target_id: 25
+  #   uncertainty:
+  #   - 3.3
+  #   - 7.8
+  #   - 0.0
+  #   - 90.0
+  #   - 0.13
+  # Targ26:
+  #   color: '#cc3366'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 20
+  #   target_id: 26
+  #   uncertainty:
+  #   - 3.0
+  #   - 7.6
+  #   - 0.0
+  #   - 90.0
+  #   - 0.10
+  # Targ27:
+  #   color: '#33cc66'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 80
+  #   target_id: 27
+  #   uncertainty:
+  #   - 2.7
+  #   - 7.2
+  #   - 0.0
+  #   - 90.0
+  #   - 0.07
+  # Targ28:
+  #   color: '#6633cc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 75
+  #   target_id: 28
+  #   uncertainty:
+  #   - 3.4
+  #   - 7.9
+  #   - 0.0
+  #   - 90.0
+  #   - 0.14
+  # Targ29:
+  #   color: '#cc6633'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 70
+  #   target_id: 29
+  #   uncertainty:
+  #   - 2.6
+  #   - 7.1
+  #   - 0.0
+  #   - 90.0
+  #   - 0.06
+  # Targ30:
+  #   color: '#33cc33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 65
+  #   target_id: 30
+  #   uncertainty:
+  #   - 3.5
+  #   - 8.0
+  #   - 0.0
+  #   - 90.0
+  #   - 0.15
+  # Targ31:
+  #   color: '#cc3333'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 60
+  #   target_id: 31
+  #   uncertainty:
+  #   - 3.1
+  #   - 7.5
+  #   - 0.0
+  #   - 90.0
+  #   - 0.11
+  # Targ32:
+  #   color: '#3333cc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 55
+  #   target_id: 32
+  #   uncertainty:
+  #   - 2.9
+  #   - 7.4
+  #   - 0.0
+  #   - 90.0
+  #   - 0.09
+  # Targ33:
+  #   color: '#cccc33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 50
+  #   target_id: 33
+  #   uncertainty:
+  #   - 3.2
+  #   - 7.7
+  #   - 0.0
+  #   - 90.0
+  #   - 0.12
+  # Targ34:
+  #   color: '#33cccc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 45
+  #   target_id: 34
+  #   uncertainty:
+  #   - 2.8
+  #   - 7.3
+  #   - 0.0
+  #   - 90.0
+  #   - 0.08
+  # Targ35:
+  #   color: '#cc33cc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 40
+  #   target_id: 35
+  #   uncertainty:
+  #   - 3.3
+  #   - 7.8
+  #   - 0.0
+  #   - 90.0
+  #   - 0.13
+  # Targ36:
+  #   color: '#99ff33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 35
+  #   target_id: 36
+  #   uncertainty:
+  #   - 3.0
+  #   - 7.6
+  #   - 0.0
+  #   - 90.0
+  #   - 0.10
+  # Targ37:
+  #   color: '#ff3399'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 30
+  #   target_id: 37
+  #   uncertainty:
+  #   - 2.7
+  #   - 7.2
+  #   - 0.0
+  #   - 90.0
+  #   - 0.07
+  # Targ38:
+  #   color: '#3399ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 25
+  #   target_id: 38
+  #   uncertainty:
+  #   - 3.4
+  #   - 7.9
+  #   - 0.0
+  #   - 90.0
+  #   - 0.14
+  # Targ39:
+  #   color: '#ff9933'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 20
+  #   target_id: 39
+  #   uncertainty:
+  #   - 2.6
+  #   - 7.1
+  #   - 0.0
+  #   - 90.0
+  #   - 0.06
+  # Targ40:
+  #   color: '#33ff99'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 80
+  #   target_id: 40
+  #   uncertainty:
+  #   - 3.5
+  #   - 8.0
+  #   - 0.0
+  #   - 90.0
+  #   - 0.15
+  # Targ41:
+  #   color: '#ff3333'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 75
+  #   target_id: 41
+  #   uncertainty:
+  #   - 3.1
+  #   - 7.5
+  #   - 0.0
+  #   - 90.0
+  #   - 0.11
+  # Targ42:
+  #   color: '#33ff33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 70
+  #   target_id: 42
+  #   uncertainty:
+  #   - 2.9
+  #   - 7.4
+  #   - 0.0
+  #   - 90.0
+  #   - 0.09
+  # Targ43:
+  #   color: '#3333ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 65
+  #   target_id: 43
+  #   uncertainty:
+  #   - 3.2
+  #   - 7.7
+  #   - 0.0
+  #   - 90.0
+  #   - 0.12
+  # Targ44:
+  #   color: '#ffff33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 60
+  #   target_id: 44
+  #   uncertainty:
+  #   - 2.8
+  #   - 7.3
+  #   - 0.0
+  #   - 90.0
+  #   - 0.08
+  # Targ45:
+  #   color: '#33ffff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 55
+  #   target_id: 45
+  #   uncertainty:
+  #   - 3.3
+  #   - 7.8
+  #   - 0.0
+  #   - 90.0
+  #   - 0.13
+  # Targ46:
+  #   color: '#ff33ff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 50
+  #   target_id: 46
+  #   uncertainty:
+  #   - 3.0
+  #   - 7.6
+  #   - 0.0
+  #   - 90.0
+  #   - 0.10
+  # Targ47:
+  #   color: '#ccff33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 45
+  #   target_id: 47
+  #   uncertainty:
+  #   - 2.7
+  #   - 7.2
+  #   - 0.0
+  #   - 90.0
+  #   - 0.07
+  # Targ48:
+  #   color: '#ff33cc'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 40
+  #   target_id: 48
+  #   uncertainty:
+  #   - 3.4
+  #   - 7.9
+  #   - 0.0
+  #   - 90.0
+  #   - 0.14
+  # Targ49:
+  #   color: '#33ccff'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 35
+  #   target_id: 49
+  #   uncertainty:
+  #   - 2.6
+  #   - 7.1
+  #   - 0.0
+  #   - 90.0
+  #   - 0.06
+  # Targ50:
+  #   color: '#ffcc33'
+  #   coords:
+  #   - 45.0
+  #   - 0.0
+  #   - 0.0
+  #   heading: 0
+  #   speed: 30
+  #   target_id: 50
+  #   uncertainty:
+  #   - 3.5
+  #   - 8.0
+  #   - 0.0
+  #   - 90.0
+  #   - 0.15

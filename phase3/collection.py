@@ -34,31 +34,45 @@ class Measurement:
     time: float
     alpha: float
     beta: float
+    sat_name: str  # name of the satellite that took the measurement
+    sat_state: npt.NDArray  # 6x1 of the [x,y,z,vx,vy,vz]
+    R_mat: npt.NDArray  # sensor noise matrix
+
+
+@dataclasses.dataclass
+class Estimate:
+    target_id: int
+    time: float
+    estimate: npt.NDArray
+    covariance: npt.NDArray
+    innovation: npt.NDArray
+    innovation_covariance: npt.NDArray
+    track_error: float
 
 
 @dataclasses.dataclass
 class Transmission:
-    target_id: int
-    sender: str
-    receiver: str
-    time: float
-    size: int
+    sender: str  # sat/gs name
+    receiver: str  # sat/gs name
+    source: str  # sat/gs name
+    destination: str  # sat/gs name
+    size: float  # number of bytes (estimate)
+    time: float  # time of transmission
 
 
 @dataclasses.dataclass
 class MeasurementTransmission(Transmission):
-    alpha: float
-    beta: float
-
-    @property
-    def has_alpha_beta(self) -> bool:
-        return not np.isnan(self.alpha) and not np.isnan(self.beta)
+    measurements: list[Measurement]
 
 
 @dataclasses.dataclass
 class EstimateTransmission(Transmission):
-    estimate: npt.NDArray
-    covariance: npt.NDArray
+    estimates: list[Estimate]
+
+
+@dataclasses.dataclass
+class BountyTransmission(Transmission):
+    target_id: int
 
 
 @dataclasses.dataclass
