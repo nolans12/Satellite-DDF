@@ -224,6 +224,8 @@ class Environment:
         # - Returns a dictionary mapping from targetID to the closest fusion satellite
         custody_assignments = self.closest_fusion_custody(target_estimates)
 
+        i am here, plan for some horizon time t
+
         # CUSTODY HANDOFF:
         # - Track to track handoff as needed
         # - Also resends out bounties to the sensing satellites
