@@ -226,7 +226,9 @@ class Plotter:
                 continue
             x1, y1, z1 = sat1.orbit.r.value
             x2, y2, z2 = sat2.orbit.r.value
-            if comms.G.edges[edge]['active'] == "Track Handoff": # TODO: make it a list, not just a singlar string
+            if (
+                comms.G.edges[edge]['active'] == "Track Handoff"
+            ):  # TODO: make it a list, not just a singlar string
                 self._ax.plot(
                     [x1, x2],
                     [y1, y2],
@@ -241,7 +243,7 @@ class Plotter:
                     [x1, x2],
                     [y1, y2],
                     [z1, z2],
-                    color=(1.0, 0.3, 0.3),
+                    color=(1.0, 0.3, 0.3),  # Red color
                     linestyle='dotted',
                     linewidth=1,
                 )
@@ -250,7 +252,7 @@ class Plotter:
                     [x1, x2],
                     [y1, y2],
                     [z1, z2],
-                    color=(0.3, 1.0, 0.3),
+                    color=(0.3, 1.0, 0.3),  # Green color
                     linestyle='solid',
                     linewidth=2,
                 )

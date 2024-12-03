@@ -530,7 +530,7 @@ class Estimator:
             covariance=cov_fused,
             innovation=np.zeros(2),
             innovation_covariance=np.eye(2),
-            track_error=self.calcTrackError(est_fused, cov_fused),
+            track_uncertainty=self.calcTrackError(est_fused, cov_fused),
         )
 
     def det_of_fused_covariance(
@@ -605,7 +605,7 @@ class Estimator:
                     covariance=cov,
                     innovation=innovation,
                     innovation_covariance=innovationCov,
-                    track_error=self.calcTrackError(est, cov),
+                    track_uncertainty=self.calcTrackError(est, cov),
                 )
             ]
         )

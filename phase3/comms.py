@@ -253,13 +253,30 @@ class Comms(Generic[S, F, G]):
 
         Loop through all nodes and return the ones of the given type
         """
-        nodes = []
-        for node in self._nodes:
-            if sat_type == "fusion" and node.startswith("FusionSat"):
-                nodes.append(node)
-            elif sat_type == "sensing" and node.startswith("SensingSat"):
-                nodes.append(node)
-        return nodes
+        if sat_type == "fusion":
+            return list(self._fusion_sats)
+        elif sat_type == "sensing":
+            return list(self._sensing_sats)
+        else:
+            # Log an error
+            logging.error(f"Invalid satellite type: {sat_type}")
+            exit(1)
+
+    def get_nearest(
+        self, position: npt.NDArray, sat_type: str, number: int
+    ) -> list[str]:
+        """Get the nearest X amount of satellites to a given position of a given type."""
+
+        # Get all nodes of a given type
+        options = self.get_nodes(sat_type)
+
+        # Get the nearest X amount of nodes
+        nearest = sorted(
+            options,
+            key=lambda x: np.linalg.norm(position - self._nodes[x].pos),
+        )[:number]
+
+        return nearest
 
     def get_distance(self, node1: str, node2: str) -> float:
         """Get the distance between two nodes.
@@ -311,6 +328,110 @@ class Comms(Generic[S, F, G]):
         return True
 
     def update_edges(self) -> None:
+        """Re-compute the edges in the graph
+
+        Assume the fusion layer has to abide by max_neighbors when connecting fusion to fusion.
+        But, sensing layer can connect to any other node in its range.
+        """
+
+        # Clear all edges in the graph
+        self.G.clear_edges()
+
+        # Add all edges in the fusion layer first
+        for agent1, agent2 in itertools.combinations(self._nodes.values(), 2):
+            # If either agent is not in the fusion layer, skip
+            if not (
+                agent1.name.startswith("FusionSat")
+                and agent2.name.startswith("FusionSat")
+            ):
+                continue
+
+            # If edge already exists, skip
+            if self.G.has_edge(agent1.name, agent2.name):
+                continue
+
+            dist = np.linalg.norm(agent1.pos - agent2.pos)
+            if self._config.min_range < dist < self._config.max_range:
+                if not linalg.intersects_earth(agent1.pos, agent2.pos):
+                    # Add edges in both directions, between the fusion nodes
+                    self.G.add_edge(
+                        agent1.name,
+                        agent2.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
+                    )
+                    self.G.add_edge(
+                        agent2.name,
+                        agent1.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
+                    )
+                    # Set the edge to be inactive
+                    self.G[agent1.name][agent2.name]['active'] = False
+                    self.G[agent2.name][agent1.name]['active'] = False
+
+        # Now loop through and remove the edges to abide by max_neighbors
+        for agent in self._nodes.values():
+            if agent.name.startswith("FusionSat"):
+                # If the number of neighbors is greater than the max, remove the extra neighbors
+                if (
+                    len(neighbors := list(self.G.neighbors(agent.name)))
+                    <= self._config.max_neighbors
+                ):
+                    continue
+
+                # Get the list of neighbors
+                neighbors = list(self._nodes[neighbor] for neighbor in neighbors)
+
+                # If the number of neighbors is greater than the max, remove the farthest neighbors
+                dists = [
+                    np.linalg.norm(neighbor.pos - agent.pos) for neighbor in neighbors
+                ]
+
+                # Sort the neighbors by distance
+                sorted_neighbors = [
+                    x
+                    for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
+                ]
+
+                # Remove the extra neighbors
+                for i in range(self._config.max_neighbors, len(sorted_neighbors)):
+                    self.G.remove_edge(agent.name, sorted_neighbors[i].name)
+
+        # Now, finally, add all sensing to fusion edges!
+        for agent1, agent2 in itertools.combinations(self._nodes.values(), 2):
+
+            # Only do fusion - sensing combo!
+            if not (
+                agent1.name.startswith("SensingSat")
+                and agent2.name.startswith("FusionSat")
+            ):
+                continue
+
+            # If edge already exists, skip
+            if self.G.has_edge(agent1.name, agent2.name):
+                continue
+
+            dist = np.linalg.norm(agent1.pos - agent2.pos)
+            if self._config.min_range < dist < self._config.max_range:
+                if not linalg.intersects_earth(agent1.pos, agent2.pos):
+                    self.G.add_edge(
+                        agent1.name,
+                        agent2.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
+                    )
+                    self.G.add_edge(
+                        agent2.name,
+                        agent1.name,
+                        max_bandwidth=self._config.max_bandwidth,
+                        used_bandwidth=0,
+                    )
+                    # Set the edge to be inactive
+                    self.G[agent1.name][agent2.name]['active'] = False
+                    self.G[agent2.name][agent1.name]['active'] = False
+
+    def update_edges_old(self) -> None:
         """Re-compute the edges in the graph
 
         This assumes that the position of the underlying nodes has changed.

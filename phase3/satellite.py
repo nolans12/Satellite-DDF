@@ -60,22 +60,6 @@ class Satellite:
                 filtered.append(neighbor)
         return filtered
 
-    def _get_nearest(self, sat_type: str, number: int) -> list[str]:
-        """
-        Gets the nearest X amount of neighbors of a given satellite type
-
-        Returns them as a list of stringed neighbor names.
-        """
-        # Get all nodes of a given type
-        options = self._network.get_nodes(sat_type)
-
-        # Get the nearest X amount of nodes
-        nearest = sorted(
-            options, key=lambda x: self._network.get_distance(self.name, x)
-        )[:number]
-
-        return nearest
-
     def propagate(self, time_step: u.Quantity[u.s], time: float):
         """
         Propagate the satellite's orbit forward in time by the given time step.
@@ -304,7 +288,9 @@ class FusionSatellite(Satellite):
                 self._estimator.EKF_predict(meas_for_target)
                 self._estimator.EKF_update(meas_for_target)
 
-    def send_bounties(self, target_id: int, time: float, nearest_sens: int) -> None:
+    def send_bounties(
+        self, target_id: int, targ_pos: npt.NDArray, time: float, nearest_sens: int
+    ) -> None:
         """
         Send a bounty on the target_id from source to all avaliable sensing satellites.
 
@@ -314,7 +300,9 @@ class FusionSatellite(Satellite):
             nearest_sens: The number of nearest sensing satellites to send the bounty to.
         """
 
-        neighbors = self._get_nearest(sat_type="sensing", number=nearest_sens)
+        neighbors = self._network.get_nearest(
+            position=targ_pos, sat_type="sensing", number=nearest_sens
+        )
         size = 1  # bytes of a bounty send
 
         # Send a bounty update to all neighbors

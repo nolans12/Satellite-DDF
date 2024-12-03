@@ -387,10 +387,17 @@ class Environment:
                 #     self._comms.G[old_sat.name][new_sat.name]['used_bandwidth'] = 0
                 # self._comms.G[old_sat.name][new_sat.name]['active'] = "Track Handoff"
 
+            # Get the current track, or if it exists
+            track = new_sat._estimator.estimation_data[
+                new_sat._estimator.estimation_data.target_id == target_id
+            ].iloc[-1]
+
+            targ_pos = track.estimate[np.array([0, 2, 4])]
+
             new_sat.custody[target_id] = True
             print(f'Sat {new_sat.name} has custody of target {target_id}')
             new_sat.send_bounties(
-                target_id, self.time.value, nearest_sens=3
+                target_id, targ_pos, self.time.value, nearest_sens=3
             )  # TODO: Change this to be nearest sensing satellites to targ estimate
 
     def update_bounties(self) -> None:

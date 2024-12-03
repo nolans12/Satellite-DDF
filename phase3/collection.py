@@ -47,15 +47,17 @@ class Estimate:
     covariance: npt.NDArray
     innovation: npt.NDArray
     innovation_covariance: npt.NDArray
-    track_error: float
+    track_uncertainty: (
+        float  # The trace uncertainty of the covariance matrix in the track
+    )
 
 
 @dataclasses.dataclass
 class Transmission:
-    sender: str  # sat/gs name
-    receiver: str  # sat/gs name
-    source: str  # sat/gs name
-    destination: str  # sat/gs name
+    sender: str  # sat/gs name (point to point)
+    receiver: str  # sat/gs name (point to point)
+    source: str  # sat/gs name (path, start)
+    destination: str  # sat/gs name (path, end)
     size: float  # number of bytes (estimate)
     time: float  # time of transmission
 
