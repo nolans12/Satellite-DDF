@@ -380,25 +380,20 @@ class Environment:
                 print(
                     f"Track to track handoff for target {target_id} from {old_sat.name} to {new_sat.name}"
                 )
-                # # Add edge if it doesn't exist and set it as active for track handoff
-                # if not self._comms.G.has_edge(old_sat.name, new_sat.name):
-                #     self._comms.G.add_edge(old_sat.name, new_sat.name)
-                #     self._comms.G[old_sat.name][new_sat.name]['max_bandwidth'] = 100000
-                #     self._comms.G[old_sat.name][new_sat.name]['used_bandwidth'] = 0
-                # self._comms.G[old_sat.name][new_sat.name]['active'] = "Track Handoff"
 
-            # Get the current track, or if it exists
-            track = new_sat._estimator.estimation_data[
-                new_sat._estimator.estimation_data.target_id == target_id
-            ].iloc[-1]
-
-            targ_pos = track.estimate[np.array([0, 2, 4])]
+            # Get the current track, or if it doesnt exit, just use location as fusion sats
+            if len(new_sat._estimator.estimation_data.target_id) == 0:
+                # This may happen at timestep 0, when initalization, otherwise track to track handoff occurs
+                pos = new_sat.pos
+            else:
+                track = new_sat._estimator.estimation_data[
+                    new_sat._estimator.estimation_data.target_id == target_id
+                ].iloc[-1]
+                pos = track.estimate[np.array([0, 2, 4])]
 
             new_sat.custody[target_id] = True
             print(f'Sat {new_sat.name} has custody of target {target_id}')
-            new_sat.send_bounties(
-                target_id, targ_pos, self.time.value, nearest_sens=3
-            )  # TODO: Change this to be nearest sensing satellites to targ estimate
+            new_sat.send_bounties(target_id, pos, self.time.value, nearest_sens=3)
 
     def update_bounties(self) -> None:
         """

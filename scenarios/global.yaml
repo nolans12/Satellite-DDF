@@ -1665,141 +1665,141 @@ targets:
     - 0.0
     - 90.0
     - 0.1
-  # Targ2:
-  #   color: '#eea62a'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 75
-  #   target_id: 2
-  #   uncertainty:
-  #   - 3.1
-  #   - 7.6
-  #   - 0.0
-  #   - 90.0
-  #   - 0.11
-  # Targ3:
-  #   color: '#58b428'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 70
-  #   target_id: 3
-  #   uncertainty:
-  #   - 2.9
-  #   - 7.4
-  #   - 0.0
-  #   - 90.0
-  #   - 0.09
-  # Targ4:
-  #   color: '#2879b4'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 65
-  #   target_id: 4
-  #   uncertainty:
-  #   - 3.2
-  #   - 7.7
-  #   - 0.0
-  #   - 90.0
-  #   - 0.12
-  # Targ5:
-  #   color: '#b228b4'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 60
-  #   target_id: 5
-  #   uncertainty:
-  #   - 2.8
-  #   - 7.3
-  #   - 0.0
-  #   - 90.0
-  #   - 0.08
-  # Targ6:
-  #   color: '#28b4b4'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 55
-  #   target_id: 6
-  #   uncertainty:
-  #   - 3.3
-  #   - 7.8
-  #   - 0.0
-  #   - 90.0
-  #   - 0.13
-  # Targ7:
-  #   color: '#b45828'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 50
-  #   target_id: 7
-  #   uncertainty:
-  #   - 2.7
-  #   - 7.2
-  #   - 0.0
-  #   - 90.0
-  #   - 0.07
-  # Targ8:
-  #   color: '#5828b4'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 45
-  #   target_id: 8
-  #   uncertainty:
-  #   - 3.4
-  #   - 7.9
-  #   - 0.0
-  #   - 90.0
-  #   - 0.14
-  # Targ9:
-  #   color: '#b4b428'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 40
-  #   target_id: 9
-  #   uncertainty:
-  #   - 2.6
-  #   - 7.1
-  #   - 0.0
-  #   - 90.0
-  #   - 0.06
-  # Targ10:
-  #   color: '#28b458'
-  #   coords:
-  #   - 45.0
-  #   - 0.0
-  #   - 0.0
-  #   heading: 0
-  #   speed: 35
-  #   target_id: 10
-  #   uncertainty:
-  #   - 3.5
-  #   - 8.0
-  #   - 0.0
-  #   - 90.0
-  #   - 0.15
+  Targ2:
+    color: '#eea62a'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 75
+    target_id: 2
+    uncertainty:
+    - 3.1
+    - 7.6
+    - 0.0
+    - 90.0
+    - 0.11
+  Targ3:
+    color: '#58b428'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 70
+    target_id: 3
+    uncertainty:
+    - 2.9
+    - 7.4
+    - 0.0
+    - 90.0
+    - 0.09
+  Targ4:
+    color: '#2879b4'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 65
+    target_id: 4
+    uncertainty:
+    - 3.2
+    - 7.7
+    - 0.0
+    - 90.0
+    - 0.12
+  Targ5:
+    color: '#b228b4'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 60
+    target_id: 5
+    uncertainty:
+    - 2.8
+    - 7.3
+    - 0.0
+    - 90.0
+    - 0.08
+  Targ6:
+    color: '#28b4b4'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 55
+    target_id: 6
+    uncertainty:
+    - 3.3
+    - 7.8
+    - 0.0
+    - 90.0
+    - 0.13
+  Targ7:
+    color: '#b45828'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 50
+    target_id: 7
+    uncertainty:
+    - 2.7
+    - 7.2
+    - 0.0
+    - 90.0
+    - 0.07
+  Targ8:
+    color: '#5828b4'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 45
+    target_id: 8
+    uncertainty:
+    - 3.4
+    - 7.9
+    - 0.0
+    - 90.0
+    - 0.14
+  Targ9:
+    color: '#b4b428'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 40
+    target_id: 9
+    uncertainty:
+    - 2.6
+    - 7.1
+    - 0.0
+    - 90.0
+    - 0.06
+  Targ10:
+    color: '#28b458'
+    coords:
+    - 45.0
+    - 0.0
+    - 0.0
+    heading: 0
+    speed: 35
+    target_id: 10
+    uncertainty:
+    - 3.5
+    - 8.0
+    - 0.0
+    - 90.0
+    - 0.15
   # Targ11:
   #   color: '#ff4d4d'
   #   coords:
