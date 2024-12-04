@@ -42,7 +42,7 @@ class Plotter:
         self._ax.set_xlabel('X (km)')
         self._ax.set_ylabel('Y (km)')
         self._ax.set_zlabel('Z (km)')
-        self._ax.set_title('Satellite Orbit Visualization')
+        self._ax.set_title(f'Satellite Orbit Visualization (Planning Horizon: 5 min)')
 
         # Earth parameters for plotting
         u_earth = np.linspace(0, 2 * np.pi, 100)
@@ -216,7 +216,7 @@ class Plotter:
             return
 
         for edge in comms.G.edges:
-            if comms.G.edges[edge]['active'] is None:
+            if comms.G.edges[edge]['active'] == "":
                 continue
             sat1_name = edge[0]
             sat2_name = edge[1]
@@ -238,7 +238,16 @@ class Plotter:
                     linewidth=2,
                 )
                 plt.pause(0.5)  # Pause for 0.5 seconds
-            elif comms.G.edges[edge]['active'] == "Bounty":
+            # elif comms.G.edges[edge]['active'] == "Bounty":
+            #     self._ax.plot(
+            #         [x1, x2],
+            #         [y1, y2],
+            #         [z1, z2],
+            #         color=(1.0, 0.3, 0.3),  # Red color
+            #         linestyle='dotted',
+            #         linewidth=1,
+            #     )
+            elif comms.G.edges[edge]['active'] == "Measurement":
                 self._ax.plot(
                     [x1, x2],
                     [y1, y2],
@@ -246,15 +255,6 @@ class Plotter:
                     color=(1.0, 0.3, 0.3),  # Red color
                     linestyle='dotted',
                     linewidth=1,
-                )
-            elif comms.G.edges[edge]['active'] == "Measurement":
-                self._ax.plot(
-                    [x1, x2],
-                    [y1, y2],
-                    [z1, z2],
-                    color=(0.3, 1.0, 0.3),  # Green color
-                    linestyle='solid',
-                    linewidth=2,
                 )
 
     def _plot_ground_stations(

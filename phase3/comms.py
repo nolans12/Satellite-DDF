@@ -116,10 +116,11 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a pair of satellites in the network.
         """
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
-        # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
+        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
         # Set the edge to be active
         self.G[sender][receiver]['active'] = "Measurement"
+        # print(f"Activated edge from {sender} to {receiver}")
 
         # Create a transmition
         self.measurements.append(
@@ -189,8 +190,6 @@ class Comms(Generic[S, F, G]):
         if path is None:
             return
 
-        print(f"{source} sending bounty to {destination} for target {target_id}")
-
         # send the bounty through the path
         for i in range(1, len(path)):
             self.send_bounty_pair(
@@ -219,8 +218,8 @@ class Comms(Generic[S, F, G]):
             time: Time the transmission occurs
         """
 
-        # Set the edge to be active
-        self.G[sender][receiver]['active'] = "Bounty"
+        # # Set the edge to be active
+        # self.G[sender][receiver]['active'] = "Bounty"
 
         self.bounties.append(
             collection.BountyTransmission(
@@ -334,7 +333,7 @@ class Comms(Generic[S, F, G]):
         But, sensing layer can connect to any other node in its range.
         """
 
-        # Clear all edges in the graph
+        # Clear all edges and their active states in the graph
         self.G.clear_edges()
 
         # Add all edges in the fusion layer first
@@ -367,8 +366,8 @@ class Comms(Generic[S, F, G]):
                         used_bandwidth=0,
                     )
                     # Set the edge to be inactive
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
+                    self.G[agent1.name][agent2.name]['active'] = ""
+                    self.G[agent2.name][agent1.name]['active'] = ""
 
         # Now loop through and remove the edges to abide by max_neighbors
         for agent in self._nodes.values():
@@ -428,65 +427,5 @@ class Comms(Generic[S, F, G]):
                         used_bandwidth=0,
                     )
                     # Set the edge to be inactive
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
-
-    def update_edges_old(self) -> None:
-        """Re-compute the edges in the graph
-
-        This assumes that the position of the underlying nodes has changed.
-
-        TODO: Different logic for ground stations and satellites.
-        """
-        # Clear all edges in the graph
-        self.G.clear_edges()
-
-        # Loop through each agent pair and remake the edges
-        for agent1, agent2 in itertools.combinations(self._nodes.values(), 2):
-            # Check if the distance is within range
-            dist = np.linalg.norm(agent1.pos - agent2.pos)
-            if self._config.min_range < dist < self._config.max_range:
-                # Check if the Earth is blocking the two agents
-                if not linalg.intersects_earth(agent1.pos, agent2.pos):
-                    # Add the edge width bandwidth metadata
-                    self.G.add_edge(
-                        agent1.name,
-                        agent2.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-                    # also add the edge in the opposite direction
-                    self.G.add_edge(
-                        agent2.name,
-                        agent1.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-
-                    # Set the edge to be active
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
-
-        # Restrict to just the maximum number of neighbors
-        for agent in self._nodes.values():
-            # If the number of neighbors is greater than the max, remove the extra neighbors
-            if (
-                len(neighbors := list(self.G.neighbors(agent.name)))
-                <= self._config.max_neighbors
-            ):
-                continue
-
-            # Get the list of neighbors
-            neighbors = list(self._nodes[neighbor] for neighbor in neighbors)
-
-            # Get the distances to each neighbor
-            dists = [np.linalg.norm(neighbor.pos - agent.pos) for neighbor in neighbors]
-
-            # Sort the neighbors by distance
-            sorted_neighbors = [
-                x for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
-            ]
-
-            # Remove the extra neighbors
-            for i in range(self._config.max_neighbors, len(sorted_neighbors)):
-                self.G.remove_edge(agent.name, sorted_neighbors[i].name)
+                    self.G[agent1.name][agent2.name]['active'] = ""
+                    self.G[agent2.name][agent1.name]['active'] = ""

@@ -128,8 +128,8 @@ class SimConfig:
     # Commanders' Intents
     commanders_intent: util.CommandersIndent
 
-    # Plan horizon
-    plan_horizon_m: int
+    # Planning horizon
+    plan_horizon_m: float
 
     # Ground Stations
     ground_stations: dict[str, GroundStation]

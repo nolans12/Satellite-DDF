@@ -23,6 +23,7 @@ comms:
   min_range: 0
 
 estimator: "FEDERATED"
+plan_horizon_m: 1
 
 targets:
   Targ1:

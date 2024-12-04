@@ -260,12 +260,21 @@ class FusionSatellite(Satellite):
     def __init__(self, *args, local_estimator: estimator.Estimator | None, **kwargs):
         super().__init__(*args, **kwargs)
         self.custody = {}  # targetID: Boolean, who this sat has custody of
+        self.computation_capacity = (
+            2  # how many EKFs (target custodys) can hold at a time!
+        )
         self._estimator = local_estimator
 
     def process_measurements(self, time: float) -> None:
         """
         Process the measurements from the fusion satellite.
         """
+
+        # Always check, am i over my computation capacity?
+        if sum(self.custody.values()) > self.computation_capacity:
+            print(f'Sat {self.name} has too many custody assignments!')
+            print(f'{sum(self.custody.values())} > {self.computation_capacity}')
+            quit()
 
         # Find the set of measurements that were sent to this fusion satellite
         # ONLY IF DESTINATION == self.name
