@@ -13,6 +13,7 @@ from phase3 import comms
 from phase3 import estimator
 from phase3 import ground_station
 from phase3 import orbit
+from phase3 import raidRegion
 from phase3 import satellite
 from phase3 import sensor
 from phase3 import sim_config
@@ -27,6 +28,7 @@ class Environment:
         sensing_sats: list[satellite.SensingSatellite],
         fusion_sats: list[satellite.FusionSatellite],
         ground_stations: list[ground_station.GroundStation],
+        raid_regions: list[raidRegion.RaidRegion],
         targs: list[target.Target],
         comms: comms.Comms,
     ):
@@ -34,6 +36,7 @@ class Environment:
         self._sensing_sats = sensing_sats
         self._fusion_sats = fusion_sats
         self._ground_stations = ground_stations
+        self._raid_regions = raid_regions
         self._targs = targs
         self._comms = comms
         self._custody = {}
@@ -51,18 +54,20 @@ class Environment:
 
     @classmethod
     def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
-        targs = [
-            target.Target(
+
+        raid_regions = [
+            raidRegion.RaidRegion(
                 name=name,
-                target_id=t.target_id,
-                coords=np.array(t.coords),
-                heading=t.heading,
-                speed=t.speed,
-                uncertainty=np.array(t.uncertainty),
-                color=t.color,
+                center=np.array(r.center),
+                extent=np.array(r.extent),
+                initial_targs=r.initial_targs,
+                spawn_rate=r.spawn_rate,
+                color=r.color,
             )
-            for name, t in cfg.targets.items()
+            for name, r in cfg.raids.items()
         ]
+
+        targs = [t for raid in raid_regions for t in raid.targets]
 
         sensing_sats = [
             satellite.SensingSatellite(
@@ -113,7 +118,13 @@ class Environment:
 
         # Create and return an environment instance:
         return cls(
-            cfg, sensing_sats, fusion_sats, ground_stations, targs, comms_network
+            cfg,
+            sensing_sats,
+            fusion_sats,
+            ground_stations,
+            raid_regions,
+            targs,
+            comms_network,
         )
 
     def simulate(self) -> None:
@@ -172,6 +183,7 @@ class Environment:
                 self.time.value,
                 self._sensing_sats + self._fusion_sats,
                 self._targs,
+                self._raid_regions,
                 self._ground_stations,
                 self._comms,
             )
@@ -628,7 +640,7 @@ class Environment:
         target_path.mkdir(exist_ok=True)
         for targ in self._targs:
             if not targ._state_hist.empty:
-                targ._state_hist.to_csv(target_path / f'{targ.name}.csv')
+                targ._state_hist.to_csv(target_path / f'{targ.target_id}.csv')
 
         ## Make a satellite state folder
         satellite_path = save_path / 'satellites'

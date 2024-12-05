@@ -9,7 +9,7 @@ import numpy as np
 from numpy import typing as npt
 
 # Target -> Satellite -> # of numbers
-TargetAggregator = dict[int, dict[str, int]]
+TargetAggregator = dict[str, dict[str, int]]
 
 
 class GsDataType(enum.Enum):
@@ -30,7 +30,7 @@ class State:
 
 @dataclasses.dataclass
 class Measurement:
-    target_id: int
+    target_id: str
     time: float
     alpha: float
     beta: float
@@ -41,7 +41,7 @@ class Measurement:
 
 @dataclasses.dataclass
 class Estimate:
-    target_id: int
+    target_id: str
     time: float
     estimate: npt.NDArray
     covariance: npt.NDArray

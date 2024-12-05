@@ -6,7 +6,7 @@ plot:
 
   show_live: true
 
-  show_comms: false
+  show_comms: true
 
   plots:
     - "ESTIMATION"
@@ -17,7 +17,7 @@ plot:
     - "SATELLITE_SIMULATION"
 
 comms:
-  max_bandwidth: 1000
+  max_bandwidth: 1000000
   max_neighbors: 4
   max_range: 1000000
   min_range: 0
@@ -25,42 +25,20 @@ comms:
 estimator: "FEDERATED"
 plan_horizon_m: 1
 
-targets:
-  Targ1:
-    target_id: 1
-    coords: [45, 0, 0]
-    heading: 0
-    speed: 80
-    uncertainty: [3, 7.5, 0, 90, 0.1]
-    color: "#e71714"
-  Targ2:
-    target_id: 2
-    coords: [45, 0, 0]
-    heading: 0
-    speed: 50
-    uncertainty: [3, 7.5, 0, 90, 0.1]
-    color: "#eea62a"
-  Targ3:
-    target_id: 3
-    coords: [45, 0, 0]
-    heading: 0
-    speed: 40
-    uncertainty: [3, 7.5, 0, 90, 0.1]
-    color: "#58b428"
-  Targ4:
-    target_id: 4
-    coords: [45, 0, 0]
-    heading: 0
-    speed: 30
-    uncertainty: [3, 7.5, 0, 90, 0.1]
-    color: "#2879b4"
-  Targ5:
-    target_id: 5
-    coords: [45, 0, 0]
-    heading: 0
-    speed: 20
-    uncertainty: [3, 7.5, 0, 90, 0.1]
-    color: "#b228b4"
+raids:
+  Taiwan:
+    center: [33.5, 12.0, 0]
+    extent: [3, 3, 3]
+    initial_targs: 2
+    spawn_rate: 0
+    color: red
+  Ukraine:
+    center: [44.37, -15.45, 0]
+    extent: [5, 12, 3]
+    initial_targs: 3
+    spawn_rate: 0
+    color: yellow
+
 
 sensors:
   SensorGreat:

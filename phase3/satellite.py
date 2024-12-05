@@ -110,7 +110,7 @@ class SensingSatellite(Satellite):
         )
 
     def collect_measurements(
-        self, target_id: int, target_ground_truth_pos: npt.NDArray, time: float
+        self, target_id: str, target_ground_truth_pos: npt.NDArray, time: float
     ) -> None:
         """
         Collect measurements from the sensor for a specified target.
@@ -175,7 +175,7 @@ class SensingSatellite(Satellite):
         for target_id in expired_targets:
             del self.bounty[target_id]
 
-    def get_bounties(self, time: float) -> list[tuple[int, str]]:
+    def get_bounties(self, time: float) -> list[tuple[str, str]]:
         """
         Get the bounties for the satellite.
 
@@ -192,7 +192,7 @@ class SensingSatellite(Satellite):
 
         return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
 
-    def send_meas_to_fusion(self, target_id: int, time: float) -> None:
+    def send_meas_to_fusion(self, target_id: str, time: float) -> None:
         """
         Send measurements from the sensing satellites to the fusion satellites.
         """
@@ -232,7 +232,7 @@ class SensingSatellite(Satellite):
                 )
 
     def get_measurements(
-        self, target_id: int, time: float | None = None
+        self, target_id: str, time: float | None = None
     ) -> list[collection.Measurement]:
         """
         Get all measurements for a specified target.
@@ -298,7 +298,7 @@ class FusionSatellite(Satellite):
                 self._estimator.EKF_update(meas_for_target)
 
     def send_bounties(
-        self, target_id: int, targ_pos: npt.NDArray, time: float, nearest_sens: int
+        self, target_id: str, targ_pos: npt.NDArray, time: float, nearest_sens: int
     ) -> None:
         """
         Send a bounty on the target_id from source to all avaliable sensing satellites.

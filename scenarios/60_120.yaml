@@ -18,7 +18,7 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
+      inc: 90.0
       nu: 0.0
       raan: 0.0
     sensor: null
@@ -28,8 +28,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 15.0
+      inc: 90.0
+      nu: 18.0
       raan: 0.0
     sensor: null
   FusionSat10:
@@ -38,109 +38,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 150.0
+      inc: 90.0
+      nu: 180.0
       raan: 0.0
-    sensor: null
-  FusionSat100:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 64.0
-      raan: 288.0
-    sensor: null
-  FusionSat101:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 79.0
-      raan: 288.0
-    sensor: null
-  FusionSat102:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 94.0
-      raan: 288.0
-    sensor: null
-  FusionSat103:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 109.0
-      raan: 288.0
-    sensor: null
-  FusionSat104:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 124.0
-      raan: 288.0
-    sensor: null
-  FusionSat105:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 139.0
-      raan: 288.0
-    sensor: null
-  FusionSat106:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 154.0
-      raan: 288.0
-    sensor: null
-  FusionSat107:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 169.0
-      raan: 288.0
-    sensor: null
-  FusionSat108:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 184.0
-      raan: 288.0
-    sensor: null
-  FusionSat109:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 199.0
-      raan: 288.0
     sensor: null
   FusionSat11:
     color: green
@@ -148,109 +48,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 165.0
+      inc: 90.0
+      nu: 198.0
       raan: 0.0
-    sensor: null
-  FusionSat110:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 214.0
-      raan: 288.0
-    sensor: null
-  FusionSat111:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 229.0
-      raan: 288.0
-    sensor: null
-  FusionSat112:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 244.0
-      raan: 288.0
-    sensor: null
-  FusionSat113:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 259.0
-      raan: 288.0
-    sensor: null
-  FusionSat114:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 274.0
-      raan: 288.0
-    sensor: null
-  FusionSat115:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 289.0
-      raan: 288.0
-    sensor: null
-  FusionSat116:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 304.0
-      raan: 288.0
-    sensor: null
-  FusionSat117:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 319.0
-      raan: 288.0
-    sensor: null
-  FusionSat118:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 334.0
-      raan: 288.0
-    sensor: null
-  FusionSat119:
-    color: green
-    orbit:
-      altitude: 1000.0
-      argp: 0.0
-      ecc: 0.0
-      inc: 36.0
-      nu: 349.0
-      raan: 288.0
     sensor: null
   FusionSat12:
     color: green
@@ -258,8 +58,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 180.0
+      inc: 90.0
+      nu: 216.0
       raan: 0.0
     sensor: null
   FusionSat13:
@@ -268,8 +68,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 195.0
+      inc: 90.0
+      nu: 234.0
       raan: 0.0
     sensor: null
   FusionSat14:
@@ -278,8 +78,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 210.0
+      inc: 90.0
+      nu: 252.0
       raan: 0.0
     sensor: null
   FusionSat15:
@@ -288,8 +88,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 225.0
+      inc: 90.0
+      nu: 270.0
       raan: 0.0
     sensor: null
   FusionSat16:
@@ -298,8 +98,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 240.0
+      inc: 90.0
+      nu: 288.0
       raan: 0.0
     sensor: null
   FusionSat17:
@@ -308,8 +108,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 255.0
+      inc: 90.0
+      nu: 306.0
       raan: 0.0
     sensor: null
   FusionSat18:
@@ -318,8 +118,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 270.0
+      inc: 90.0
+      nu: 324.0
       raan: 0.0
     sensor: null
   FusionSat19:
@@ -328,8 +128,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 285.0
+      inc: 90.0
+      nu: 342.0
       raan: 0.0
     sensor: null
   FusionSat2:
@@ -338,8 +138,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 30.0
+      inc: 90.0
+      nu: 36.0
       raan: 0.0
     sensor: null
   FusionSat20:
@@ -348,9 +148,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 300.0
-      raan: 0.0
+      inc: 90.0
+      nu: 1.0
+      raan: 72.0
     sensor: null
   FusionSat21:
     color: green
@@ -358,9 +158,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 315.0
-      raan: 0.0
+      inc: 90.0
+      nu: 19.0
+      raan: 72.0
     sensor: null
   FusionSat22:
     color: green
@@ -368,9 +168,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 330.0
-      raan: 0.0
+      inc: 90.0
+      nu: 37.0
+      raan: 72.0
     sensor: null
   FusionSat23:
     color: green
@@ -378,9 +178,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 345.0
-      raan: 0.0
+      inc: 90.0
+      nu: 55.0
+      raan: 72.0
     sensor: null
   FusionSat24:
     color: green
@@ -388,8 +188,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 1.0
+      inc: 90.0
+      nu: 73.0
       raan: 72.0
     sensor: null
   FusionSat25:
@@ -398,8 +198,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 16.0
+      inc: 90.0
+      nu: 91.0
       raan: 72.0
     sensor: null
   FusionSat26:
@@ -408,8 +208,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 31.0
+      inc: 90.0
+      nu: 109.0
       raan: 72.0
     sensor: null
   FusionSat27:
@@ -418,8 +218,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 46.0
+      inc: 90.0
+      nu: 127.0
       raan: 72.0
     sensor: null
   FusionSat28:
@@ -428,8 +228,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 61.0
+      inc: 90.0
+      nu: 145.0
       raan: 72.0
     sensor: null
   FusionSat29:
@@ -438,8 +238,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 76.0
+      inc: 90.0
+      nu: 163.0
       raan: 72.0
     sensor: null
   FusionSat3:
@@ -448,8 +248,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 45.0
+      inc: 90.0
+      nu: 54.0
       raan: 0.0
     sensor: null
   FusionSat30:
@@ -458,8 +258,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 91.0
+      inc: 90.0
+      nu: 181.0
       raan: 72.0
     sensor: null
   FusionSat31:
@@ -468,8 +268,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 106.0
+      inc: 90.0
+      nu: 199.0
       raan: 72.0
     sensor: null
   FusionSat32:
@@ -478,8 +278,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 121.0
+      inc: 90.0
+      nu: 217.0
       raan: 72.0
     sensor: null
   FusionSat33:
@@ -488,8 +288,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 136.0
+      inc: 90.0
+      nu: 235.0
       raan: 72.0
     sensor: null
   FusionSat34:
@@ -498,8 +298,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 151.0
+      inc: 90.0
+      nu: 253.0
       raan: 72.0
     sensor: null
   FusionSat35:
@@ -508,8 +308,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 166.0
+      inc: 90.0
+      nu: 271.0
       raan: 72.0
     sensor: null
   FusionSat36:
@@ -518,8 +318,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 181.0
+      inc: 90.0
+      nu: 289.0
       raan: 72.0
     sensor: null
   FusionSat37:
@@ -528,8 +328,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 196.0
+      inc: 90.0
+      nu: 307.0
       raan: 72.0
     sensor: null
   FusionSat38:
@@ -538,8 +338,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 211.0
+      inc: 90.0
+      nu: 325.0
       raan: 72.0
     sensor: null
   FusionSat39:
@@ -548,8 +348,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 226.0
+      inc: 90.0
+      nu: 343.0
       raan: 72.0
     sensor: null
   FusionSat4:
@@ -558,8 +358,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 60.0
+      inc: 90.0
+      nu: 72.0
       raan: 0.0
     sensor: null
   FusionSat40:
@@ -568,9 +368,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 241.0
-      raan: 72.0
+      inc: 90.0
+      nu: 2.0
+      raan: 144.0
     sensor: null
   FusionSat41:
     color: green
@@ -578,9 +378,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 256.0
-      raan: 72.0
+      inc: 90.0
+      nu: 20.0
+      raan: 144.0
     sensor: null
   FusionSat42:
     color: green
@@ -588,9 +388,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 271.0
-      raan: 72.0
+      inc: 90.0
+      nu: 38.0
+      raan: 144.0
     sensor: null
   FusionSat43:
     color: green
@@ -598,9 +398,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 286.0
-      raan: 72.0
+      inc: 90.0
+      nu: 56.0
+      raan: 144.0
     sensor: null
   FusionSat44:
     color: green
@@ -608,9 +408,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 301.0
-      raan: 72.0
+      inc: 90.0
+      nu: 74.0
+      raan: 144.0
     sensor: null
   FusionSat45:
     color: green
@@ -618,9 +418,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 316.0
-      raan: 72.0
+      inc: 90.0
+      nu: 92.0
+      raan: 144.0
     sensor: null
   FusionSat46:
     color: green
@@ -628,9 +428,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 331.0
-      raan: 72.0
+      inc: 90.0
+      nu: 110.0
+      raan: 144.0
     sensor: null
   FusionSat47:
     color: green
@@ -638,9 +438,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 346.0
-      raan: 72.0
+      inc: 90.0
+      nu: 128.0
+      raan: 144.0
     sensor: null
   FusionSat48:
     color: green
@@ -648,8 +448,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 2.0
+      inc: 90.0
+      nu: 146.0
       raan: 144.0
     sensor: null
   FusionSat49:
@@ -658,8 +458,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 17.0
+      inc: 90.0
+      nu: 164.0
       raan: 144.0
     sensor: null
   FusionSat5:
@@ -668,8 +468,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 75.0
+      inc: 90.0
+      nu: 90.0
       raan: 0.0
     sensor: null
   FusionSat50:
@@ -678,8 +478,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 32.0
+      inc: 90.0
+      nu: 182.0
       raan: 144.0
     sensor: null
   FusionSat51:
@@ -688,8 +488,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 47.0
+      inc: 90.0
+      nu: 200.0
       raan: 144.0
     sensor: null
   FusionSat52:
@@ -698,8 +498,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 62.0
+      inc: 90.0
+      nu: 218.0
       raan: 144.0
     sensor: null
   FusionSat53:
@@ -708,8 +508,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 77.0
+      inc: 90.0
+      nu: 236.0
       raan: 144.0
     sensor: null
   FusionSat54:
@@ -718,8 +518,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 92.0
+      inc: 90.0
+      nu: 254.0
       raan: 144.0
     sensor: null
   FusionSat55:
@@ -728,8 +528,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 107.0
+      inc: 90.0
+      nu: 272.0
       raan: 144.0
     sensor: null
   FusionSat56:
@@ -738,8 +538,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 122.0
+      inc: 90.0
+      nu: 290.0
       raan: 144.0
     sensor: null
   FusionSat57:
@@ -748,8 +548,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 137.0
+      inc: 90.0
+      nu: 308.0
       raan: 144.0
     sensor: null
   FusionSat58:
@@ -758,8 +558,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 152.0
+      inc: 90.0
+      nu: 326.0
       raan: 144.0
     sensor: null
   FusionSat59:
@@ -768,8 +568,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 167.0
+      inc: 90.0
+      nu: 344.0
       raan: 144.0
     sensor: null
   FusionSat6:
@@ -778,8 +578,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 90.0
+      inc: 90.0
+      nu: 108.0
       raan: 0.0
     sensor: null
   FusionSat60:
@@ -788,9 +588,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 182.0
-      raan: 144.0
+      inc: 90.0
+      nu: 3.0
+      raan: 216.0
     sensor: null
   FusionSat61:
     color: green
@@ -798,9 +598,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 197.0
-      raan: 144.0
+      inc: 90.0
+      nu: 21.0
+      raan: 216.0
     sensor: null
   FusionSat62:
     color: green
@@ -808,9 +608,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 212.0
-      raan: 144.0
+      inc: 90.0
+      nu: 39.0
+      raan: 216.0
     sensor: null
   FusionSat63:
     color: green
@@ -818,9 +618,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 227.0
-      raan: 144.0
+      inc: 90.0
+      nu: 57.0
+      raan: 216.0
     sensor: null
   FusionSat64:
     color: green
@@ -828,9 +628,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 242.0
-      raan: 144.0
+      inc: 90.0
+      nu: 75.0
+      raan: 216.0
     sensor: null
   FusionSat65:
     color: green
@@ -838,9 +638,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 257.0
-      raan: 144.0
+      inc: 90.0
+      nu: 93.0
+      raan: 216.0
     sensor: null
   FusionSat66:
     color: green
@@ -848,9 +648,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 272.0
-      raan: 144.0
+      inc: 90.0
+      nu: 111.0
+      raan: 216.0
     sensor: null
   FusionSat67:
     color: green
@@ -858,9 +658,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 287.0
-      raan: 144.0
+      inc: 90.0
+      nu: 129.0
+      raan: 216.0
     sensor: null
   FusionSat68:
     color: green
@@ -868,9 +668,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 302.0
-      raan: 144.0
+      inc: 90.0
+      nu: 147.0
+      raan: 216.0
     sensor: null
   FusionSat69:
     color: green
@@ -878,9 +678,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 317.0
-      raan: 144.0
+      inc: 90.0
+      nu: 165.0
+      raan: 216.0
     sensor: null
   FusionSat7:
     color: green
@@ -888,8 +688,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 105.0
+      inc: 90.0
+      nu: 126.0
       raan: 0.0
     sensor: null
   FusionSat70:
@@ -898,9 +698,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 332.0
-      raan: 144.0
+      inc: 90.0
+      nu: 183.0
+      raan: 216.0
     sensor: null
   FusionSat71:
     color: green
@@ -908,9 +708,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 347.0
-      raan: 144.0
+      inc: 90.0
+      nu: 201.0
+      raan: 216.0
     sensor: null
   FusionSat72:
     color: green
@@ -918,8 +718,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 3.0
+      inc: 90.0
+      nu: 219.0
       raan: 216.0
     sensor: null
   FusionSat73:
@@ -928,8 +728,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 18.0
+      inc: 90.0
+      nu: 237.0
       raan: 216.0
     sensor: null
   FusionSat74:
@@ -938,8 +738,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 33.0
+      inc: 90.0
+      nu: 255.0
       raan: 216.0
     sensor: null
   FusionSat75:
@@ -948,8 +748,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 48.0
+      inc: 90.0
+      nu: 273.0
       raan: 216.0
     sensor: null
   FusionSat76:
@@ -958,8 +758,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 63.0
+      inc: 90.0
+      nu: 291.0
       raan: 216.0
     sensor: null
   FusionSat77:
@@ -968,8 +768,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 78.0
+      inc: 90.0
+      nu: 309.0
       raan: 216.0
     sensor: null
   FusionSat78:
@@ -978,8 +778,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 93.0
+      inc: 90.0
+      nu: 327.0
       raan: 216.0
     sensor: null
   FusionSat79:
@@ -988,8 +788,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 108.0
+      inc: 90.0
+      nu: 345.0
       raan: 216.0
     sensor: null
   FusionSat8:
@@ -998,8 +798,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 120.0
+      inc: 90.0
+      nu: 144.0
       raan: 0.0
     sensor: null
   FusionSat80:
@@ -1008,9 +808,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 123.0
-      raan: 216.0
+      inc: 90.0
+      nu: 4.0
+      raan: 288.0
     sensor: null
   FusionSat81:
     color: green
@@ -1018,9 +818,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 138.0
-      raan: 216.0
+      inc: 90.0
+      nu: 22.0
+      raan: 288.0
     sensor: null
   FusionSat82:
     color: green
@@ -1028,9 +828,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 153.0
-      raan: 216.0
+      inc: 90.0
+      nu: 40.0
+      raan: 288.0
     sensor: null
   FusionSat83:
     color: green
@@ -1038,9 +838,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 168.0
-      raan: 216.0
+      inc: 90.0
+      nu: 58.0
+      raan: 288.0
     sensor: null
   FusionSat84:
     color: green
@@ -1048,9 +848,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 183.0
-      raan: 216.0
+      inc: 90.0
+      nu: 76.0
+      raan: 288.0
     sensor: null
   FusionSat85:
     color: green
@@ -1058,9 +858,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 198.0
-      raan: 216.0
+      inc: 90.0
+      nu: 94.0
+      raan: 288.0
     sensor: null
   FusionSat86:
     color: green
@@ -1068,9 +868,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 213.0
-      raan: 216.0
+      inc: 90.0
+      nu: 112.0
+      raan: 288.0
     sensor: null
   FusionSat87:
     color: green
@@ -1078,9 +878,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 228.0
-      raan: 216.0
+      inc: 90.0
+      nu: 130.0
+      raan: 288.0
     sensor: null
   FusionSat88:
     color: green
@@ -1088,9 +888,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 243.0
-      raan: 216.0
+      inc: 90.0
+      nu: 148.0
+      raan: 288.0
     sensor: null
   FusionSat89:
     color: green
@@ -1098,9 +898,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 258.0
-      raan: 216.0
+      inc: 90.0
+      nu: 166.0
+      raan: 288.0
     sensor: null
   FusionSat9:
     color: green
@@ -1108,8 +908,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 135.0
+      inc: 90.0
+      nu: 162.0
       raan: 0.0
     sensor: null
   FusionSat90:
@@ -1118,9 +918,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 273.0
-      raan: 216.0
+      inc: 90.0
+      nu: 184.0
+      raan: 288.0
     sensor: null
   FusionSat91:
     color: green
@@ -1128,9 +928,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 288.0
-      raan: 216.0
+      inc: 90.0
+      nu: 202.0
+      raan: 288.0
     sensor: null
   FusionSat92:
     color: green
@@ -1138,9 +938,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 303.0
-      raan: 216.0
+      inc: 90.0
+      nu: 220.0
+      raan: 288.0
     sensor: null
   FusionSat93:
     color: green
@@ -1148,9 +948,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 318.0
-      raan: 216.0
+      inc: 90.0
+      nu: 238.0
+      raan: 288.0
     sensor: null
   FusionSat94:
     color: green
@@ -1158,9 +958,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 333.0
-      raan: 216.0
+      inc: 90.0
+      nu: 256.0
+      raan: 288.0
     sensor: null
   FusionSat95:
     color: green
@@ -1168,9 +968,9 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 348.0
-      raan: 216.0
+      inc: 90.0
+      nu: 274.0
+      raan: 288.0
     sensor: null
   FusionSat96:
     color: green
@@ -1178,8 +978,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 4.0
+      inc: 90.0
+      nu: 292.0
       raan: 288.0
     sensor: null
   FusionSat97:
@@ -1188,8 +988,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 19.0
+      inc: 90.0
+      nu: 310.0
       raan: 288.0
     sensor: null
   FusionSat98:
@@ -1198,8 +998,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 34.0
+      inc: 90.0
+      nu: 328.0
       raan: 288.0
     sensor: null
   FusionSat99:
@@ -1208,8 +1008,8 @@ fusion_satellites:
       altitude: 1000.0
       argp: 0.0
       ecc: 0.0
-      inc: 36.0
-      nu: 49.0
+      inc: 90.0
+      nu: 346.0
       raan: 288.0
     sensor: null
 ground_stations:
@@ -1219,7 +1019,7 @@ ground_stations:
     fov: 80
     lat: 60.0
     lon: 10.0
-plan_horizon_m: 5.0
+plan_horizon_m: 1.0
 plot:
   gifs:
   - SATELLITE_SIMULATION
@@ -1230,6 +1030,31 @@ plot:
   - GROUND_STATION_RESULTS
   show_comms: true
   show_live: true
+raids:
+  Taiwan:
+    center:
+    - 33.5
+    - 15.0
+    - 0.0
+    color: red
+    extent:
+    - 3.0
+    - 3.0
+    - 3.0
+    initial_targs: 4
+    spawn_rate: 0.0
+  Russia:
+    center:
+    - 44.37
+    - 355
+    - 0.0
+    color: yellow
+    extent:
+    - 5.0
+    - 10.0
+    - 3.0
+    initial_targs: 4
+    spawn_rate: 0.0
 sensing_satellites:
   SensingSat0:
     color: blue
@@ -1847,81 +1672,5 @@ sensors:
     - 0.115
     - 0.115
     fov: 115
-sim_duration_m: 30
+sim_duration_m: 20
 sim_time_step_m: 0.1
-targets:
-  Targ1:
-    color: '#e71714'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 80
-    target_id: 1
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ2:
-    color: '#eea62a'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 50
-    target_id: 2
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ3:
-    color: '#58b428'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 40
-    target_id: 3
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ4:
-    color: '#2879b4'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 30
-    target_id: 4
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1
-  Targ5:
-    color: '#b228b4'
-    coords:
-    - 45.0
-    - 0.0
-    - 0.0
-    heading: 0
-    speed: 20
-    target_id: 5
-    uncertainty:
-    - 3.0
-    - 7.5
-    - 0.0
-    - 90.0
-    - 0.1

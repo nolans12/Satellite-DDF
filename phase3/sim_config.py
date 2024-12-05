@@ -100,6 +100,15 @@ class GroundStation:
 
 
 @dataclasses.dataclass
+class RaidRegion:
+    center: tuple[float, float, float]
+    extent: tuple[float, float, float]
+    initial_targs: int
+    spawn_rate: float
+    color: str
+
+
+@dataclasses.dataclass
 class SimConfig:
     # Simulation duration in minutes
     sim_duration_m: int
@@ -115,8 +124,8 @@ class SimConfig:
     # Estimators
     estimator: Estimators
 
-    # Targets
-    targets: dict[str, Target]
+    # Raid Regions
+    raids: dict[str, RaidRegion]
 
     # Sensors
     sensors: dict[str, Sensor]
@@ -154,7 +163,7 @@ class SimConfig:
             ),
             comms=self.comms,
             estimator=self.estimator,
-            targets=self.targets,
+            raid_regions=self.raid_regions,
             sensors=self.sensors,
             sensing_satellites=self.sensing_satellites,
             fusion_satellites=self.fusion_satellites,
