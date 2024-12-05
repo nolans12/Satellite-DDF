@@ -1,4 +1,5 @@
 # Import classes
+import copy
 import pathlib
 import time
 
@@ -335,13 +336,22 @@ class Environment:
 
         ## Define the cost of assigning a target to a fusion node
         def cost(sat, target_id, time_horizon, num_evals):
+
+            # Make a copy of the satellite objects orbit
+            sat_orbit = copy.deepcopy(sat.orbit)
+
             # Get the mean distance b/w fusion node and estimated targ pos over next time_horizon, evaluated num_evals times
             cost = 0
             targ_pos = target_estimates[target_id].estimate
             times = np.linspace(0, time_horizon.value, num_evals)
-            for time in times:
-                pred = state_transition(targ_pos, time)[np.array([0, 2, 4])]
-                cost += np.linalg.norm(pred - sat.pos)
+            dts = np.diff(times)
+            for i, time in enumerate(times):
+                pred_targ = state_transition(targ_pos, time)[np.array([0, 2, 4])]
+                if i == 0:
+                    pred_sat = sat_orbit.r.value
+                else:
+                    pred_sat = sat_orbit.propagate(dts[i - 1] * u.minute).r.value
+                cost += np.linalg.norm(pred_sat - pred_targ)
             return cost / num_evals
 
         # ex = list(x.keys())[99]

@@ -48,6 +48,9 @@ class PlotConfig:
     # GIFs to generate
     gifs: list[GifType]
 
+    # Plot on regions
+    plot_on_regions: bool
+
 
 @dataclasses.dataclass
 class CommsConfig:

@@ -74,16 +74,16 @@ class Satellite:
 
         # Save into the data frame
         self._state_hist.append(
-            collection.State(
-                time=time,
-                x=self.orbit.r.value[0],
-                y=self.orbit.r.value[1],
-                z=self.orbit.r.value[2],
-                vx=self.orbit.v.value[0],
-                vy=self.orbit.v.value[1],
-                vz=self.orbit.v.value[2],
+                collection.State(
+                    time=time,
+                    x=self.orbit.r.value[0],
+                    y=self.orbit.r.value[1],
+                    z=self.orbit.r.value[2],
+                    vx=self.orbit.v.value[0],
+                    vy=self.orbit.v.value[1],
+                    vz=self.orbit.v.value[2],
+                )
             )
-        )
 
     def get_projection_box(self) -> npt.NDArray | None:
         """
