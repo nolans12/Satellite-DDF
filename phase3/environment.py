@@ -45,7 +45,7 @@ class Environment:
         # Initialize time parameter to 0
         self.time = u.Quantity(0, u.minute)
 
-        self._plotter = plotter.Plotter(config.plot)
+        self._plotter = plotter.Plotter(config.plot, raid_regions)
 
         self._central_estimator = None
         if self._config.estimator is sim_config.Estimators.CENTRAL:
@@ -164,8 +164,12 @@ class Environment:
                 # Have the sensing satellites send their measurements to the fusion satellites
                 self.transport_measurements_to_fusion()
 
-                # Have the fusion satellites process their measurements
-                self.process_fusion_measurements()
+                if self._config.do_ekfs:
+                    # Have the fusion satellites process their measurements
+                    self.process_fusion_measurements()
+                else:
+                    # Give the fusion satellites perfect data
+                    self.perfect_target_data()
 
                 # Only update custodies and bounties every plan time
                 if self.time.value % self._config.plan_horizon_m == 0:
@@ -185,7 +189,6 @@ class Environment:
                 self._sensing_sats + self._fusion_sats,
                 self._targs,
                 self._raid_regions,
-                self._ground_stations,
                 self._comms,
             )
 
@@ -234,6 +237,9 @@ class Environment:
         custody_assignments = self.short_horizon_custody(
             target_estimates, self._config.plan_horizon_m * u.minute, 5
         )
+        # custody_assignments = self.short_horizon_a_star(
+        #     target_estimates, self._config.plan_horizon_m * u.minute, 5
+        # )
 
         # CUSTODY HANDOFF:
         # - Track to track handoff as needed
@@ -307,6 +313,36 @@ class Environment:
 
         return target_estimates
 
+    def closest_fusion_custody(self, target_estimates: dict) -> dict:
+        """
+        Determine custody assignments based on closest fusion satellite to each target.
+
+        Args:
+            target_estimates: Dictionary mapping target_id to its current estimate
+
+        Returns:
+            Dictionary mapping target_id to the closest fusion satellite
+        """
+        custody_assignments = {}
+
+        # Loop through all target estimates
+        for target_id, estimate in target_estimates.items():
+            # Get the closest satellite to the target
+            targ_pos = estimate.estimate[np.array([0, 2, 4])]
+
+            closest_sat = None
+            closest_sat_dist = float('inf')
+            for sat in self._fusion_sats:
+                sat_pos = sat.pos
+                dist = np.linalg.norm(targ_pos - sat_pos)
+                if dist < closest_sat_dist:
+                    closest_sat_dist = dist
+                    closest_sat = sat
+
+            custody_assignments[target_id] = closest_sat
+
+        return custody_assignments
+
     def short_horizon_custody(
         self, target_estimates: dict, time_horizon: u.Quantity[u.minute], num_evals: int
     ) -> dict:
@@ -324,7 +360,7 @@ class Environment:
         custody_assignments = {}
 
         ## Need to create an optimization problem, to minimize the cost of assigning targets
-        prob = pulp.LpProblem("Custody Optimization", pulp.LpMinimize)
+        prob = pulp.LpProblem("Custody_Optimization", pulp.LpMinimize)
 
         ## Create the decision variables, one for each fusion node -> targetID pairing
         x = {}
@@ -354,9 +390,130 @@ class Environment:
                 cost += np.linalg.norm(pred_sat - pred_targ)
             return cost / num_evals
 
-        # ex = list(x.keys())[99]
-        # ex_sat, ex_target_id = ex
-        # test = cost(ex_sat, ex_target_id, time_horizon, num_evals)
+
+        im right here,
+        just need to figure out how to get priority from target_id and where exchange rate passed in from
+        ## Define the priority scalaing function
+        def priority(target_id, exchange_rate):
+            return 1 / (exchange_rate * target_id)
+
+        ## Define the objective function
+        prob += pulp.lpSum(
+            [
+                cost(sat, target_id, time_horizon, num_evals) * priority(target_id, exchange_rate) * x[(sat, target_id)]
+                for (sat, target_id) in x.keys()
+            ]
+        )
+
+        ## Define the constraints
+
+        # Every target must be assigned to exactly one fusion node if capacity allows
+        total_capacity = sum(sat.computation_capacity for sat in self._fusion_sats)
+        num_targets = len(target_estimates)
+
+        if num_targets <= total_capacity:
+            # If we have enough capacity, assign each target to exactly one node
+            for target_id in target_estimates.keys():
+                prob += (
+                    pulp.lpSum([x[(sat, target_id)] for sat in self._fusion_sats]) >= 1
+                )
+        else:
+            # If we don't have enough capacity, maximize assignments up to capacity
+            prob += (
+                pulp.lpSum([x[(sat, target_id)] for sat, target_id in x.keys()])
+                == total_capacity
+            )
+            # Also add the constraint that every target can only be assigned to one satellite
+            for target_id in target_estimates.keys():
+                prob += (
+                    pulp.lpSum([x[(sat, target_id)] for sat in self._fusion_sats]) <= 1
+                )
+            print("OVERCAPACITY!")
+
+        # The number of custodies assigned must be less than the capacity of the fusion node
+        for sat in self._fusion_sats:
+            prob += (
+                pulp.lpSum(
+                    [x[(sat, target_id)] for target_id in target_estimates.keys()]
+                )
+                <= sat.computation_capacity
+            )
+
+        # Solve the optimization problem
+        prob.solve(pulp.PULP_CBC_CMD(msg=0))
+        # prob.solve()
+
+        # Get the custody assignments
+        for sat, target_id in x.keys():
+            if pulp.value(x[(sat, target_id)]) == 1:
+                custody_assignments[target_id] = sat
+
+        return custody_assignments
+
+    def short_horizon_a_star(
+        self, target_estimates: dict, time_horizon: u.Quantity[u.minute], num_evals: int
+    ) -> dict:
+        """
+        Determine custody assignments for the next u.minutes.
+        Cost function is the mean A* distance from target to closest fusion node to current sat.
+        """
+        custody_assignments = {}
+
+        ## Need to create an optimization problem, to minimize the cost of assigning targets
+        prob = pulp.LpProblem("Custody Optimization", pulp.LpMinimize)
+
+        ## Create the decision variables, one for each fusion node -> targetID pairing
+        x = {}
+        for sat in self._fusion_sats:
+            for target_id in target_estimates.keys():
+                x[(sat, target_id)] = pulp.LpVariable(
+                    f'{sat.name} → {target_id}', 0, 1, pulp.LpBinary
+                )
+
+        ## Define the cost of assigning a target to a fusion node
+        # Based on mean projected A* distance in graph
+        def cost(sat, target_id, time_horizon, num_evals):
+
+            # Make a deep copy of the network each time (assume each satellite knows the network)
+            comms_copy = copy.deepcopy(self._comms)
+
+            cost = 0
+            targ_state = target_estimates[target_id].estimate
+            times = np.linspace(
+                0, time_horizon.value, num_evals
+            )  # from 0 to time_horizon, num_evals time steps
+            dts = np.diff(times)
+            # all relative to current time, so 0 at start
+            for i, time in enumerate(times):
+
+                if i != 0:
+                    # Propagate all sats orbits and update the network
+                    for node in comms_copy._nodes.values():
+                        node.orbit = node.orbit.propagate(dts[i - 1] * u.minute)
+                    comms_copy.update_edges()
+
+                # Now, get the predicted target position
+                pred_targ = state_transition(targ_state, time)[np.array([0, 2, 4])]
+
+                # Now, find hte node in the graph that is closest to the predicted target position
+                closest_node = comms_copy.get_nearest(pred_targ, 'fusion', 1)[0]
+
+                # Now, get the path from the closest node to the satellite
+                path = comms_copy.get_path(closest_node, sat.name, 0)
+
+                # Now, get the mean distance of the path
+                cost += np.sum(
+                    [
+                        comms_copy.get_distance(path[i], path[i + 1])
+                        for i in range(len(path) - 1)
+                    ]
+                )
+
+            return cost / num_evals
+
+        ex = list(x.keys())[99]
+        ex_sat, ex_target_id = ex
+        test = cost(ex_sat, ex_target_id, time_horizon, num_evals)
 
         ## Define the objective function
         prob += pulp.lpSum(
@@ -388,36 +545,6 @@ class Environment:
         for sat, target_id in x.keys():
             if pulp.value(x[(sat, target_id)]) == 1:
                 custody_assignments[target_id] = sat
-
-        return custody_assignments
-
-    def closest_fusion_custody(self, target_estimates: dict) -> dict:
-        """
-        Determine custody assignments based on closest fusion satellite to each target.
-
-        Args:
-            target_estimates: Dictionary mapping target_id to its current estimate
-
-        Returns:
-            Dictionary mapping target_id to the closest fusion satellite
-        """
-        custody_assignments = {}
-
-        # Loop through all target estimates
-        for target_id, estimate in target_estimates.items():
-            # Get the closest satellite to the target
-            targ_pos = estimate.estimate[np.array([0, 2, 4])]
-
-            closest_sat = None
-            closest_sat_dist = float('inf')
-            for sat in self._fusion_sats:
-                sat_pos = sat.pos
-                dist = np.linalg.norm(targ_pos - sat_pos)
-                if dist < closest_sat_dist:
-                    closest_sat_dist = dist
-                    closest_sat = sat
-
-            custody_assignments[target_id] = closest_sat
 
         return custody_assignments
 
@@ -523,6 +650,52 @@ class Environment:
         """
         for sat in self._fusion_sats:
             sat.process_measurements(self.time.value)
+
+    def perfect_target_data(self):
+        """
+        Give the fusion satellites perfect data for the targets.
+        """
+        for sat in self._fusion_sats:
+            # Did it recieve any measurements?
+            data_received = sat._network.receive_measurements(sat.name, self.time.value)
+            if not data_received:
+                continue
+
+            # Get unique target IDs from received data
+            target_ids = {meas.target_id for meas in data_received}
+
+            for target_id in target_ids:
+                # Find the target
+                targ = next(
+                    (targ for targ in self._targs if targ.target_id == target_id), None
+                )
+                if targ is None:
+                    continue
+
+                # Get the exact state of the target
+                targ_state = targ._state_hist.iloc[-1]
+                targ_time = targ_state.iloc[0]
+                # Reorder from [x,y,z,vx,vy,vz] to [x,vx,y,vy,z,vz]
+                est = np.array(
+                    [
+                        targ_state.iloc[1],  # x
+                        targ_state.iloc[4],  # vx
+                        targ_state.iloc[2],  # y
+                        targ_state.iloc[5],  # vy
+                        targ_state.iloc[3],  # z
+                        targ_state.iloc[6],  # vz
+                    ]
+                )
+
+                # Apply this to the estimator
+                sat._estimator.save_current_estimation_data(
+                    target_id,
+                    targ_time,
+                    est,
+                    np.eye(6),
+                    np.zeros(2),
+                    np.eye(2),
+                )
 
     def central_fusion(self):
         """

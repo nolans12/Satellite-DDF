@@ -69,9 +69,7 @@ class Comms(Generic[S, F, G]):
         self._ground_stations = {gs.name for gs in ground_stations}
 
         # Create a graph instance with the names as nodes
-        self._nodes = {
-            node.name: node for node in sensing_sats + fusion_sats + ground_stations
-        }
+        self._nodes = {node.name: node for node in sensing_sats + fusion_sats}
         self.G = nx.DiGraph()
         # Add nodes with a dict for queued data (list of arrays)
         for node in self._nodes:
@@ -136,6 +134,8 @@ class Comms(Generic[S, F, G]):
         self, receiver: str, time: float
     ) -> list[collection.Measurement]:
         """Receive all measurements for a node.
+        Node has to be on the "destination" end of the transmission! 
+        Not just an edge between some path.
 
         Args:
             receiver: Node to receive measurements for.
@@ -309,7 +309,7 @@ class Comms(Generic[S, F, G]):
             G_valid = self.G.edge_subgraph(valid_edges)
 
             # Find shortest path in the valid subgraph
-            path: list[str] = nx.shortest_path(G_valid, node1, node2)  # type: ignore
+            path: list[str] = nx.shortest_path(G_valid, source=node1, target=node2, weight='distance')  # type: ignore
             # print(f"Path from {node1} to {node2}: {path}")
             return [self._nodes[node].name for node in path]
 
@@ -358,12 +358,14 @@ class Comms(Generic[S, F, G]):
                         agent2.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     self.G.add_edge(
                         agent2.name,
                         agent1.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     # Set the edge to be inactive
                     self.G[agent1.name][agent2.name]['active'] = ""
@@ -419,12 +421,14 @@ class Comms(Generic[S, F, G]):
                         agent2.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     self.G.add_edge(
                         agent2.name,
                         agent1.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     # Set the edge to be inactive
                     self.G[agent1.name][agent2.name]['active'] = ""

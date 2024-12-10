@@ -37,19 +37,11 @@ class PlotConfig:
     # Prefix for output files
     output_prefix: str
 
-    # Show live plots
-    show_live: bool
-
+    # Show the commmunications sent between nodes
     show_comms: bool
 
-    # Plots to generate
-    plots: list[PlotType]
-
-    # GIFs to generate
-    gifs: list[GifType]
-
-    # Plot on regions
-    plot_on_regions: bool
+    # Only shows the fusion sats, all sensing are dimmed
+    show_only_fusion: bool
 
 
 @dataclasses.dataclass
@@ -142,6 +134,9 @@ class SimConfig:
 
     # Planning horizon
     plan_horizon_m: float
+
+    # Flag for if to do EKFs or just use perfect data
+    do_ekfs: bool
 
     # Ground Stations
     ground_stations: dict[str, GroundStation]

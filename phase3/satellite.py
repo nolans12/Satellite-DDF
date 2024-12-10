@@ -74,16 +74,16 @@ class Satellite:
 
         # Save into the data frame
         self._state_hist.append(
-                collection.State(
-                    time=time,
-                    x=self.orbit.r.value[0],
-                    y=self.orbit.r.value[1],
-                    z=self.orbit.r.value[2],
-                    vx=self.orbit.v.value[0],
-                    vy=self.orbit.v.value[1],
-                    vz=self.orbit.v.value[2],
-                )
+            collection.State(
+                time=time,
+                x=self.orbit.r.value[0],
+                y=self.orbit.r.value[1],
+                z=self.orbit.r.value[2],
+                vx=self.orbit.v.value[0],
+                vy=self.orbit.v.value[1],
+                vz=self.orbit.v.value[2],
             )
+        )
 
     def get_projection_box(self) -> npt.NDArray | None:
         """
@@ -293,9 +293,8 @@ class FusionSatellite(Satellite):
             ]
 
             # Update estimators based on measurements
-            if self._estimator is not None:
-                self._estimator.EKF_predict(meas_for_target)
-                self._estimator.EKF_update(meas_for_target)
+            self._estimator.EKF_predict(meas_for_target)
+            self._estimator.EKF_update(meas_for_target)
 
     def send_bounties(
         self, target_id: str, targ_pos: npt.NDArray, time: float, nearest_sens: int
