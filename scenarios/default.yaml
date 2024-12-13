@@ -8,9 +8,11 @@ commanders_intent:
 comms:
   max_bandwidth: 100000
   max_neighbors: 4
-  max_range: 1000000
+  max_range: 100000
   min_range: 0
+do_ekfs: false
 estimator: FEDERATED
+exchange_rate: 1
 fusion_satellites:
   FusionSat0:
     color: green
@@ -1020,72 +1022,76 @@ ground_stations:
     lat: 60.0
     lon: 10.0
 plan_horizon_m: 1.0
-do_ekfs: false
 plot:
-  output_prefix: saturated_ex
+  output_prefix: 100_targs_no_pref
   show_comms: true
   show_only_fusion: true
 raids:
-  Australia:
+  Argentina:
     center:
-    - -25.0
-    - 135.0
+    - -36.0
+    - -66.0
     - 0.0
-    color: yellow
+    color: aqua
+    extent:
+    - 12.0
+    - 6.0
+    - 5.0
+    initial_targs: 20
+    spawn_rate: 0.0
+    priority: 5
+  China:
+    center:
+    - 35.0
+    - 110.0
+    - 0.0
+    color: darkred
     extent:
     - 10.0
     - 15.0
     - 5.0
-    initial_targs: 100
+    initial_targs: 20
     spawn_rate: 0.0
-  Germany:
+    priority: 2
+  South Africa:
     center:
-    - 51.0
-    - 10.0
+    - -29.0
+    - 24.0
     - 0.0
-    color: purple
+    color: hotpink
     extent:
     - 5.0
-    - 10.0
+    - 8.0
     - 5.0
-    initial_targs: 100
+    initial_targs: 20
     spawn_rate: 0.0
-  Hawaii:
-    center:
-    - 21.5
-    - -167.5
-    - 0.0
-    color: orange
-    extent:
-    - 5.0
-    - 5.0
-    - 5.0
-    initial_targs: 100
-    spawn_rate: 0.0
-  India:
-    center:
-    - 20.0
-    - 77.0
-    - 0.0
-    color: pink
-    extent:
-    - 5.0
-    - 10.0
-    - 5.0
-    initial_targs: 100
-    spawn_rate: 0.0
+    priority: 4
   USA:
     center:
     - 38.0
     - -100.5
     - 0.0
-    color: red
+    color: purple
     extent:
     - 12.5
     - 25.0
     - 5.0
-    initial_targs: 100
+    initial_targs: 20
     spawn_rate: 0.0
+    priority: 1
+  Ukraine:
+    center:
+    - 48.0
+    - 31.0
+    - 0.0
+    color: goldenrod
+    extent:
+    - 5.0
+    - 8.0
+    - 5.0
+    initial_targs: 20
+    spawn_rate: 0.0
+    priority: 3
 sensing_satellites:
   SensingSat0:
     color: blue
@@ -1117,6 +1123,106 @@ sensing_satellites:
       nu: 180.0
       raan: 0.0
     sensor: SensorGreat
+  SensingSat100:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 5.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat101:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 23.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat102:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 41.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat103:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 59.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat104:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 77.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat105:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 95.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat106:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 113.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat107:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 131.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat108:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 149.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat109:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 167.0
+      raan: 225.0
+    sensor: SensorGreat
   SensingSat11:
     color: blue
     orbit:
@@ -1126,6 +1232,106 @@ sensing_satellites:
       inc: 45.0
       nu: 198.0
       raan: 0.0
+    sensor: SensorGreat
+  SensingSat110:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 185.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat111:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 203.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat112:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 221.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat113:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 239.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat114:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 257.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat115:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 275.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat116:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 293.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat117:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 311.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat118:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 329.0
+      raan: 225.0
+    sensor: SensorGreat
+  SensingSat119:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 347.0
+      raan: 225.0
     sensor: SensorGreat
   SensingSat12:
     color: blue
@@ -1137,6 +1343,106 @@ sensing_satellites:
       nu: 216.0
       raan: 0.0
     sensor: SensorGreat
+  SensingSat120:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 6.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat121:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 24.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat122:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 42.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat123:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 60.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat124:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 78.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat125:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 96.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat126:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 114.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat127:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 132.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat128:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 150.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat129:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 168.0
+      raan: 270.0
+    sensor: SensorGreat
   SensingSat13:
     color: blue
     orbit:
@@ -1146,6 +1452,106 @@ sensing_satellites:
       inc: 45.0
       nu: 234.0
       raan: 0.0
+    sensor: SensorGreat
+  SensingSat130:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 186.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat131:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 204.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat132:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 222.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat133:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 240.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat134:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 258.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat135:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 276.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat136:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 294.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat137:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 312.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat138:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 330.0
+      raan: 270.0
+    sensor: SensorGreat
+  SensingSat139:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 348.0
+      raan: 270.0
     sensor: SensorGreat
   SensingSat14:
     color: blue
@@ -1157,6 +1563,106 @@ sensing_satellites:
       nu: 252.0
       raan: 0.0
     sensor: SensorGreat
+  SensingSat140:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 7.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat141:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 25.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat142:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 43.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat143:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 61.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat144:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 79.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat145:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 97.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat146:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 115.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat147:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 133.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat148:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 151.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat149:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 169.0
+      raan: 315.0
+    sensor: SensorGreat
   SensingSat15:
     color: blue
     orbit:
@@ -1166,6 +1672,106 @@ sensing_satellites:
       inc: 45.0
       nu: 270.0
       raan: 0.0
+    sensor: SensorGreat
+  SensingSat150:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 187.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat151:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 205.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat152:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 223.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat153:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 241.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat154:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 259.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat155:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 277.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat156:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 295.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat157:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 313.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat158:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 331.0
+      raan: 315.0
+    sensor: SensorGreat
+  SensingSat159:
+    color: blue
+    orbit:
+      altitude: 1000.0
+      argp: 0.0
+      ecc: 0.0
+      inc: 45.0
+      nu: 349.0
+      raan: 315.0
     sensor: SensorGreat
   SensingSat16:
     color: blue
@@ -1225,7 +1831,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 1.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat21:
     color: blue
@@ -1235,7 +1841,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 19.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat22:
     color: blue
@@ -1245,7 +1851,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 37.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat23:
     color: blue
@@ -1255,7 +1861,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 55.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat24:
     color: blue
@@ -1265,7 +1871,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 73.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat25:
     color: blue
@@ -1275,7 +1881,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 91.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat26:
     color: blue
@@ -1285,7 +1891,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 109.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat27:
     color: blue
@@ -1295,7 +1901,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 127.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat28:
     color: blue
@@ -1305,7 +1911,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 145.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat29:
     color: blue
@@ -1315,7 +1921,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 163.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat3:
     color: blue
@@ -1335,7 +1941,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 181.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat31:
     color: blue
@@ -1345,7 +1951,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 199.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat32:
     color: blue
@@ -1355,7 +1961,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 217.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat33:
     color: blue
@@ -1365,7 +1971,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 235.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat34:
     color: blue
@@ -1375,7 +1981,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 253.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat35:
     color: blue
@@ -1385,7 +1991,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 271.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat36:
     color: blue
@@ -1395,7 +2001,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 289.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat37:
     color: blue
@@ -1405,7 +2011,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 307.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat38:
     color: blue
@@ -1415,7 +2021,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 325.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat39:
     color: blue
@@ -1425,7 +2031,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 343.0
-      raan: 72.0
+      raan: 45.0
     sensor: SensorGreat
   SensingSat4:
     color: blue
@@ -1445,7 +2051,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 2.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat41:
     color: blue
@@ -1455,7 +2061,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 20.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat42:
     color: blue
@@ -1465,7 +2071,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 38.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat43:
     color: blue
@@ -1475,7 +2081,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 56.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat44:
     color: blue
@@ -1485,7 +2091,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 74.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat45:
     color: blue
@@ -1495,7 +2101,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 92.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat46:
     color: blue
@@ -1505,7 +2111,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 110.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat47:
     color: blue
@@ -1515,7 +2121,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 128.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat48:
     color: blue
@@ -1525,7 +2131,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 146.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat49:
     color: blue
@@ -1535,7 +2141,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 164.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat5:
     color: blue
@@ -1555,7 +2161,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 182.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat51:
     color: blue
@@ -1565,7 +2171,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 200.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat52:
     color: blue
@@ -1575,7 +2181,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 218.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat53:
     color: blue
@@ -1585,7 +2191,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 236.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat54:
     color: blue
@@ -1595,7 +2201,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 254.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat55:
     color: blue
@@ -1605,7 +2211,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 272.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat56:
     color: blue
@@ -1615,7 +2221,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 290.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat57:
     color: blue
@@ -1625,7 +2231,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 308.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat58:
     color: blue
@@ -1635,7 +2241,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 326.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat59:
     color: blue
@@ -1645,7 +2251,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 344.0
-      raan: 144.0
+      raan: 90.0
     sensor: SensorGreat
   SensingSat6:
     color: blue
@@ -1665,7 +2271,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 3.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat61:
     color: blue
@@ -1675,7 +2281,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 21.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat62:
     color: blue
@@ -1685,7 +2291,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 39.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat63:
     color: blue
@@ -1695,7 +2301,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 57.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat64:
     color: blue
@@ -1705,7 +2311,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 75.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat65:
     color: blue
@@ -1715,7 +2321,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 93.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat66:
     color: blue
@@ -1725,7 +2331,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 111.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat67:
     color: blue
@@ -1735,7 +2341,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 129.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat68:
     color: blue
@@ -1745,7 +2351,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 147.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat69:
     color: blue
@@ -1755,7 +2361,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 165.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat7:
     color: blue
@@ -1775,7 +2381,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 183.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat71:
     color: blue
@@ -1785,7 +2391,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 201.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat72:
     color: blue
@@ -1795,7 +2401,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 219.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat73:
     color: blue
@@ -1805,7 +2411,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 237.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat74:
     color: blue
@@ -1815,7 +2421,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 255.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat75:
     color: blue
@@ -1825,7 +2431,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 273.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat76:
     color: blue
@@ -1835,7 +2441,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 291.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat77:
     color: blue
@@ -1845,7 +2451,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 309.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat78:
     color: blue
@@ -1855,7 +2461,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 327.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat79:
     color: blue
@@ -1865,7 +2471,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 345.0
-      raan: 216.0
+      raan: 135.0
     sensor: SensorGreat
   SensingSat8:
     color: blue
@@ -1885,7 +2491,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 4.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat81:
     color: blue
@@ -1895,7 +2501,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 22.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat82:
     color: blue
@@ -1905,7 +2511,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 40.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat83:
     color: blue
@@ -1915,7 +2521,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 58.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat84:
     color: blue
@@ -1925,7 +2531,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 76.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat85:
     color: blue
@@ -1935,7 +2541,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 94.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat86:
     color: blue
@@ -1945,7 +2551,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 112.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat87:
     color: blue
@@ -1955,7 +2561,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 130.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat88:
     color: blue
@@ -1965,7 +2571,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 148.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat89:
     color: blue
@@ -1975,7 +2581,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 166.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat9:
     color: blue
@@ -1995,7 +2601,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 184.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat91:
     color: blue
@@ -2005,7 +2611,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 202.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat92:
     color: blue
@@ -2015,7 +2621,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 220.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat93:
     color: blue
@@ -2025,7 +2631,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 238.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat94:
     color: blue
@@ -2035,7 +2641,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 256.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat95:
     color: blue
@@ -2045,7 +2651,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 274.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat96:
     color: blue
@@ -2055,7 +2661,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 292.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat97:
     color: blue
@@ -2065,7 +2671,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 310.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat98:
     color: blue
@@ -2075,7 +2681,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 328.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
   SensingSat99:
     color: blue
@@ -2085,7 +2691,7 @@ sensing_satellites:
       ecc: 0.0
       inc: 45.0
       nu: 346.0
-      raan: 288.0
+      raan: 180.0
     sensor: SensorGreat
 sensors:
   SensorBad:
@@ -2103,5 +2709,5 @@ sensors:
     - 0.115
     - 0.115
     fov: 115
-sim_duration_m: 5
+sim_duration_m: 1
 sim_time_step_m: 0.1

@@ -71,7 +71,7 @@ def main(
 
 if __name__ == '__main__':
 
-    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'default.yaml')
+    scenario = sim_config.load_sim_config(path_utils.SCENARIOS / 'over_saturated.yaml')
 
     env = environment.Environment.from_config(scenario)
 

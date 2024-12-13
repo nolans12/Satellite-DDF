@@ -45,7 +45,7 @@ class Environment:
         # Initialize time parameter to 0
         self.time = u.Quantity(0, u.minute)
 
-        self._plotter = plotter.Plotter(config.plot, raid_regions)
+        self._plotter = plotter.Plotter(config.plot, config, raid_regions)
 
         self._central_estimator = None
         if self._config.estimator is sim_config.Estimators.CENTRAL:
@@ -64,6 +64,7 @@ class Environment:
                 initial_targs=r.initial_targs,
                 spawn_rate=r.spawn_rate,
                 color=r.color,
+                priority=r.priority,
             )
             for name, r in cfg.raids.items()
         ]
@@ -174,6 +175,7 @@ class Environment:
                 # Only update custodies and bounties every plan time
                 if self.time.value % self._config.plan_horizon_m == 0:
                     print("Planning...")
+
                     # Update custodies and fuse throughout fusion layer
                     self.update_custodies_and_fuse()
 
@@ -288,12 +290,14 @@ class Environment:
         for target_id, estimate_sat_pairs in target_estimates.items():
             # If two satellites have estimates for the same target, perform CI with all of them
             if len(estimate_sat_pairs) > 1:
-                for nan, curr_sat in estimate_sat_pairs:  # For each sat
-                    other_estimates = [
-                        est
-                        for est, sat in estimate_sat_pairs
-                        if sat.name != curr_sat.name
-                    ]
+                if self._config.do_ekfs:
+                    # If have real data, need to do ci
+                    for nan, curr_sat in estimate_sat_pairs:  # For each sat
+                        other_estimates = [
+                            est
+                            for est, sat in estimate_sat_pairs
+                            if sat.name != curr_sat.name
+                        ]
                     for est, sat in estimate_sat_pairs:
                         if sat.name != curr_sat.name:
                             print(f"Fusing with {sat.name} on target {target_id}")
@@ -390,17 +394,29 @@ class Environment:
                 cost += np.linalg.norm(pred_sat - pred_targ)
             return cost / num_evals
 
+        priority_table = {raid._name: raid._priority for raid in self._raid_regions}
+        exchange_rate = self._config.exchange_rate
 
-        im right here,
-        just need to figure out how to get priority from target_id and where exchange rate passed in from
         ## Define the priority scalaing function
-        def priority(target_id, exchange_rate):
-            return 1 / (exchange_rate * target_id)
+        def priority(target_id, exchange_rate, priority_table):
+
+            prior = None
+            for region, priority in priority_table.items():
+                if region in target_id:
+                    prior = priority
+
+            if prior is None:
+                print("ERROR: No priority found for target_id: ", target_id)
+                exit()
+
+            return exchange_rate ** (prior - 1)
 
         ## Define the objective function
         prob += pulp.lpSum(
             [
-                cost(sat, target_id, time_horizon, num_evals) * priority(target_id, exchange_rate) * x[(sat, target_id)]
+                cost(sat, target_id, time_horizon, num_evals)
+                * priority(target_id, exchange_rate, priority_table)
+                * x[(sat, target_id)]
                 for (sat, target_id) in x.keys()
             ]
         )
@@ -447,6 +463,18 @@ class Environment:
         for sat, target_id in x.keys():
             if pulp.value(x[(sat, target_id)]) == 1:
                 custody_assignments[target_id] = sat
+
+        # If we are over capacity, print a table of how many assignments are for each region, USA, Germany, India, Australia, Hawaii
+        if num_targets > total_capacity:
+            print(
+                "Over capacity, here is the table of assignments, for exchange rate: ",
+                exchange_rate,
+            )
+            for region in priority_table.keys():
+                print(
+                    f"{region}: {sum(target_id.startswith(region) for target_id in custody_assignments.keys())}"
+                )
+            # exit()
 
         return custody_assignments
 
@@ -511,10 +539,11 @@ class Environment:
 
             return cost / num_evals
 
-        ex = list(x.keys())[99]
-        ex_sat, ex_target_id = ex
-        test = cost(ex_sat, ex_target_id, time_horizon, num_evals)
+        # ex = list(x.keys())[99]
+        # ex_sat, ex_target_id = ex
+        # test = cost(ex_sat, ex_target_id, time_horizon, num_evals)
 
+        print("generating costs!")
         ## Define the objective function
         prob += pulp.lpSum(
             [
@@ -522,6 +551,8 @@ class Environment:
                 for (sat, target_id) in x.keys()
             ]
         )
+
+        print("costs generated!")
 
         ## Define the constraints
 
@@ -609,8 +640,14 @@ class Environment:
 
             # Get the current track, or if it doesnt exit, just use location as fusion sats
             if target_id not in new_sat._estimator.estimation_data.target_id.values:
-                # This may happen at timestep 0, when initalization, otherwise track to track handoff occurs
-                pos = new_sat.pos
+                # Get the exact position of the target (yes cheating)
+                # Will likely happen first plan, so at t = 0
+                targ = next(
+                    (targ for targ in self._targs if targ.target_id == target_id), None
+                )
+                if targ is None:
+                    continue
+                pos = targ.pos
             else:
                 track = new_sat._estimator.estimation_data[
                     new_sat._estimator.estimation_data.target_id == target_id
@@ -619,7 +656,7 @@ class Environment:
 
             new_sat.custody[target_id] = True
             print(f'Sat {new_sat.name} has custody of target {target_id}')
-            new_sat.send_bounties(target_id, pos, self.time.value, nearest_sens=3)
+            new_sat.send_bounties(target_id, pos, self.time.value, nearest_sens=10)
 
     def update_bounties(self) -> None:
         """

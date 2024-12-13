@@ -123,7 +123,13 @@ class Comms(Generic[S, F, G]):
         # Create a transmition
         self.measurements.append(
             collection.MeasurementTransmission(
-                sender, receiver, source, destination, size, time, measurements
+                sender,
+                receiver,
+                source,
+                destination,
+                size,
+                time,
+                measurements,
             )
         )
 
@@ -134,7 +140,7 @@ class Comms(Generic[S, F, G]):
         self, receiver: str, time: float
     ) -> list[collection.Measurement]:
         """Receive all measurements for a node.
-        Node has to be on the "destination" end of the transmission! 
+        Node has to be on the "destination" end of the transmission!
         Not just an edge between some path.
 
         Args:
@@ -413,23 +419,66 @@ class Comms(Generic[S, F, G]):
             if self.G.has_edge(agent1.name, agent2.name):
                 continue
 
-            dist = np.linalg.norm(agent1.pos - agent2.pos)
-            if self._config.min_range < dist < self._config.max_range:
-                if not linalg.intersects_earth(agent1.pos, agent2.pos):
-                    self.G.add_edge(
-                        agent1.name,
-                        agent2.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                        distance=dist,
-                    )
-                    self.G.add_edge(
-                        agent2.name,
-                        agent1.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                        distance=dist,
-                    )
-                    # Set the edge to be inactive
-                    self.G[agent1.name][agent2.name]['active'] = ""
-                    self.G[agent2.name][agent1.name]['active'] = ""
+            # Get all fusion nodes and their distances from this sensing node
+            fusion_nodes = [
+                node
+                for node in self._nodes.values()
+                if node.name.startswith("FusionSat")
+            ]
+            dists = [np.linalg.norm(agent1.pos - node.pos) for node in fusion_nodes]
+
+            # Sort fusion nodes by distance
+            sorted_fusion = [
+                x for _, x in sorted(zip(dists, fusion_nodes), key=lambda pair: pair[0])
+            ]
+
+            # Only connect to the nearest max_neighbors fusion nodes that are in range
+            for fusion_node in sorted_fusion[: self._config.max_neighbors]:
+                dist = np.linalg.norm(agent1.pos - fusion_node.pos)
+                if self._config.min_range < dist < self._config.max_range:
+                    if not linalg.intersects_earth(agent1.pos, fusion_node.pos):
+                        self.G.add_edge(
+                            agent1.name,
+                            fusion_node.name,
+                            max_bandwidth=self._config.max_bandwidth,
+                            used_bandwidth=0,
+                            distance=dist,
+                        )
+                        self.G.add_edge(
+                            fusion_node.name,
+                            agent1.name,
+                            max_bandwidth=self._config.max_bandwidth,
+                            used_bandwidth=0,
+                            distance=dist,
+                        )
+                        # Set the edge to be inactive
+                        self.G[agent1.name][fusion_node.name]['active'] = ""
+                        self.G[fusion_node.name][agent1.name]['active'] = ""
+
+    def print_average_comms_distance(self, time: float) -> None:
+        """
+        Given a time, find all measurements that were sent at the time and
+        print the average distance a measurement had to travel from sender to reciever
+        """
+
+        # Get all measurements at a given time:
+        meas = self.measurements.loc[self.measurements['time'] == time]
+
+        # Get all unique instances of source destination about a given target_Id
+        unique_meas = meas.drop_duplicates(subset=['source', 'destination'])
+
+        total_distance = 0
+        # Get each path:
+        for _, row in unique_meas.iterrows():
+            source = row['source']
+            destination = row['destination']
+            path = self.get_path(source, destination, row['size'])
+
+            # Get the distance of the path
+            distance = sum(
+                self.G[path[i]][path[i + 1]]['distance'] for i in range(len(path) - 1)
+            )
+            total_distance += distance
+
+        print(f"Average distance: {total_distance / len(unique_meas)}")
+        exit()

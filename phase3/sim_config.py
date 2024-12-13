@@ -101,6 +101,7 @@ class RaidRegion:
     initial_targs: int
     spawn_rate: float
     color: str
+    priority: int
 
 
 @dataclasses.dataclass
@@ -137,6 +138,9 @@ class SimConfig:
 
     # Flag for if to do EKFs or just use perfect data
     do_ekfs: bool
+
+    # Exchange rate
+    exchange_rate: float
 
     # Ground Stations
     ground_stations: dict[str, GroundStation]

@@ -13,6 +13,7 @@ class RaidRegion:
         initial_targs: int,
         spawn_rate: float,
         color: str,
+        priority: int,
     ):
         """
         A raid region is a region of space where targets are initialized and can also appear.
@@ -30,6 +31,7 @@ class RaidRegion:
         self._spawn_rate = spawn_rate
         self._color = color
         self.targets = self._init_targs()
+        self._priority = priority
 
     def _init_targs(self) -> list[target.Target]:
         # For the number of initial targets, we need to generate a random distribution
