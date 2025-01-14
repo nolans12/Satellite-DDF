@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from numpy import typing as npt
+from sklearn import neighbors
 
 from common import dataclassframe
 from phase3 import collection
@@ -104,14 +105,40 @@ class SensingSatellite(Satellite):
         )  # targetID: satID (name), who this sat should talk to if they see the target
         self._sensor = sensor
 
+        self._measured_target_ids = set()
+
         # Data frame for measurements
         self._measurement_hist = dataclassframe.DataClassFrame(
             clz=collection.Measurement
         )
 
+    def collect_all_measurements(
+        self,
+        target_ids: list[str],
+        target_ground_truth_positions: list[npt.NDArray],
+        time: float,
+    ) -> None:
+        """
+        Collect measurements from the sensor for all specified targets.
+
+        Args:
+            target_ids: List of target IDs to collect measurements for.
+            target_ground_truth_positions: List of ground truth positions for each target.
+            time: Time at which to collect measurements.
+        """
+        self._measured_target_ids.clear()
+
+        for target_id, target_ground_truth_pos in zip(
+            target_ids, target_ground_truth_positions
+        ):
+            # Use a more precise conic FOV check
+            m = self.collect_measurements(target_id, target_ground_truth_pos, time)
+            if m is not None:
+                self._measured_target_ids.add(target_id)
+
     def collect_measurements(
         self, target_id: str, target_ground_truth_pos: npt.NDArray, time: float
-    ) -> None:
+    ) -> npt.NDArray | None:
         """
         Collect measurements from the sensor for a specified target.
 
@@ -122,7 +149,7 @@ class SensingSatellite(Satellite):
             target_ground_truth_pos: Ground truth position of the target (used for simulating the measurement).
 
         Returns:
-            Flag indicating whether measurements were successfully collected or not.
+            The measurement if the target is within the sensor's field of view, otherwise None.
         """
         assert self._sensor is not None
 
@@ -155,6 +182,8 @@ class SensingSatellite(Satellite):
                     R_mat=self._sensor.R,
                 )
             )
+
+        return measurement
 
     def update_bounties(self, time: float) -> None:
         """
@@ -191,6 +220,10 @@ class SensingSatellite(Satellite):
         ]
 
         return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
+
+    def send_all_meas_to_fusion(self, time: float) -> None:
+        for target_id in self._measured_target_ids:
+            self.send_meas_to_fusion(target_id, time)
 
     def send_meas_to_fusion(self, target_id: str, time: float) -> None:
         """

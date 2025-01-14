@@ -114,7 +114,7 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a pair of satellites in the network.
         """
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
-        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
+        # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
         # Set the edge to be active
         self.G[sender][receiver]['active'] = "Measurement"
