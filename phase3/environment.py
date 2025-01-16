@@ -796,6 +796,52 @@ class Environment:
                     np.eye(2),
                 )
 
+    def perfect_target_data(self):
+        """
+        Give the fusion satellites perfect data for the targets.
+        """
+        for sat in self._fusion_sats:
+            # Did it recieve any measurements?
+            data_received = sat._network.receive_measurements(sat.name, self.time.value)
+            if not data_received:
+                continue
+
+            # Get unique target IDs from received data
+            target_ids = {meas.target_id for meas in data_received}
+
+            for target_id in target_ids:
+                # Find the target
+                targ = next(
+                    (targ for targ in self._targs if targ.target_id == target_id), None
+                )
+                if targ is None:
+                    continue
+
+                # Get the exact state of the target
+                targ_state = targ._state_hist.iloc[-1]
+                targ_time = targ_state.iloc[0]
+                # Reorder from [x,y,z,vx,vy,vz] to [x,vx,y,vy,z,vz]
+                est = np.array(
+                    [
+                        targ_state.iloc[1],  # x
+                        targ_state.iloc[4],  # vx
+                        targ_state.iloc[2],  # y
+                        targ_state.iloc[5],  # vy
+                        targ_state.iloc[3],  # z
+                        targ_state.iloc[6],  # vz
+                    ]
+                )
+
+                # Apply this to the estimator
+                sat._estimator.save_current_estimation_data(
+                    target_id,
+                    targ_time,
+                    est,
+                    np.eye(6),
+                    np.zeros(2),
+                    np.eye(2),
+                )
+
     def central_fusion(self):
         """
         Perform central fusion using collected measurements.
