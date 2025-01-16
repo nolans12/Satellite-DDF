@@ -588,7 +588,7 @@ class Estimator:
         self,
         targetID: int,
         time: float,
-        est: npt.NDArray,
+        est: npt.NDArray, # in the form of [x, vx, y, vy, z, vz]
         cov: npt.NDArray,
         innovation: npt.NDArray,
         innovationCov: npt.NDArray,

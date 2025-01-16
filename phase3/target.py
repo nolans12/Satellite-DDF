@@ -9,13 +9,11 @@ from phase3 import collection
 class Target:
     def __init__(
         self,
-        name: str,
-        target_id: int,
+        target_id: str,
         coords: npt.NDArray,
         heading: float,
         speed: float,
         color: str,
-        uncertainty: npt.NDArray = np.array([0, 0, 0, 0, 0]),
         climb_rate: float = 0,
         change_AoA: bool = False,
     ):
@@ -35,24 +33,7 @@ class Target:
 
         # Initialize the target's parameters
         self.target_id = target_id
-        self.name = name
         self.color = color
-
-        # Take the initial coords, heading, speed and add the uncertainty to them
-        self.initial_params = np.array(
-            [coords[0], coords[1], coords[2], heading, speed]
-        )
-        self.initial_cov = np.diag(uncertainty**2)
-
-        # Now sample from the uncertainty matrix to get the initial parameters
-        initial_parameters = np.random.multivariate_normal(
-            self.initial_params, self.initial_cov
-        )
-
-        # Now back out the original parameters
-        coords = initial_parameters[0:3]
-        heading = initial_parameters[3]
-        speed = initial_parameters[4]
 
         # Convert the spherical coordinates and heading into a state vector
         # state = [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]

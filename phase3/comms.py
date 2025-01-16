@@ -69,9 +69,7 @@ class Comms(Generic[S, F, G]):
         self._ground_stations = {gs.name for gs in ground_stations}
 
         # Create a graph instance with the names as nodes
-        self._nodes = {
-            node.name: node for node in sensing_sats + fusion_sats + ground_stations
-        }
+        self._nodes = {node.name: node for node in sensing_sats + fusion_sats}
         self.G = nx.DiGraph()
         # Add nodes with a dict for queued data (list of arrays)
         for node in self._nodes:
@@ -116,15 +114,22 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a pair of satellites in the network.
         """
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
-        # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
+        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
         # Set the edge to be active
         self.G[sender][receiver]['active'] = "Measurement"
+        # print(f"Activated edge from {sender} to {receiver}")
 
         # Create a transmition
         self.measurements.append(
             collection.MeasurementTransmission(
-                sender, receiver, source, destination, size, time, measurements
+                sender,
+                receiver,
+                source,
+                destination,
+                size,
+                time,
+                measurements,
             )
         )
 
@@ -135,6 +140,8 @@ class Comms(Generic[S, F, G]):
         self, receiver: str, time: float
     ) -> list[collection.Measurement]:
         """Receive all measurements for a node.
+        Node has to be on the "destination" end of the transmission!
+        Not just an edge between some path.
 
         Args:
             receiver: Node to receive measurements for.
@@ -189,8 +196,6 @@ class Comms(Generic[S, F, G]):
         if path is None:
             return
 
-        print(f"{source} sending bounty to {destination} for target {target_id}")
-
         # send the bounty through the path
         for i in range(1, len(path)):
             self.send_bounty_pair(
@@ -219,8 +224,8 @@ class Comms(Generic[S, F, G]):
             time: Time the transmission occurs
         """
 
-        # Set the edge to be active
-        self.G[sender][receiver]['active'] = "Bounty"
+        # # Set the edge to be active
+        # self.G[sender][receiver]['active'] = "Bounty"
 
         self.bounties.append(
             collection.BountyTransmission(
@@ -310,7 +315,7 @@ class Comms(Generic[S, F, G]):
             G_valid = self.G.edge_subgraph(valid_edges)
 
             # Find shortest path in the valid subgraph
-            path: list[str] = nx.shortest_path(G_valid, node1, node2)  # type: ignore
+            path: list[str] = nx.shortest_path(G_valid, source=node1, target=node2, weight='distance')  # type: ignore
             # print(f"Path from {node1} to {node2}: {path}")
             return [self._nodes[node].name for node in path]
 
@@ -334,7 +339,7 @@ class Comms(Generic[S, F, G]):
         But, sensing layer can connect to any other node in its range.
         """
 
-        # Clear all edges in the graph
+        # Clear all edges and their active states in the graph
         self.G.clear_edges()
 
         # Add all edges in the fusion layer first
@@ -359,16 +364,18 @@ class Comms(Generic[S, F, G]):
                         agent2.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     self.G.add_edge(
                         agent2.name,
                         agent1.name,
                         max_bandwidth=self._config.max_bandwidth,
                         used_bandwidth=0,
+                        distance=dist,
                     )
                     # Set the edge to be inactive
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
+                    self.G[agent1.name][agent2.name]['active'] = ""
+                    self.G[agent2.name][agent1.name]['active'] = ""
 
         # Now loop through and remove the edges to abide by max_neighbors
         for agent in self._nodes.values():
@@ -412,81 +419,66 @@ class Comms(Generic[S, F, G]):
             if self.G.has_edge(agent1.name, agent2.name):
                 continue
 
-            dist = np.linalg.norm(agent1.pos - agent2.pos)
-            if self._config.min_range < dist < self._config.max_range:
-                if not linalg.intersects_earth(agent1.pos, agent2.pos):
-                    self.G.add_edge(
-                        agent1.name,
-                        agent2.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-                    self.G.add_edge(
-                        agent2.name,
-                        agent1.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-                    # Set the edge to be inactive
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
+            # Get all fusion nodes and their distances from this sensing node
+            fusion_nodes = [
+                node
+                for node in self._nodes.values()
+                if node.name.startswith("FusionSat")
+            ]
+            dists = [np.linalg.norm(agent1.pos - node.pos) for node in fusion_nodes]
 
-    def update_edges_old(self) -> None:
-        """Re-compute the edges in the graph
-
-        This assumes that the position of the underlying nodes has changed.
-
-        TODO: Different logic for ground stations and satellites.
-        """
-        # Clear all edges in the graph
-        self.G.clear_edges()
-
-        # Loop through each agent pair and remake the edges
-        for agent1, agent2 in itertools.combinations(self._nodes.values(), 2):
-            # Check if the distance is within range
-            dist = np.linalg.norm(agent1.pos - agent2.pos)
-            if self._config.min_range < dist < self._config.max_range:
-                # Check if the Earth is blocking the two agents
-                if not linalg.intersects_earth(agent1.pos, agent2.pos):
-                    # Add the edge width bandwidth metadata
-                    self.G.add_edge(
-                        agent1.name,
-                        agent2.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-                    # also add the edge in the opposite direction
-                    self.G.add_edge(
-                        agent2.name,
-                        agent1.name,
-                        max_bandwidth=self._config.max_bandwidth,
-                        used_bandwidth=0,
-                    )
-
-                    # Set the edge to be active
-                    self.G[agent1.name][agent2.name]['active'] = False
-                    self.G[agent2.name][agent1.name]['active'] = False
-
-        # Restrict to just the maximum number of neighbors
-        for agent in self._nodes.values():
-            # If the number of neighbors is greater than the max, remove the extra neighbors
-            if (
-                len(neighbors := list(self.G.neighbors(agent.name)))
-                <= self._config.max_neighbors
-            ):
-                continue
-
-            # Get the list of neighbors
-            neighbors = list(self._nodes[neighbor] for neighbor in neighbors)
-
-            # Get the distances to each neighbor
-            dists = [np.linalg.norm(neighbor.pos - agent.pos) for neighbor in neighbors]
-
-            # Sort the neighbors by distance
-            sorted_neighbors = [
-                x for _, x in sorted(zip(dists, neighbors), key=lambda pair: pair[0])
+            # Sort fusion nodes by distance
+            sorted_fusion = [
+                x for _, x in sorted(zip(dists, fusion_nodes), key=lambda pair: pair[0])
             ]
 
-            # Remove the extra neighbors
-            for i in range(self._config.max_neighbors, len(sorted_neighbors)):
-                self.G.remove_edge(agent.name, sorted_neighbors[i].name)
+            # Only connect to the nearest max_neighbors fusion nodes that are in range
+            for fusion_node in sorted_fusion[: self._config.max_neighbors]:
+                dist = np.linalg.norm(agent1.pos - fusion_node.pos)
+                if self._config.min_range < dist < self._config.max_range:
+                    if not linalg.intersects_earth(agent1.pos, fusion_node.pos):
+                        self.G.add_edge(
+                            agent1.name,
+                            fusion_node.name,
+                            max_bandwidth=self._config.max_bandwidth,
+                            used_bandwidth=0,
+                            distance=dist,
+                        )
+                        self.G.add_edge(
+                            fusion_node.name,
+                            agent1.name,
+                            max_bandwidth=self._config.max_bandwidth,
+                            used_bandwidth=0,
+                            distance=dist,
+                        )
+                        # Set the edge to be inactive
+                        self.G[agent1.name][fusion_node.name]['active'] = ""
+                        self.G[fusion_node.name][agent1.name]['active'] = ""
+
+    def print_average_comms_distance(self, time: float) -> None:
+        """
+        Given a time, find all measurements that were sent at the time and
+        print the average distance a measurement had to travel from sender to reciever
+        """
+
+        # Get all measurements at a given time:
+        meas = self.measurements.loc[self.measurements['time'] == time]
+
+        # Get all unique instances of source destination about a given target_Id
+        unique_meas = meas.drop_duplicates(subset=['source', 'destination'])
+
+        total_distance = 0
+        # Get each path:
+        for _, row in unique_meas.iterrows():
+            source = row['source']
+            destination = row['destination']
+            path = self.get_path(source, destination, row['size'])
+
+            # Get the distance of the path
+            distance = sum(
+                self.G[path[i]][path[i + 1]]['distance'] for i in range(len(path) - 1)
+            )
+            total_distance += distance
+
+        print(f"Average distance: {total_distance / len(unique_meas)}")
+        exit()
