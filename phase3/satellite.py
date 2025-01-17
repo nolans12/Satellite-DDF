@@ -214,10 +214,11 @@ class SensingSatellite(Satellite):
         Returns:
             List of tuples containing (target_id, source_satellite) for each bounty.
         """
-        bounties = self._network.bounties.loc[
-            (self._network.bounties['time'] == time)
-            & (self._network.bounties['destination'] == self.name)
-        ]
+        with self._network:
+            bounties = self._network.bounties.loc[
+                (self._network.bounties['time'] == time)
+                & (self._network.bounties['destination'] == self.name)
+            ]
 
         return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
 
@@ -234,35 +235,37 @@ class SensingSatellite(Satellite):
         measurements = self.get_measurements(target_id=target_id, time=time)
 
         if measurements:
-            # Check, does this sat have a bounty on this target?
-            if target_id in self.bounty:
-                # If so, send the measurements to the fusion satellite
-                sat_id = self.bounty[target_id]
-                self._network.send_measurements_path(
-                    measurements,
-                    self.name,  # source
-                    sat_id,  # destination
-                    time=time,
-                    size=50 * len(measurements),
-                )
-            else:
-                # Just send to nearest fusion satellite
+            with self._network:
+                # Check, does this sat have a bounty on this target?
+                if target_id in self.bounty:
+                    # If so, send the measurements to the fusion satellite
+                    sat_id = self.bounty[target_id]
+                    self._network.send_measurements_path(
+                        measurements,
+                        self.name,  # source
+                        sat_id,  # destination
+                        time=time,
+                        size=50 * len(measurements),
+                    )
+                else:
+                    # Just send to nearest fusion satellite
 
-                neighbors = self._get_neighbors(sat_type="fusion")
-                nearest_fusion_sat = min(
-                    neighbors, key=lambda x: self._network.get_distance(self.name, x)
-                )
-                self._network.send_measurements_path(
-                    measurements,
-                    self.name,  # source
-                    nearest_fusion_sat,  # destination
-                    time=time,
-                    size=50 * len(measurements),
-                )
+                    neighbors = self._get_neighbors(sat_type="fusion")
+                    nearest_fusion_sat = min(
+                        neighbors,
+                        key=lambda x: self._network.get_distance(self.name, x),
+                    )
+                    self._network.send_measurements_path(
+                        measurements,
+                        self.name,  # source
+                        nearest_fusion_sat,  # destination
+                        time=time,
+                        size=50 * len(measurements),
+                    )
 
-                print(
-                    f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
-                )
+                    print(
+                        f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
+                    )
 
     def get_measurements(
         self, target_id: str, time: float | None = None
@@ -311,7 +314,8 @@ class FusionSatellite(Satellite):
 
         # Find the set of measurements that were sent to this fusion satellite
         # ONLY IF DESTINATION == self.name
-        data_received = self._network.receive_measurements(self.name, time)
+        with self._network:
+            data_received = self._network.receive_measurements(self.name, time)
 
         if not data_received:
             return
@@ -340,14 +344,14 @@ class FusionSatellite(Satellite):
             time: The time at which to send the bounty.
             nearest_sens: The number of nearest sensing satellites to send the bounty to.
         """
-
-        neighbors = self._network.get_nearest(
-            position=targ_pos, sat_type="sensing", number=nearest_sens
-        )
-        size = 1  # bytes of a bounty send
-
-        # Send a bounty update to all neighbors
-        for neighbor in neighbors:
-            self._network.send_bounty_path(
-                self.name, neighbor, self.name, neighbor, target_id, size, time
+        with self._network:
+            neighbors = self._network.get_nearest(
+                position=targ_pos, sat_type="sensing", number=nearest_sens
             )
+            size = 1  # bytes of a bounty send
+
+            # Send a bounty update to all neighbors
+            for neighbor in neighbors:
+                self._network.send_bounty_path(
+                    self.name, neighbor, self.name, neighbor, target_id, size, time
+                )

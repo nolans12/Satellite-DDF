@@ -1,7 +1,6 @@
 # Import classes
 import copy
 import pathlib
-import time
 from concurrent import futures
 
 import numpy as np
@@ -10,6 +9,7 @@ import pulp
 from astropy import units as u
 from sklearn import neighbors
 
+from common import timer
 from common.predictors import state_transition
 from phase3 import collection
 from phase3 import comms
@@ -156,29 +156,23 @@ class Environment:
             time_step = self.time - t_net
             self.time = t_net
 
-            print('Propagating...')
-            s = time.time()
-            # Propagate the environments positions
-            self.propagate(time_step)
-            print(f'Propagating Time: {time.time() - s:.2f}')
+            with timer.Timer('Propagating'):
+                # Propagate the environments positions
+                self.propagate(time_step)
 
-            print('Collecting Measurements...')
-            s = time.time()
-            # Get the measurements from the satellites
-            self.collect_all_measurements()
-            print(f'Collecting Measurements Time: {time.time() - s:.2f}')
+            with timer.Timer('Collecting Measurements'):
+                # Get the measurements from the satellites
+                self.collect_all_measurements()
 
             if self._config.estimator is sim_config.Estimators.FEDERATED:
-                print('Federated Processing...')
-                s = time.time()
-                # Have the sensing satellites send their measurements to the fusion satellites
-                self.transport_measurements_to_fusion()
-                print(f'Federated Processing Time: {time.time() - s:.2f}')
+                with timer.Timer('Federated Processing'):
+                    # Have the sensing satellites send their measurements to the fusion satellites
+                    self.transport_measurements_to_fusion()
 
                 if self._config.do_ekfs:
-                    print('Processing Measurements...')
-                    # Have the fusion satellites process their measurements
-                    self.process_fusion_measurements()
+                    with timer.Timer('Processing Measurements'):
+                        # Have the fusion satellites process their measurements
+                        self.process_fusion_measurements()
                 else:
                     print('No processing done, perfect data')
                     # Give the fusion satellites perfect data
@@ -186,13 +180,13 @@ class Environment:
 
                 # Only update custodies and bounties every plan time
                 if self.time.value % self._config.plan_horizon_m == 0:
-                    print("Planning...")
-                    # Update custodies and fuse throughout fusion layer
-                    self.update_custodies_and_fuse()
+                    with timer.Timer('Planning Custodies'):
+                        # Update custodies and fuse throughout fusion layer
+                        self.update_custodies_and_fuse()
 
-                    print('Updating Bounties...')
-                    # Process the bounties queued on the network
-                    self.update_bounties()
+                    with timer.Timer('Updating Bounties'):
+                        # Process the bounties queued on the network
+                        self.update_bounties()
 
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
@@ -698,6 +692,7 @@ class Environment:
         # Collect all satellite positions in an Nx3 array
         sat_positions = np.array([sat.pos for sat in self._sensing_sats])
 
+        # TODO: Compute this
         POS_TO_FOV_EDGE_KM = 2565  # Empirically found by printing in `sensor.py`; adjust with different altitudes!
         neighbor_indices = tree.query_radius(sat_positions, r=POS_TO_FOV_EDGE_KM)
 
@@ -749,52 +744,6 @@ class Environment:
 
             for fut in futs:
                 fut.result()
-
-    def perfect_target_data(self):
-        """
-        Give the fusion satellites perfect data for the targets.
-        """
-        for sat in self._fusion_sats:
-            # Did it recieve any measurements?
-            data_received = sat._network.receive_measurements(sat.name, self.time.value)
-            if not data_received:
-                continue
-
-            # Get unique target IDs from received data
-            target_ids = {meas.target_id for meas in data_received}
-
-            for target_id in target_ids:
-                # Find the target
-                targ = next(
-                    (targ for targ in self._targs if targ.target_id == target_id), None
-                )
-                if targ is None:
-                    continue
-
-                # Get the exact state of the target
-                targ_state = targ._state_hist.iloc[-1]
-                targ_time = targ_state.iloc[0]
-                # Reorder from [x,y,z,vx,vy,vz] to [x,vx,y,vy,z,vz]
-                est = np.array(
-                    [
-                        targ_state.iloc[1],  # x
-                        targ_state.iloc[4],  # vx
-                        targ_state.iloc[2],  # y
-                        targ_state.iloc[5],  # vy
-                        targ_state.iloc[3],  # z
-                        targ_state.iloc[6],  # vz
-                    ]
-                )
-
-                # Apply this to the estimator
-                sat._estimator.save_current_estimation_data(
-                    target_id,
-                    targ_time,
-                    est,
-                    np.eye(6),
-                    np.zeros(2),
-                    np.eye(2),
-                )
 
     def perfect_target_data(self):
         """
