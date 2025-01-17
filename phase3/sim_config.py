@@ -149,26 +149,28 @@ class SimConfig:
         self,
         sim_duration_m: int | None = None,
         output_prefix: str | None = None,
+        show_live: bool | None = None,
+        plots: list[PlotType] | None = None,
+        gifs: list[GifType] | None = None,
     ) -> 'SimConfig':
         return SimConfig(
             sim_duration_m=sim_duration_m or self.sim_duration_m,
             sim_time_step_m=self.sim_time_step_m,
             plot=PlotConfig(
                 output_prefix=output_prefix or self.plot.output_prefix,
+                show_live=show_live or self.plot.show_live,
                 show_comms=self.plot.show_comms,
-                show_only_fusion=self.plot.show_only_fusion,
+                plots=plots or self.plot.plots,
+                gifs=gifs or self.plot.gifs,
             ),
             comms=self.comms,
             estimator=self.estimator,
-            raids=self.raids,
+            raid_regions=self.raid_regions,
             sensors=self.sensors,
             sensing_satellites=self.sensing_satellites,
             fusion_satellites=self.fusion_satellites,
             commanders_intent=self.commanders_intent,
             ground_stations=self.ground_stations,
-            plan_horizon_m=self.plan_horizon_m,
-            do_ekfs=self.do_ekfs,
-            exchange_rate=self.exchange_rate,
         )
 
 
