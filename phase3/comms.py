@@ -1,6 +1,5 @@
 import itertools
 import logging
-import threading
 from typing import Generic, Protocol, Sequence, TypeVar, overload
 
 import networkx as nx
@@ -77,16 +76,6 @@ class Comms(Generic[S, F, G]):
             self.G.add_node(node)
         self.update_edges()
 
-        # Concurrency handling
-        self._lock = threading.Lock()
-
-    def __enter__(self):
-        self._lock.acquire()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._lock.release()
-
     def send_measurements_path(
         self,
         measurements: list[collection.Measurement],
@@ -125,7 +114,7 @@ class Comms(Generic[S, F, G]):
         Send a measurement through a pair of satellites in the network.
         """
         # Should only enter this if valid path that doesnt violate bandwidth constraints... so dont check
-        # print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
+        print(f'Sending {size} bytes from {sender} to {receiver} at time {time}')
 
         # Set the edge to be active
         self.G[sender][receiver]['active'] = "Measurement"

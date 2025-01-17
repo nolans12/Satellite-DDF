@@ -24,12 +24,8 @@ black==24.8.0
     # via satellite_ddf (pyproject.toml)
 build==1.2.2.post1
     # via pip-tools
-cartopy==0.24.1
-    # via satellite_ddf (pyproject.toml)
 certifi==2024.8.30
-    # via
-    #   pyproj
-    #   requests
+    # via requests
 cffi==1.17.1
     # via cryptography
 charset-normalizer==3.3.2
@@ -79,8 +75,6 @@ jeepney==0.8.0
     # via
     #   keyring
     #   secretstorage
-joblib==1.4.2
-    # via scikit-learn
 jplephem==2.22
     # via poliastro
 keyring==25.4.1
@@ -99,7 +93,6 @@ marshmallow-dataclass==8.7.1
     # via satellite_ddf (pyproject.toml)
 matplotlib==3.9.2
     # via
-    #   cartopy
     #   poliastro
     #   satellite_ddf (pyproject.toml)
 matplotlib-inline==0.1.7
@@ -128,7 +121,6 @@ numpy==1.26.4
     # via
     #   astropy
     #   astroquery
-    #   cartopy
     #   contourpy
     #   imageio
     #   jax
@@ -140,9 +132,7 @@ numpy==1.26.4
     #   pandas
     #   poliastro
     #   pyerfa
-    #   scikit-learn
     #   scipy
-    #   shapely
 opt-einsum==3.4.0
     # via jax
 packaging==24.1
@@ -150,7 +140,6 @@ packaging==24.1
     #   astropy
     #   black
     #   build
-    #   cartopy
     #   marshmallow
     #   matplotlib
     #   plotly
@@ -201,8 +190,6 @@ pygments==2.18.0
     #   rich
 pyparsing==3.1.4
     # via matplotlib
-pyproj==3.7.0
-    # via cartopy
 pyproject-hooks==1.2.0
     # via
     #   build
@@ -213,8 +200,6 @@ pyqt6-qt6==6.7.3
     # via pyqt6
 pyqt6-sip==13.8.0
     # via pyqt6
-pyshp==2.3.1
-    # via cartopy
 python-dateutil==2.9.0.post0
     # via
     #   matplotlib
@@ -225,8 +210,6 @@ pyvo==1.5.2
     # via astroquery
 pyyaml==6.0.2
     # via astropy
-pyzmq==26.2.0
-    # via satellite_ddf (pyproject.toml)
 requests==2.32.3
     # via
     #   astroquery
@@ -235,19 +218,14 @@ rich==13.9.2
     # via rich-click
 rich-click==1.8.3
     # via satellite_ddf (pyproject.toml)
-scikit-learn==1.6.1
-    # via satellite_ddf (pyproject.toml)
 scipy==1.14.1
     # via
     #   jax
     #   jaxlib
     #   poliastro
     #   satellite_ddf (pyproject.toml)
-    #   scikit-learn
 secretstorage==3.3.3
     # via keyring
-shapely==2.0.6
-    # via cartopy
 six==1.16.0
     # via
     #   asttokens
@@ -261,8 +239,6 @@ sympy==1.13.3
     # via satellite_ddf (pyproject.toml)
 tenacity==9.0.0
     # via plotly
-threadpoolctl==3.5.0
-    # via scikit-learn
 tomli==2.0.2
     # via
     #   black
@@ -300,4 +276,4 @@ zipp==3.20.2
 # The following packages are considered to be unsafe in a requirements file:
 # pip
 # setuptools
-# 50f95cb8e476951c69c47af22060e093960d492d04c118f4768f9f648afc3f8a  requirements.txt
+# 3519c58b81456c0e66616e10312a357fc2163238b27b758caa16a5a50bb27d4c  requirements.txt

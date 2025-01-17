@@ -1,15 +1,13 @@
 # Import classes
 import copy
 import pathlib
-from concurrent import futures
+import time
 
 import numpy as np
 import pandas as pd
 import pulp
 from astropy import units as u
-from sklearn import neighbors
 
-from common import timer
 from common.predictors import state_transition
 from phase3 import collection
 from phase3 import comms
@@ -156,37 +154,33 @@ class Environment:
             time_step = self.time - t_net
             self.time = t_net
 
-            with timer.Timer('Propagating'):
-                # Propagate the environments positions
-                self.propagate(time_step)
+            # Propagate the environments positions
+            self.propagate(time_step)
 
-            with timer.Timer('Collecting Measurements'):
-                # Get the measurements from the satellites
-                self.collect_all_measurements()
+            # Get the measurements from the satellites
+            self.collect_all_measurements()
 
             if self._config.estimator is sim_config.Estimators.FEDERATED:
-                with timer.Timer('Federated Processing'):
-                    # Have the sensing satellites send their measurements to the fusion satellites
-                    self.transport_measurements_to_fusion()
+
+                # Have the sensing satellites send their measurements to the fusion satellites
+                self.transport_measurements_to_fusion()
 
                 if self._config.do_ekfs:
-                    with timer.Timer('Processing Measurements'):
-                        # Have the fusion satellites process their measurements
-                        self.process_fusion_measurements()
+                    # Have the fusion satellites process their measurements
+                    self.process_fusion_measurements()
                 else:
-                    print('No processing done, perfect data')
                     # Give the fusion satellites perfect data
                     self.perfect_target_data()
 
                 # Only update custodies and bounties every plan time
                 if self.time.value % self._config.plan_horizon_m == 0:
-                    with timer.Timer('Planning Custodies'):
-                        # Update custodies and fuse throughout fusion layer
-                        self.update_custodies_and_fuse()
+                    print("Planning...")
 
-                    with timer.Timer('Updating Bounties'):
-                        # Process the bounties queued on the network
-                        self.update_bounties()
+                    # Update custodies and fuse throughout fusion layer
+                    self.update_custodies_and_fuse()
+
+                    # Process the bounties queued on the network
+                    self.update_bounties()
 
             if self._config.estimator is sim_config.Estimators.CENTRAL:
                 self.central_fusion()
@@ -214,26 +208,17 @@ class Environment:
         # Get the float value
         time_val = self.time.value
 
-        with futures.ThreadPoolExecutor() as executor:
-            # Propagate the targets
-            targ_results = executor.map(
-                lambda targ: targ.propagate(time_step, time_val), self._targs
-            )
+        # Propagate the targets' positions
+        for targ in self._targs:
+            targ.propagate(
+                time_step, time_val
+            )  # Propagate and store the history of target time and xyz position and velocity
 
-            # Propagate the sensing satellites
-            sens_results = executor.map(
-                lambda sat: sat.propagate(time_step, time_val), self._sensing_sats
-            )
-
-            # Propagate the fusion satellites
-            fusion_results = executor.map(
-                lambda sat: sat.propagate(time_step, time_val), self._fusion_sats
-            )
-
-            # The `*_results` objects are iterators; consume them to ensure exceptions are raised
-            list(targ_results)
-            list(sens_results)
-            list(fusion_results)
+        # Propagate the satellites
+        for sat in self._sensing_sats + self._fusion_sats:
+            sat.propagate(
+                time_step, time_val
+            )  # Propagate and store the history of satellite time and xyz position and velocity
 
         # Update the communication network for the new sat positions
         self._comms.update_edges()
@@ -252,10 +237,10 @@ class Environment:
         # - Returns a dictionary mapping from targetID to the closest fusion satellite
         # custody_assignments = self.closest_fusion_custody(target_estimates)
         custody_assignments = self.short_horizon_custody(
-            target_estimates, u.Quantity(self._config.plan_horizon_m, u.minute), 5
+            target_estimates, self._config.plan_horizon_m * u.minute, 5
         )
         # custody_assignments = self.short_horizon_a_star(
-        #     target_estimates, u.Quantity(self._config.plan_horizon_m, u.minute), 5
+        #     target_estimates, self._config.plan_horizon_m * u.minute, 5
         # )
 
         # CUSTODY HANDOFF:
@@ -684,71 +669,24 @@ class Environment:
         """
         Collect measurements from the satellites.
         """
-        # Filter out targets not within the distance between the satellite and its FOV cone
-        tree = neighbors.BallTree(
-            np.array([targ.pos for targ in self._targs]), metric='euclidean'
-        )
-
-        # Collect all satellite positions in an Nx3 array
-        sat_positions = np.array([sat.pos for sat in self._sensing_sats])
-
-        # Compute the distance between the sensing satellites
-        # and the edge of the FOV on the surface of the Earth
-        # NOTE: This assumes all sensing sats are at the same altitude
-        a_sat = next(iter(self._sensing_sats))
-        proj_box = a_sat.get_projection_box()
-        assert proj_box is not None
-        pos_to_fov_edge_km = np.linalg.norm(proj_box[1] - proj_box[0])
-        neighbor_indices = tree.query_radius(sat_positions, r=pos_to_fov_edge_km)
-
-        with futures.ThreadPoolExecutor() as executor:
-            # Store your foot-gun futures
-            futs = []
-
-            for sat, indices in zip(self._sensing_sats, neighbor_indices):
-                if not indices.size:
-                    continue
-                futs.append(
-                    executor.submit(
-                        sat.collect_all_measurements,
-                        [self._targs[idx].target_id for idx in indices],
-                        [self._targs[idx].pos for idx in indices],
-                        self.time.value,
-                    )
-                )
-
-            for fut in futs:
-                fut.result()
+        for sat in self._sensing_sats:
+            for targ in self._targs:
+                sat.collect_measurements(targ.target_id, targ.pos, self.time.value)
 
     def transport_measurements_to_fusion(self) -> None:
         """
         Transport measurements from the sensing satellites to the fusion satellites.
         """
-        with futures.ThreadPoolExecutor() as executor:
-            # Store your foot-gun futures
-            futs = []
-
-            for sat in self._sensing_sats:
-                futs.append(
-                    executor.submit(sat.send_all_meas_to_fusion, self.time.value)
-                )
-
-            for fut in futs:
-                fut.result()
+        for sat in self._sensing_sats:
+            for targ in self._targs:
+                sat.send_meas_to_fusion(targ.target_id, self.time.value)
 
     def process_fusion_measurements(self) -> None:
         """
         Process the measurements from the fusion satellites.
         """
-        with futures.ThreadPoolExecutor() as executor:
-            # Store your foot-gun futures
-            futs = []
-
-            for sat in self._fusion_sats:
-                futs.append(executor.submit(sat.process_measurements, self.time.value))
-
-            for fut in futs:
-                fut.result()
+        for sat in self._fusion_sats:
+            sat.process_measurements(self.time.value)
 
     def perfect_target_data(self):
         """
