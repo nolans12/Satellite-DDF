@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from astropy import units as u
 from numpy import typing as npt
+from sklearn import neighbors
 
 from common import dataclassframe
 from phase3 import collection
@@ -104,14 +105,40 @@ class SensingSatellite(Satellite):
         )  # targetID: satID (name), who this sat should talk to if they see the target
         self._sensor = sensor
 
+        self._measured_target_ids = set()
+
         # Data frame for measurements
         self._measurement_hist = dataclassframe.DataClassFrame(
             clz=collection.Measurement
         )
 
+    def collect_all_measurements(
+        self,
+        target_ids: list[str],
+        target_ground_truth_positions: list[npt.NDArray],
+        time: float,
+    ) -> None:
+        """
+        Collect measurements from the sensor for all specified targets.
+
+        Args:
+            target_ids: List of target IDs to collect measurements for.
+            target_ground_truth_positions: List of ground truth positions for each target.
+            time: Time at which to collect measurements.
+        """
+        self._measured_target_ids.clear()
+
+        for target_id, target_ground_truth_pos in zip(
+            target_ids, target_ground_truth_positions
+        ):
+            # Use a more precise conic FOV check
+            m = self.collect_measurements(target_id, target_ground_truth_pos, time)
+            if m is not None:
+                self._measured_target_ids.add(target_id)
+
     def collect_measurements(
         self, target_id: str, target_ground_truth_pos: npt.NDArray, time: float
-    ) -> None:
+    ) -> npt.NDArray | None:
         """
         Collect measurements from the sensor for a specified target.
 
@@ -122,7 +149,7 @@ class SensingSatellite(Satellite):
             target_ground_truth_pos: Ground truth position of the target (used for simulating the measurement).
 
         Returns:
-            Flag indicating whether measurements were successfully collected or not.
+            The measurement if the target is within the sensor's field of view, otherwise None.
         """
         assert self._sensor is not None
 
@@ -156,6 +183,8 @@ class SensingSatellite(Satellite):
                 )
             )
 
+        return measurement
+
     def update_bounties(self, time: float) -> None:
         """
         Update the bounty for each target.
@@ -185,12 +214,17 @@ class SensingSatellite(Satellite):
         Returns:
             List of tuples containing (target_id, source_satellite) for each bounty.
         """
-        bounties = self._network.bounties.loc[
-            (self._network.bounties['time'] == time)
-            & (self._network.bounties['destination'] == self.name)
-        ]
+        with self._network:
+            bounties = self._network.bounties.loc[
+                (self._network.bounties['time'] == time)
+                & (self._network.bounties['destination'] == self.name)
+            ]
 
         return list(zip(bounties['target_id'].tolist(), bounties['source'].tolist()))
+
+    def send_all_meas_to_fusion(self, time: float) -> None:
+        for target_id in self._measured_target_ids:
+            self.send_meas_to_fusion(target_id, time)
 
     def send_meas_to_fusion(self, target_id: str, time: float) -> None:
         """
@@ -201,35 +235,37 @@ class SensingSatellite(Satellite):
         measurements = self.get_measurements(target_id=target_id, time=time)
 
         if measurements:
-            # Check, does this sat have a bounty on this target?
-            if target_id in self.bounty:
-                # If so, send the measurements to the fusion satellite
-                sat_id = self.bounty[target_id]
-                self._network.send_measurements_path(
-                    measurements,
-                    self.name,  # source
-                    sat_id,  # destination
-                    time=time,
-                    size=50 * len(measurements),
-                )
-            else:
-                # Just send to nearest fusion satellite
+            with self._network:
+                # Check, does this sat have a bounty on this target?
+                if target_id in self.bounty:
+                    # If so, send the measurements to the fusion satellite
+                    sat_id = self.bounty[target_id]
+                    self._network.send_measurements_path(
+                        measurements,
+                        self.name,  # source
+                        sat_id,  # destination
+                        time=time,
+                        size=50 * len(measurements),
+                    )
+                else:
+                    # Just send to nearest fusion satellite
 
-                neighbors = self._get_neighbors(sat_type="fusion")
-                nearest_fusion_sat = min(
-                    neighbors, key=lambda x: self._network.get_distance(self.name, x)
-                )
-                self._network.send_measurements_path(
-                    measurements,
-                    self.name,  # source
-                    nearest_fusion_sat,  # destination
-                    time=time,
-                    size=50 * len(measurements),
-                )
+                    neighbors = self._get_neighbors(sat_type="fusion")
+                    nearest_fusion_sat = min(
+                        neighbors,
+                        key=lambda x: self._network.get_distance(self.name, x),
+                    )
+                    self._network.send_measurements_path(
+                        measurements,
+                        self.name,  # source
+                        nearest_fusion_sat,  # destination
+                        time=time,
+                        size=50 * len(measurements),
+                    )
 
-                print(
-                    f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
-                )
+                    print(
+                        f"Sat {self.name} does not have a bounty for target {target_id}, sending measurements to {nearest_fusion_sat}"
+                    )
 
     def get_measurements(
         self, target_id: str, time: float | None = None
@@ -278,7 +314,8 @@ class FusionSatellite(Satellite):
 
         # Find the set of measurements that were sent to this fusion satellite
         # ONLY IF DESTINATION == self.name
-        data_received = self._network.receive_measurements(self.name, time)
+        with self._network:
+            data_received = self._network.receive_measurements(self.name, time)
 
         if not data_received:
             return
@@ -307,14 +344,14 @@ class FusionSatellite(Satellite):
             time: The time at which to send the bounty.
             nearest_sens: The number of nearest sensing satellites to send the bounty to.
         """
-
-        neighbors = self._network.get_nearest(
-            position=targ_pos, sat_type="sensing", number=nearest_sens
-        )
-        size = 1  # bytes of a bounty send
-
-        # Send a bounty update to all neighbors
-        for neighbor in neighbors:
-            self._network.send_bounty_path(
-                self.name, neighbor, self.name, neighbor, target_id, size, time
+        with self._network:
+            neighbors = self._network.get_nearest(
+                position=targ_pos, sat_type="sensing", number=nearest_sens
             )
+            size = 1  # bytes of a bounty send
+
+            # Send a bounty update to all neighbors
+            for neighbor in neighbors:
+                self._network.send_bounty_path(
+                    self.name, neighbor, self.name, neighbor, target_id, size, time
+                )

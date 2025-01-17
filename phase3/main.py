@@ -57,9 +57,6 @@ def main(
     cfg.merge_overrides(
         sim_duration_m=time,
         output_prefix=output_prefix,
-        show_live=show,
-        plots=plots,
-        gifs=gifs,
     )
     # Create the environment
     env = environment.Environment.from_config(cfg)
