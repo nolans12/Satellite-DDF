@@ -692,9 +692,14 @@ class Environment:
         # Collect all satellite positions in an Nx3 array
         sat_positions = np.array([sat.pos for sat in self._sensing_sats])
 
-        # TODO: Compute this
-        POS_TO_FOV_EDGE_KM = 2565  # Empirically found by printing in `sensor.py`; adjust with different altitudes!
-        neighbor_indices = tree.query_radius(sat_positions, r=POS_TO_FOV_EDGE_KM)
+        # Compute the distance between the sensing satellites
+        # and the edge of the FOV on the surface of the Earth
+        # NOTE: This assumes all sensing sats are at the same altitude
+        a_sat = next(iter(self._sensing_sats))
+        proj_box = a_sat.get_projection_box()
+        assert proj_box is not None
+        pos_to_fov_edge_km = np.linalg.norm(proj_box[1] - proj_box[0])
+        neighbor_indices = tree.query_radius(sat_positions, r=pos_to_fov_edge_km)
 
         with futures.ThreadPoolExecutor() as executor:
             # Store your foot-gun futures
