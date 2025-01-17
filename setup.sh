@@ -41,7 +41,7 @@ function setup_python() {
     fi
 
     # Check that `python3.10`, `python3.10-venv`, and `python3-pip` are installed via apt
-    for pkg in python3.10 python3.10-venv python3-pip; do
+    for pkg in python3.10 python3.10-venv python3.10-dev python3-pip; do
         if ! dpkg -l | grep -q $pkg; then
             # Prompt user to install missing package
             echo "$pkg is not installed. Install it?"
