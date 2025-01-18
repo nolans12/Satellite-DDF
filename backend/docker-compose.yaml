@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:15
+    container_name: satelite_ddf_postgres
+    environment:
+      # Safe to expose; just don't host on a public server
+      POSTGRES_USER: simuser
+      POSTGRES_PASSWORD: simpassword
+      POSTGRES_DB: satellite_sim
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: satelite_ddf_pgadmin
+    environment:
+      # Again, just don't host on a public server
+      PGADMIN_DEFAULT_EMAIL: ryan.draves@colorado.edu
+      PGADMIN_DEFAULT_PASSWORD: password
+    ports:
+      - "1234:80" # Expose pgAdmin on port 1234
+    depends_on:
+      - db # Ensure PostgreSQL starts before pgAdmin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  postgres_data:
+  pgadmin_data:

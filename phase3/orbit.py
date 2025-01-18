@@ -1,6 +1,7 @@
 import dataclasses
 
 from astropy import units as u
+from numpy import typing as npt
 from poliastro import bodies
 from poliastro import twobody
 
@@ -26,6 +27,10 @@ class Orbit:
             self.argp,
             self.nu,
         )
+
+    @staticmethod
+    def from_vectors(r: npt.NDArray, v: npt.NDArray) -> twobody.Orbit:
+        return twobody.Orbit.from_vectors(bodies.Earth, r, v)
 
     @classmethod
     def from_sim_config(cls, config: sim_config.Orbit) -> 'Orbit':

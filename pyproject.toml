@@ -10,7 +10,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["common", "phase3"]
+packages = ["backend", "common", "phase3"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
@@ -25,3 +25,4 @@ single_line_exclusions = ["typing"]
 [project.scripts]
 satellite_ddf = "phase3.main:main"
 scenario_gen = "phase3.constellation.scenario_gen:main"
+scenario_data_gen = "phase3.generate_scenario_data:main"

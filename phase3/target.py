@@ -62,6 +62,40 @@ class Target:
 
         self._state_hist = dataclassframe.DataClassFrame(clz=collection.State)
 
+    def insert_propagation(self, state: collection.State) -> None:
+        """
+        Insert a state into the state history.
+
+        Args:
+            state: The state to insert.
+        """
+        # Convert position and velocity to range, elevation, and azimuth
+        # TODO: Test me
+        range = np.linalg.norm([state.x, state.y, state.z])
+        rangeRate = (
+            np.dot([state.x, state.y, state.z], [state.vx, state.vy, state.vz]) / range
+        )
+        elevation = np.arcsin(state.z / range)
+        elevationRate = (
+            state.z * state.vz
+            + range
+            * np.cos(elevation)
+            * np.dot([state.x, state.y], [state.vx, state.vy])
+        ) / range
+        azimuth = np.arctan2(state.y, state.x)
+        azimuthRate = (state.y * state.vy - state.x * state.vx) / (
+            range * np.cos(elevation)
+        )
+
+        self.X = np.array(
+            [range, rangeRate, elevation, elevationRate, azimuth, azimuthRate]
+        )
+
+        self.pos = np.array([state.x, state.y, state.z])
+        self.vel = np.array([state.vx, state.vy, state.vz])
+
+        self._state_hist.append(state)
+
     def propagate(
         self,
         time_step: u.Quantity[u.minute],
@@ -144,3 +178,16 @@ class Target:
                 vz=vz,
             )
         )
+
+    def get_state(self, time: float) -> collection.State:
+        """
+        Get the state of the target at a specified time.
+
+        Args:
+            time: The time to get the state at.
+
+        Returns:
+            The state of the target at the specified time.
+        """
+        df = self._state_hist.loc[self._state_hist['time'] == time]
+        return self._state_hist.to_dataclasses(df)[0]

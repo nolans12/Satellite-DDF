@@ -61,6 +61,33 @@ class Satellite:
                 filtered.append(neighbor)
         return filtered
 
+    def insert_propagation(self, state: collection.State) -> None:
+        """
+        Insert a state into the state history.
+
+        Args:
+            state: The state to insert.
+        """
+        self.orbit = orbit.Orbit.from_vectors(
+            np.array([state.x, state.y, state.z]) * u.km,
+            np.array([state.vx, state.vy, state.vz]) * u.km / u.s,
+        )
+
+        self._state_hist.append(state)
+
+    def get_state(self, time: float) -> collection.State:
+        """
+        Get the state of the satellite at a specified time.
+
+        Args:
+            time: The time to get the state at.
+
+        Returns:
+            The state of the satellite at the specified time.
+        """
+        df = self._state_hist.loc[self._state_hist['time'] == time]
+        return self._state_hist.to_dataclasses(df)[0]
+
     def propagate(self, time_step: u.Quantity[u.s], time: float):
         """
         Propagate the satellite's orbit forward in time by the given time step.
@@ -111,6 +138,16 @@ class SensingSatellite(Satellite):
         self._measurement_hist = dataclassframe.DataClassFrame(
             clz=collection.Measurement
         )
+
+    def insert_measurements(self, measurements: list[collection.Measurement]) -> None:
+        """
+        Insert measurements into the measurement history.
+
+        Args:
+            measurements: List of measurements to insert.
+        """
+        for meas in measurements:
+            self._measurement_hist.append(meas)
 
     def collect_all_measurements(
         self,
@@ -268,7 +305,7 @@ class SensingSatellite(Satellite):
                     )
 
     def get_measurements(
-        self, target_id: str, time: float | None = None
+        self, target_id: str | None, time: float | None = None
     ) -> list[collection.Measurement]:
         """
         Get all measurements for a specified target.
@@ -280,11 +317,13 @@ class SensingSatellite(Satellite):
         Returns:
             A list of measurements for the target.
         """
-        if time is not None:
+        if time is not None and target_id is not None:
             df = self._measurement_hist.loc[
                 (self._measurement_hist['target_id'] == target_id)
                 & (self._measurement_hist['time'] == time)
             ]
+        elif time is not None:
+            df = self._measurement_hist.loc[self._measurement_hist['time'] == time]
         else:
             df = self._measurement_hist.loc[
                 self._measurement_hist['target_id'] == target_id

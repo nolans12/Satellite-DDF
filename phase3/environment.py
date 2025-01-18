@@ -9,6 +9,7 @@ import pulp
 from astropy import units as u
 from sklearn import neighbors
 
+from backend import client
 from common import timer
 from common.predictors import state_transition
 from phase3 import collection
@@ -55,9 +56,10 @@ class Environment:
 
         self.timer = pd.DataFrame(columns=['time', 'federated_processing_time'])
 
+        self._db_client = client.DbClient()
+
     @classmethod
     def from_config(cls, cfg: sim_config.SimConfig) -> 'Environment':
-
         raid_regions = [
             raidRegion.RaidRegion(
                 name=name,
@@ -120,6 +122,11 @@ class Environment:
         for sat in sensing_sats + fusion_sats:
             sat.initialize(comms_network)
 
+        # Set the RNG seed
+        # NOTE: This isn't create practice, more of a stand-in
+        # https://builtin.com/data-science/numpy-random-seed
+        np.random.seed(cfg.rng_seed)
+
         # Create and return an environment instance:
         return cls(
             cfg,
@@ -141,6 +148,11 @@ class Environment:
 
         print("Simulation Started")
         print(f"Running in {self._config.estimator.name} mode")
+
+        # Attempt to connect to the database
+        self._db_client.connect()
+        if self._db_client.connected():
+            self._db_client.create_scenario(self._config)
 
         time_steps = self._config.sim_duration_m / self._config.sim_time_step_m
         # round to the nearest int
@@ -202,7 +214,52 @@ class Environment:
 
         print('Simulation Complete')
 
-    def post_process(self):
+    def simulate_for_db(self) -> None:
+        print('Generating scenario data...')
+        time_steps = self._config.sim_duration_m / self._config.sim_time_step_m
+        # round to the nearest int
+        time_steps = round(time_steps)
+        time_vec = u.Quantity(
+            np.linspace(0, self._config.sim_duration_m, time_steps + 1), u.minute
+        )
+        # Initialize based on the current time
+        time_vec = time_vec + self.time
+
+        for t_net in time_vec:
+            print(f'Time: {t_net:.2f}')
+            time_step = self.time - t_net
+            self.time = t_net
+
+            with timer.Timer('Propagating'):
+                # Propagate the environments positions
+                self.propagate(time_step)
+
+            with timer.Timer('Collecting Measurements'):
+                # Get the measurements from the satellites
+                self.collect_all_measurements()
+
+        print('Scenario data generated')
+        print('Inserting into database...')
+
+        sat_states = {
+            sat.name: sat._state_hist for sat in self._sensing_sats + self._fusion_sats
+        }
+
+        target_states = {targ.target_id: targ._state_hist for targ in self._targs}
+
+        measurements = {sat.name: sat._measurement_hist for sat in self._sensing_sats}
+
+        # Insert scenario data into the database
+        self._db_client.insert_scenario(
+            self._config,
+            sat_states,
+            target_states,
+            measurements,
+        )
+
+        print('Done!')
+
+    def post_process(self) -> None:
         self.save_data_frames(save_name=self._config.plot.output_prefix)
         # Save gifs
         self._plotter.render_gifs()
@@ -214,29 +271,87 @@ class Environment:
         # Get the float value
         time_val = self.time.value
 
-        with futures.ThreadPoolExecutor() as executor:
-            # Propagate the targets
-            targ_results = executor.map(
-                lambda targ: targ.propagate(time_step, time_val), self._targs
+        # See if the database has data for this time step
+        data = None
+        if self._db_client.connected():
+            data = self._db_client.load_time_step_states(
+                self._config.name, time_val, self._config.rng_seed
             )
+            if not len(data[0]):
+                data = None
 
-            # Propagate the sensing satellites
-            sens_results = executor.map(
-                lambda sat: sat.propagate(time_step, time_val), self._sensing_sats
-            )
+        if data:
+            # Load the data from the database
+            for sat in self._sensing_sats + self._fusion_sats:
+                sat.insert_propagation(data[0][sat.name])
 
-            # Propagate the fusion satellites
-            fusion_results = executor.map(
-                lambda sat: sat.propagate(time_step, time_val), self._fusion_sats
-            )
+            for targ in self._targs:
+                targ.insert_propagation(data[1][targ.target_id])
 
-            # The `*_results` objects are iterators; consume them to ensure exceptions are raised
-            list(targ_results)
-            list(sens_results)
-            list(fusion_results)
+        else:
+            # Propagate the satellites and targets
+            with futures.ThreadPoolExecutor() as executor:
+                # Propagate the targets
+                targ_results = executor.map(
+                    lambda targ: targ.propagate(time_step, time_val), self._targs
+                )
+
+                # Propagate the sensing satellites
+                sens_results = executor.map(
+                    lambda sat: sat.propagate(time_step, time_val), self._sensing_sats
+                )
+
+                # Propagate the fusion satellites
+                fusion_results = executor.map(
+                    lambda sat: sat.propagate(time_step, time_val), self._fusion_sats
+                )
+
+                # The `*_results` objects are iterators; consume them to ensure exceptions are raised
+                list(targ_results)
+                list(sens_results)
+                list(fusion_results)
+
+            self.insert_propagation_data(time_val)
 
         # Update the communication network for the new sat positions
         self._comms.update_edges()
+
+    def insert_propagation_data(self, time_val: float) -> None:
+        if not self._db_client.connected():
+            return
+
+        print('Inserting propagation data into database...')
+
+        sat_states = {}
+        for sat in self._sensing_sats + self._fusion_sats:
+            sat_states[sat.name] = sat.get_state(time_val)
+
+        target_states = {}
+        for targ in self._targs:
+            target_states[targ.target_id] = targ.get_state(time_val)
+
+        # Insert the propagated data into the database
+        self._db_client.insert_time_step_states(
+            self._config.name,
+            sat_states,
+            target_states,
+        )
+
+    def insert_measurement_data(self, time_val: float) -> None:
+        if not self._db_client.connected():
+            return
+
+        print('Inserting measurement data into database...')
+
+        measurements = {}
+        for sat in self._sensing_sats:
+            measurements[sat.name] = sat.get_measurements(target_id=None, time=time_val)
+
+        # Insert the measurement data into the database
+        self._db_client.insert_time_step_measurements(
+            self._config.name,
+            measurements,
+        )
 
     def update_custodies_and_fuse(self) -> None:
         """
@@ -684,41 +799,59 @@ class Environment:
         """
         Collect measurements from the satellites.
         """
-        # Filter out targets not within the distance between the satellite and its FOV cone
-        tree = neighbors.BallTree(
-            np.array([targ.pos for targ in self._targs]), metric='euclidean'
-        )
+        # See if the database has data for this time step
+        data = None
+        if self._db_client.connected():
+            data = self._db_client.load_time_step_measurements(
+                self._config.name, self.time.value, self._config.rng_seed
+            )
+            if not len(data):
+                data = None
 
-        # Collect all satellite positions in an Nx3 array
-        sat_positions = np.array([sat.pos for sat in self._sensing_sats])
+        if data:
+            # Load the data from the database
+            for sat in self._sensing_sats:
+                sat.insert_measurements(data[sat.name])
+        else:
+            # Collect measurements from the sensing satellites
 
-        # Compute the distance between the sensing satellites
-        # and the edge of the FOV on the surface of the Earth
-        # NOTE: This assumes all sensing sats are at the same altitude
-        a_sat = next(iter(self._sensing_sats))
-        proj_box = a_sat.get_projection_box()
-        assert proj_box is not None
-        pos_to_fov_edge_km = np.linalg.norm(proj_box[1] - proj_box[0])
-        neighbor_indices = tree.query_radius(sat_positions, r=pos_to_fov_edge_km)
+            # Filter out targets not within the distance between the satellite and its FOV cone
+            tree = neighbors.BallTree(
+                np.array([targ.pos for targ in self._targs]), metric='euclidean'
+            )
 
-        with futures.ThreadPoolExecutor() as executor:
-            # Store your foot-gun futures
-            futs = []
+            # Collect all satellite positions in an Nx3 array
+            sat_positions = np.array([sat.pos for sat in self._sensing_sats])
 
-            for sat, indices in zip(self._sensing_sats, neighbor_indices):
-                if not indices.size:
-                    continue
-                futs.append(
-                    executor.submit(
-                        sat.collect_all_measurements,
-                        [self._targs[idx].target_id for idx in indices],
-                        [self._targs[idx].pos for idx in indices],
-                        self.time.value,
+            # Compute the distance between the sensing satellites
+            # and the edge of the FOV on the surface of the Earth
+            # NOTE: This assumes all sensing sats are at the same altitude
+            a_sat = next(iter(self._sensing_sats))
+            proj_box = a_sat.get_projection_box()
+            assert proj_box is not None
+            pos_to_fov_edge_km = np.linalg.norm(proj_box[1] - proj_box[0])
+            neighbor_indices = tree.query_radius(sat_positions, r=pos_to_fov_edge_km)
+
+            with futures.ThreadPoolExecutor() as executor:
+                # Store your foot-gun futures
+                futs = []
+
+                for sat, indices in zip(self._sensing_sats, neighbor_indices):
+                    if not indices.size:
+                        continue
+                    futs.append(
+                        executor.submit(
+                            sat.collect_all_measurements,
+                            [self._targs[idx].target_id for idx in indices],
+                            [self._targs[idx].pos for idx in indices],
+                            self.time.value,
+                        )
                     )
-                )
 
-            for fut in futs:
-                fut.result()
+                for fut in futs:
+                    fut.result()
+
+            self.insert_measurement_data(self.time.value)
 
     def transport_measurements_to_fusion(self) -> None:
         """
