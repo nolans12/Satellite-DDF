@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements_lock.txt pyproject.toml
 #
+alembic==1.14.0
+    # via satellite_ddf (pyproject.toml)
 astropy==5.3.4
     # via
     #   astroquery
@@ -51,6 +53,8 @@ executing==2.1.0
     # via stack-data
 fonttools==4.54.1
     # via matplotlib
+greenlet==3.1.1
+    # via sqlalchemy
 html5lib==1.1
     # via astroquery
 idna==3.10
@@ -89,8 +93,12 @@ kiwisolver==1.4.7
     # via matplotlib
 llvmlite==0.43.0
     # via numba
+mako==1.3.8
+    # via alembic
 markdown-it-py==3.0.0
     # via rich
+markupsafe==3.0.2
+    # via mako
 marshmallow==3.22.0
     # via
     #   marshmallow-dataclass
@@ -183,6 +191,8 @@ prompt-toolkit==3.0.48
     # via
     #   inquirerpy
     #   ipython
+psycopg2-binary==2.9.10
+    # via satellite_ddf (pyproject.toml)
 ptyprocess==0.7.0
     # via pexpect
 pulp==2.9.0
@@ -255,6 +265,10 @@ six==1.16.0
     #   python-dateutil
 soupsieve==2.6
     # via beautifulsoup4
+sqlalchemy==2.0.37
+    # via
+    #   alembic
+    #   satellite_ddf (pyproject.toml)
 stack-data==0.6.3
     # via ipython
 sympy==1.13.3
@@ -276,10 +290,12 @@ typeguard==4.3.0
     # via marshmallow-dataclass
 typing-extensions==4.12.2
     # via
+    #   alembic
     #   black
     #   marshmallow-dataclass
     #   rich
     #   rich-click
+    #   sqlalchemy
     #   typeguard
     #   typing-inspect
 typing-inspect==0.9.0
@@ -300,4 +316,4 @@ zipp==3.20.2
 # The following packages are considered to be unsafe in a requirements file:
 # pip
 # setuptools
-# 50f95cb8e476951c69c47af22060e093960d492d04c118f4768f9f648afc3f8a  requirements.txt
+# 98b78b1a11d6324f4f3935c6c2964a28c7cb75b47e19e410912067750627ff9d  requirements.txt

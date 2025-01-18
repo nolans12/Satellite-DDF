@@ -1,3 +1,4 @@
+alembic>=1.14.0,<2
 astropy>=5.3.4,<6
 black>=24.8.0,<25
 Cartopy>=0.24.1,<1
@@ -15,6 +16,7 @@ networkx>=3.3,<4
 pillow>=10.3.0,<11
 pip-tools>=7.4.1,<8
 poliastro>=0.17.0,<1
+psycopg2-binary>=2.9.10,<3
 PuLP>=2.9.0,<3
 # Matplotlib backend
 PyQt6>=6.7.1,<7
@@ -22,4 +24,5 @@ pyzmq>=26.2.0,<27
 rich-click>=1.8.3,<2
 scikit-learn>=1.6.1,<2
 scipy>=1.13.0,<2
+SQLAlchemy>=2.0.37,<3
 sympy>=1.12.1,<2

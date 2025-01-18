@@ -1,3 +1,4 @@
+name: default
 commanders_intent:
   0:
     1: 175
@@ -2711,3 +2712,4 @@ sensors:
     fov: 115
 sim_duration_m: 1
 sim_time_step_m: 0.1
+rng_seed: 1337
